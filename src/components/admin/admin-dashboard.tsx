@@ -146,7 +146,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
 
   return (
-    <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
+    <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflow: 'hidden' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 4 }}>
         <Logo />
         {onClose && <IconButton onClick={onClose} aria-label="Close navigation"><CloseRounded /></IconButton>}
@@ -180,7 +180,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
 
 const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, onClose }) => (
   <>
-    <Box component="aside" sx={{ display: { xs: 'none', md: 'block' }, flexShrink: 0, borderRight: 1, borderColor: 'divider' }}>
+    <Box component="aside" sx={{ display: { xs: 'none', md: 'block' }, position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: (theme) => theme.zIndex.drawer, borderRight: 1, borderColor: 'divider' }}>
       <SidebarContent />
     </Box>
     <Drawer open={mobileOpen} onClose={onClose} ModalProps={{ keepMounted: true }} sx={{ display: { xs: 'block', md: 'none' } }}>
@@ -253,7 +253,7 @@ const AdminDashboard: FC = () => {
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh', display: 'flex' }}>
       <AdminSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <Box component="section" sx={{ minWidth: 0, flex: 1 }}>
+      <Box component="section" sx={{ minWidth: 0, flex: 1, ml: { xs: 0, md: '248px' } }}>
         <AdminHeader onMenuClick={() => setMobileOpen(true)} />
         <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
