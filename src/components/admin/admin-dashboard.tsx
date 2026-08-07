@@ -183,11 +183,6 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
           )
         })}
       </Stack>
-      <Divider sx={{ my: 2 }} />
-      <Stack spacing={0.25}>
-        <ButtonBase onClick={onClose} sx={menuButtonSx}><AccountCircleOutlined fontSize="small" sx={{ mr: 1.5 }} /><Typography variant="subtitle2">Profile</Typography></ButtonBase>
-        <ButtonBase onClick={onClose} sx={menuButtonSx}><Typography variant="subtitle2">Logout</Typography></ButtonBase>
-      </Stack>
     </Box>
   )
 }
