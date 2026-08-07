@@ -25,8 +25,6 @@ import CloseRounded from '@mui/icons-material/CloseRounded'
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined'
 import MenuRounded from '@mui/icons-material/MenuRounded'
 import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
-import PeopleOutline from '@mui/icons-material/PeopleOutline'
-import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import { Logo } from '@/components/logo'
 
 interface StatCardProps {
@@ -126,43 +124,48 @@ interface AdminSidebarProps {
 }
 
 const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
-  const menuItems = [
-    { label: 'Dashboard', icon: <DashboardOutlined fontSize="small" /> },
-    { label: 'Students', icon: <PeopleOutline fontSize="small" /> },
-    { label: 'Teachers', icon: <SchoolOutlined fontSize="small" /> },
-    { label: 'Settings', icon: <SettingsOutlined fontSize="small" /> },
+  const menuGroups = [
+    { label: 'User Management', items: ['All Users', 'Roles & Permissions'] },
+    { label: 'Students', items: ['All Students', 'Student Enrollment', 'Student Progress'] },
+    { label: 'Parents', items: ['All Parents', 'Parent-Student Link'] },
+    { label: 'Teachers', items: ['All Teachers', 'Teacher Assignments'] },
+    { label: 'Academic', items: ['Grades', 'Subjects', 'Chapters', 'Lessons'] },
+    { label: 'Assessments', items: ['Question Bank', 'Quizzes', 'Exams', 'Assignments'] },
+    { label: 'Reports & Analytics', items: ['Student Reports', 'Teacher Reports', 'Course Reports', 'Performance Analytics'] },
+    { label: 'Settings', items: ['General', 'School Information', 'Email', 'Security', 'Backup'] },
   ]
 
+  const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
+
   return (
-    <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper' }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 5 }}>
+    <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 4 }}>
         <Logo />
         {onClose && <IconButton onClick={onClose} aria-label="Close navigation"><CloseRounded /></IconButton>}
       </Stack>
-      <Typography variant="caption" color="text.disabled" sx={{ px: 1.5, textTransform: 'uppercase', letterSpacing: 1.2 }}>Overview</Typography>
-      <Stack spacing={0.75} sx={{ mt: 1.5 }}>
-        {menuItems.map(({ label, icon }, index) => (
-          <ButtonBase
-            key={label}
-            onClick={onClose}
-            sx={{
-              justifyContent: 'flex-start',
-              width: '100%',
-              p: 1.25,
-              borderRadius: 2,
-              color: index === 0 ? 'primary.contrastText' : 'text.secondary',
-              backgroundColor: index === 0 ? 'primary.main' : 'transparent',
-              '&:hover': { backgroundColor: index === 0 ? 'primary.main' : 'background.default' },
-            }}
-          >
-            <Box sx={{ display: 'flex', mr: 1.5 }}>{icon}</Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{label}</Typography>
-          </ButtonBase>
+      <ButtonBase onClick={onClose} sx={{ ...menuButtonSx, color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' }, mb: 2 }}>
+        <DashboardOutlined fontSize="small" sx={{ mr: 1.5 }} />
+        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Dashboard</Typography>
+      </ButtonBase>
+      <Stack spacing={2}>
+        {menuGroups.map(({ label, items }) => (
+          <Box key={label}>
+            <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
+            <Stack spacing={0.25} sx={{ mt: 0.5 }}>
+              {items.map((item) => (
+                <ButtonBase key={item} onClick={onClose} sx={menuButtonSx}>
+                  <Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>{item}</Typography>
+                </ButtonBase>
+              ))}
+            </Stack>
+          </Box>
         ))}
       </Stack>
-      <Box sx={{ mt: 'auto', pt: 4 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ px: 1.5 }}>Coursespace Admin</Typography>
-      </Box>
+      <Divider sx={{ my: 2 }} />
+      <Stack spacing={0.25}>
+        <ButtonBase onClick={onClose} sx={menuButtonSx}><AccountCircleOutlined fontSize="small" sx={{ mr: 1.5 }} /><Typography variant="subtitle2">Profile</Typography></ButtonBase>
+        <ButtonBase onClick={onClose} sx={menuButtonSx}><Typography variant="subtitle2">Logout</Typography></ButtonBase>
+      </Stack>
     </Box>
   )
 }
