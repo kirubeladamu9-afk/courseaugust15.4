@@ -56,7 +56,7 @@ const StatCard: FC<StatCardProps> = ({ label, value, change, icon, tone }) => (
           </Typography>
         </Stack>
       </Box>
-      <Box sx={{ ...toneStyles[tone], width: 44, height: 44, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ ...toneStyles[tone], backgroundColor: '#ffffff', width: 44, height: 44, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {icon}
       </Box>
     </Stack>
