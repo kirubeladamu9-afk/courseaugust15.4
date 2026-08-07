@@ -209,7 +209,7 @@ const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
         backgroundColor: 'background.paper',
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, md: 2 }} sx={{ minHeight: 48 }}>
+      <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, md: 2 }} sx={{ minHeight: 48, position: 'relative' }}>
         <IconButton onClick={onMenuClick} aria-label="Open navigation"><MenuRounded /></IconButton>
         <Typography variant="h5" sx={{ fontSize: { xs: '1rem', sm: '1.2rem' }, whiteSpace: 'nowrap' }}>Dashboard Overview</Typography>
         <Box
@@ -228,7 +228,7 @@ const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
           <SearchRounded sx={{ color: 'text.disabled', mr: 1 }} />
           <InputBase fullWidth placeholder="Search students, lessons, quizzes..." inputProps={{ 'aria-label': 'Search dashboard records' }} sx={{ py: 0.75, fontSize: '0.85rem' }} />
         </Box>
-        <Stack direction="row" alignItems="center" spacing={{ xs: 0.25, md: 1 }} sx={{ ml: 'auto', flexShrink: 0 }}>
+        <Stack direction="row" alignItems="center" spacing={{ xs: 0.25, md: 1 }} sx={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', flexShrink: 0, backgroundColor: 'background.paper' }}>
           <IconButton aria-label="Search" sx={{ display: { xs: 'inline-flex', sm: 'none' } }}><SearchRounded /></IconButton>
           <IconButton aria-label="Language" sx={{ display: { xs: 'none', md: 'inline-flex' } }}><TranslateOutlined /></IconButton>
           <IconButton aria-label={darkMode ? 'Use light mode' : 'Use dark mode'} onClick={() => setDarkMode(!darkMode)}>
