@@ -215,7 +215,7 @@ const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
         <Box
           sx={{
             ml: { xs: 'auto', sm: 2 },
-            mr: 'auto',
+            mr: 0,
             display: { xs: 'none', sm: 'flex' },
             alignItems: 'center',
             width: '100%',
@@ -228,20 +228,22 @@ const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
           <SearchRounded sx={{ color: 'text.disabled', mr: 1 }} />
           <InputBase fullWidth placeholder="Search students, lessons, quizzes..." inputProps={{ 'aria-label': 'Search dashboard records' }} sx={{ py: 0.75, fontSize: '0.85rem' }} />
         </Box>
-        <IconButton aria-label="Search" sx={{ display: { xs: 'inline-flex', sm: 'none' } }}><SearchRounded /></IconButton>
-        <IconButton aria-label="Language" sx={{ display: { xs: 'none', md: 'inline-flex' } }}><TranslateOutlined /></IconButton>
-        <IconButton aria-label={darkMode ? 'Use light mode' : 'Use dark mode'} onClick={() => setDarkMode(!darkMode)}>
-          {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
-        </IconButton>
-        <IconButton aria-label="Notifications">
-          <Badge badgeContent={4} color="primary"><NotificationsNoneOutlined /></Badge>
-        </IconButton>
-        <IconButton aria-label="Open profile menu" onClick={(event) => setProfileAnchor(event.currentTarget)}>
-          <AccountCircleOutlined color="primary" />
-        </IconButton>
-        <Menu anchorEl={profileAnchor} open={profileOpen} onClose={() => setProfileAnchor(null)}>
-          {['Profile', 'My Account', 'Change Password', 'Settings', 'Logout'].map((item) => <MenuItem key={item} onClick={() => setProfileAnchor(null)}>{item}</MenuItem>)}
-        </Menu>
+        <Stack direction="row" alignItems="center" spacing={{ xs: 0.25, md: 1 }} sx={{ ml: 'auto', flexShrink: 0 }}>
+          <IconButton aria-label="Search" sx={{ display: { xs: 'inline-flex', sm: 'none' } }}><SearchRounded /></IconButton>
+          <IconButton aria-label="Language" sx={{ display: { xs: 'none', md: 'inline-flex' } }}><TranslateOutlined /></IconButton>
+          <IconButton aria-label={darkMode ? 'Use light mode' : 'Use dark mode'} onClick={() => setDarkMode(!darkMode)}>
+            {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
+          </IconButton>
+          <IconButton aria-label="Notifications">
+            <Badge badgeContent={4} color="primary"><NotificationsNoneOutlined /></Badge>
+          </IconButton>
+          <IconButton aria-label="Open profile menu" onClick={(event) => setProfileAnchor(event.currentTarget)}>
+            <AccountCircleOutlined color="primary" />
+          </IconButton>
+          <Menu anchorEl={profileAnchor} open={profileOpen} onClose={() => setProfileAnchor(null)}>
+            {['Profile', 'My Account', 'Change Password', 'Settings', 'Logout'].map((item) => <MenuItem key={item} onClick={() => setProfileAnchor(null)}>{item}</MenuItem>)}
+          </Menu>
+        </Stack>
       </Stack>
     </Paper>
   )
