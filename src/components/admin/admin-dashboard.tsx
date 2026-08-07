@@ -11,7 +11,6 @@ import Typography from '@mui/material/Typography'
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined'
 import SchoolOutlined from '@mui/icons-material/SchoolOutlined'
 import FamilyRestroomOutlined from '@mui/icons-material/FamilyRestroomOutlined'
-import MenuBookOutlined from '@mui/icons-material/MenuBookOutlined'
 import PlayLessonOutlined from '@mui/icons-material/PlayLessonOutlined'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
 import PersonAddAltOutlined from '@mui/icons-material/PersonAddAltOutlined'
@@ -131,12 +130,10 @@ const AdminDashboard: FC = () => {
         </Stack>
 
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6} md={4} lg={2}><StatCard label="Total Students" value="2,480" change="12.5%" tone="primary" icon={<PeopleAltOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={4} lg={2}><StatCard label="Total Teachers" value="186" change="8.2%" tone="secondary" icon={<SchoolOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={4} lg={2}><StatCard label="Total Parents" value="1,920" change="6.4%" tone="success" icon={<FamilyRestroomOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={4} lg={2}><StatCard label="Total Subjects" value="42" change="4.1%" tone="warning" icon={<MenuBookOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={4} lg={2}><StatCard label="Total Lessons" value="864" change="10.8%" tone="secondary" icon={<PlayLessonOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={4} lg={2}><StatCard label="Active Users" value="1,842" change="14.2%" tone="success" icon={<InsightsOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Students" value="2,480" change="12.5%" tone="primary" icon={<PeopleAltOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Teachers" value="186" change="8.2%" tone="secondary" icon={<SchoolOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Parents" value="1,920" change="6.4%" tone="success" icon={<FamilyRestroomOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Lessons" value="864" change="10.8%" tone="secondary" icon={<PlayLessonOutlined />} /></Grid>
         </Grid>
 
         <Grid container spacing={2}>
