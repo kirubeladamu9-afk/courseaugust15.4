@@ -15,6 +15,7 @@ import Visibility from '@mui/icons-material/Visibility'
 import VisibilityOff from '@mui/icons-material/VisibilityOff'
 import { useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/logo'
+import { Header } from '@/components/header'
 import { StyledButton } from '@/components/styled-button'
 import { useAuth } from '@/auth/auth-context'
 
@@ -59,7 +60,9 @@ const LoginPage: FC = () => {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', backgroundColor: 'background.default', py: { xs: 4, md: 8 } }}>
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'background.default' }}>
+      <Header />
+      <Box component="main" sx={{ flex: 1, display: 'flex', alignItems: 'center', py: { xs: 4, md: 8 } }}>
       <Container maxWidth="sm">
         <Paper elevation={0} sx={{ p: { xs: 3, sm: 5 }, borderRadius: 4 }}>
           <Stack alignItems="center" spacing={2.5}>
@@ -104,6 +107,7 @@ const LoginPage: FC = () => {
           Version 1.0.0
         </Typography>
       </Container>
+      </Box>
     </Box>
   )
 }
