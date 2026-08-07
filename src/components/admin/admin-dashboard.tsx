@@ -1,10 +1,14 @@
 import { useState, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
+import Badge from '@mui/material/Badge'
 import ButtonBase from '@mui/material/ButtonBase'
 import Container from '@mui/material/Container'
 import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
+import InputBase from '@mui/material/InputBase'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid'
 import Paper from '@mui/material/Paper'
@@ -25,6 +29,10 @@ import CloseRounded from '@mui/icons-material/CloseRounded'
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined'
 import MenuRounded from '@mui/icons-material/MenuRounded'
 import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
+import SearchRounded from '@mui/icons-material/SearchRounded'
+import TranslateOutlined from '@mui/icons-material/TranslateOutlined'
+import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
+import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
 import { Logo } from '@/components/logo'
 
 interface StatCardProps {
@@ -181,21 +189,63 @@ const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, onClose }) => (
   </>
 )
 
-const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => (
-  <Paper component="header" elevation={0} square sx={{ px: { xs: 2, md: 4 }, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-    <Stack direction="row" alignItems="center" justifyContent="space-between">
-      <IconButton onClick={onMenuClick} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', md: 'none' }, mr: 1 }}><MenuRounded /></IconButton>
-      <Typography variant="h5" sx={{ display: { xs: 'none', sm: 'block' } }}>Dashboard Overview</Typography>
-      <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
-        <IconButton aria-label="Notifications"><NotificationsNoneOutlined /></IconButton>
-        <Stack direction="row" alignItems="center" spacing={1}>
+const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
+  const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
+  const [darkMode, setDarkMode] = useState(false)
+  const profileOpen = Boolean(profileAnchor)
+
+  return (
+    <Paper
+      component="header"
+      elevation={0}
+      sx={{
+        position: 'sticky',
+        top: 0,
+        zIndex: (theme) => theme.zIndex.appBar,
+        px: { xs: 1.5, md: 3 },
+        py: 1,
+        borderBottom: 1,
+        borderColor: 'divider',
+        backgroundColor: 'background.paper',
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, md: 2 }} sx={{ minHeight: 48 }}>
+        <IconButton onClick={onMenuClick} aria-label="Open navigation"><MenuRounded /></IconButton>
+        <Typography variant="h5" sx={{ fontSize: { xs: '1rem', sm: '1.2rem' }, whiteSpace: 'nowrap' }}>Dashboard Overview</Typography>
+        <Box
+          sx={{
+            ml: { xs: 'auto', sm: 2 },
+            mr: 'auto',
+            display: { xs: 'none', sm: 'flex' },
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: 440,
+            px: 1.5,
+            borderRadius: 2,
+            backgroundColor: 'background.default',
+          }}
+        >
+          <SearchRounded sx={{ color: 'text.disabled', mr: 1 }} />
+          <InputBase fullWidth placeholder="Search students, lessons, quizzes..." inputProps={{ 'aria-label': 'Search dashboard records' }} sx={{ py: 0.75, fontSize: '0.85rem' }} />
+        </Box>
+        <IconButton aria-label="Search" sx={{ display: { xs: 'inline-flex', sm: 'none' } }}><SearchRounded /></IconButton>
+        <IconButton aria-label="Language" sx={{ display: { xs: 'none', md: 'inline-flex' } }}><TranslateOutlined /></IconButton>
+        <IconButton aria-label={darkMode ? 'Use light mode' : 'Use dark mode'} onClick={() => setDarkMode(!darkMode)}>
+          {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
+        </IconButton>
+        <IconButton aria-label="Notifications">
+          <Badge badgeContent={4} color="primary"><NotificationsNoneOutlined /></Badge>
+        </IconButton>
+        <IconButton aria-label="Open profile menu" onClick={(event) => setProfileAnchor(event.currentTarget)}>
           <AccountCircleOutlined color="primary" />
-          <Box sx={{ display: { xs: 'none', sm: 'block' } }}><Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Admin User</Typography><Typography variant="caption" color="text.secondary">Administrator</Typography></Box>
-        </Stack>
-      </Box>
-    </Stack>
-  </Paper>
-)
+        </IconButton>
+        <Menu anchorEl={profileAnchor} open={profileOpen} onClose={() => setProfileAnchor(null)}>
+          {['Profile', 'My Account', 'Change Password', 'Settings', 'Logout'].map((item) => <MenuItem key={item} onClick={() => setProfileAnchor(null)}>{item}</MenuItem>)}
+        </Menu>
+      </Stack>
+    </Paper>
+  )
+}
 
 const AdminDashboard: FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
