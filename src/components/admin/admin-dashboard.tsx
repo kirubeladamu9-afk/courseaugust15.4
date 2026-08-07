@@ -3,6 +3,7 @@ import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Badge from '@mui/material/Badge'
 import ButtonBase from '@mui/material/ButtonBase'
+import Collapse from '@mui/material/Collapse'
 import Container from '@mui/material/Container'
 import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
@@ -33,6 +34,8 @@ import SearchRounded from '@mui/icons-material/SearchRounded'
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined'
 import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
 import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
+import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded'
+import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
 import { Logo } from '@/components/logo'
 
 interface StatCardProps {
@@ -132,18 +135,20 @@ interface AdminSidebarProps {
 }
 
 const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
+  const [expandedMenu, setExpandedMenu] = useState('User Management')
   const menuGroups = [
-    { label: 'User Management', items: ['All Users', 'Roles & Permissions'] },
-    { label: 'Students', items: ['All Students', 'Student Enrollment', 'Student Progress'] },
-    { label: 'Parents', items: ['All Parents', 'Parent-Student Link'] },
-    { label: 'Teachers', items: ['All Teachers', 'Teacher Assignments'] },
-    { label: 'Academic', items: ['Grades', 'Subjects', 'Chapters', 'Lessons'] },
-    { label: 'Assessments', items: ['Question Bank', 'Quizzes', 'Exams', 'Assignments'] },
-    { label: 'Reports & Analytics', items: ['Student Reports', 'Teacher Reports', 'Course Reports', 'Performance Analytics'] },
-    { label: 'Settings', items: ['General', 'School Information', 'Email', 'Security', 'Backup'] },
+    { label: 'User Management', parent: 'All Users', items: ['Roles & Permissions'] },
+    { label: 'Students', parent: 'All Students', items: ['Student Enrollment', 'Student Progress'] },
+    { label: 'Parents', parent: 'All Parents', items: ['Parent-Student Link'] },
+    { label: 'Teachers', parent: 'All Teachers', items: ['Teacher Assignments'] },
+    { label: 'Academic', parent: 'Grades', items: ['Subjects', 'Chapters', 'Lessons', 'Learning Materials'] },
+    { label: 'Assessments', parent: 'Question Bank', items: ['Quizzes', 'Exams', 'Assignments'] },
+    { label: 'Reports & Analytics', parent: 'Student Reports', items: ['Teacher Reports', 'Course Reports', 'Performance Analytics'] },
+    { label: 'Settings', parent: 'General', items: ['School Information', 'Email', 'Security', 'Backup'] },
   ]
 
   const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
+  const nestedButtonSx = { justifyContent: 'flex-start', width: '100%', py: 0.65, pl: 2.75, borderRadius: 1.5, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
 
   return (
     <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflow: 'hidden' }}>
@@ -156,18 +161,27 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Dashboard</Typography>
       </ButtonBase>
       <Stack spacing={2}>
-        {menuGroups.map(({ label, items }) => (
-          <Box key={label}>
-            <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
-            <Stack spacing={0.25} sx={{ mt: 0.5 }}>
-              {items.map((item) => (
-                <ButtonBase key={item} onClick={onClose} sx={menuButtonSx}>
-                  <Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>{item}</Typography>
-                </ButtonBase>
-              ))}
-            </Stack>
-          </Box>
-        ))}
+        {menuGroups.map(({ label, parent, items }) => {
+          const isExpanded = expandedMenu === label
+          return (
+            <Box key={label}>
+              <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
+              <ButtonBase onClick={() => setExpandedMenu(isExpanded ? '' : label)} sx={{ ...menuButtonSx, mt: 0.5 }}>
+                <Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{parent}</Typography>
+                <Box sx={{ display: 'flex', ml: 'auto' }}>{isExpanded ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box>
+              </ButtonBase>
+              <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                <Stack spacing={0.25} sx={{ mt: 0.25 }}>
+                  {items.map((item) => (
+                    <ButtonBase key={item} onClick={onClose} sx={nestedButtonSx}>
+                      <Typography variant="subtitle2" sx={{ fontSize: '0.75rem' }}>{item}</Typography>
+                    </ButtonBase>
+                  ))}
+                </Stack>
+              </Collapse>
+            </Box>
+          )
+        })}
       </Stack>
       <Divider sx={{ my: 2 }} />
       <Stack spacing={0.25}>
