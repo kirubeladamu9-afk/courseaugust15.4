@@ -19,9 +19,11 @@ interface PageLayoutProps {
 }
 
 const PageLayout: React.FC<PageLayoutProps> = ({ children }) => (
-  <Box component="main">
+  <Box component="main" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
     <Header />
-    <Suspense fallback={<Box sx={{ minHeight: '40vh' }} />}>{children}</Suspense>
+    <Box component="div" sx={{ flex: 1 }}>
+      <Suspense fallback={<Box sx={{ minHeight: '40vh' }} />}>{children}</Suspense>
+    </Box>
     <Footer />
   </Box>
 )
