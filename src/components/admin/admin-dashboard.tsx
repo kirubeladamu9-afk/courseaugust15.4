@@ -1,8 +1,10 @@
-import type { FC, ReactNode } from 'react'
+import { useState, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import ButtonBase from '@mui/material/ButtonBase'
 import Container from '@mui/material/Container'
+import Drawer from '@mui/material/Drawer'
+import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid'
 import Paper from '@mui/material/Paper'
@@ -17,9 +19,15 @@ import PersonAddAltOutlined from '@mui/icons-material/PersonAddAltOutlined'
 import CoPresentOutlined from '@mui/icons-material/CoPresentOutlined'
 import AddTaskOutlined from '@mui/icons-material/AddTaskOutlined'
 import QuizOutlined from '@mui/icons-material/QuizOutlined'
-import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
 import ArrowUpwardRounded from '@mui/icons-material/ArrowUpwardRounded'
-import { Header } from '@/components/header'
+import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined'
+import CloseRounded from '@mui/icons-material/CloseRounded'
+import DashboardOutlined from '@mui/icons-material/DashboardOutlined'
+import MenuRounded from '@mui/icons-material/MenuRounded'
+import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
+import PeopleOutline from '@mui/icons-material/PeopleOutline'
+import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
+import { Logo } from '@/components/logo'
 
 interface StatCardProps {
   label: string
@@ -112,11 +120,89 @@ const QuickAction: FC<{ label: string; icon: ReactNode }> = ({ label, icon }) =>
   </ButtonBase>
 )
 
-const AdminDashboard: FC = () => {
+interface AdminSidebarProps {
+  mobileOpen: boolean
+  onClose: () => void
+}
+
+const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
+  const menuItems = [
+    { label: 'Dashboard', icon: <DashboardOutlined fontSize="small" /> },
+    { label: 'Students', icon: <PeopleOutline fontSize="small" /> },
+    { label: 'Teachers', icon: <SchoolOutlined fontSize="small" /> },
+    { label: 'Settings', icon: <SettingsOutlined fontSize="small" /> },
+  ]
+
   return (
-    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
-      <Header />
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+    <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper' }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 5 }}>
+        <Logo />
+        {onClose && <IconButton onClick={onClose} aria-label="Close navigation"><CloseRounded /></IconButton>}
+      </Stack>
+      <Typography variant="caption" color="text.disabled" sx={{ px: 1.5, textTransform: 'uppercase', letterSpacing: 1.2 }}>Overview</Typography>
+      <Stack spacing={0.75} sx={{ mt: 1.5 }}>
+        {menuItems.map(({ label, icon }, index) => (
+          <ButtonBase
+            key={label}
+            onClick={onClose}
+            sx={{
+              justifyContent: 'flex-start',
+              width: '100%',
+              p: 1.25,
+              borderRadius: 2,
+              color: index === 0 ? 'primary.contrastText' : 'text.secondary',
+              backgroundColor: index === 0 ? 'primary.main' : 'transparent',
+              '&:hover': { backgroundColor: index === 0 ? 'primary.main' : 'background.default' },
+            }}
+          >
+            <Box sx={{ display: 'flex', mr: 1.5 }}>{icon}</Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{label}</Typography>
+          </ButtonBase>
+        ))}
+      </Stack>
+      <Box sx={{ mt: 'auto', pt: 4 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ px: 1.5 }}>Coursespace Admin</Typography>
+      </Box>
+    </Box>
+  )
+}
+
+const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, onClose }) => (
+  <>
+    <Box component="aside" sx={{ display: { xs: 'none', md: 'block' }, flexShrink: 0, borderRight: 1, borderColor: 'divider' }}>
+      <SidebarContent />
+    </Box>
+    <Drawer open={mobileOpen} onClose={onClose} ModalProps={{ keepMounted: true }} sx={{ display: { xs: 'block', md: 'none' } }}>
+      <SidebarContent onClose={onClose} />
+    </Drawer>
+  </>
+)
+
+const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => (
+  <Paper component="header" elevation={0} square sx={{ px: { xs: 2, md: 4 }, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+    <Stack direction="row" alignItems="center" justifyContent="space-between">
+      <IconButton onClick={onMenuClick} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', md: 'none' }, mr: 1 }}><MenuRounded /></IconButton>
+      <Typography variant="h5" sx={{ display: { xs: 'none', sm: 'block' } }}>Dashboard Overview</Typography>
+      <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
+        <IconButton aria-label="Notifications"><NotificationsNoneOutlined /></IconButton>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <AccountCircleOutlined color="primary" />
+          <Box sx={{ display: { xs: 'none', sm: 'block' } }}><Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Admin User</Typography><Typography variant="caption" color="text.secondary">Administrator</Typography></Box>
+        </Stack>
+      </Box>
+    </Stack>
+  </Paper>
+)
+
+const AdminDashboard: FC = () => {
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  return (
+    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh', display: 'flex' }}>
+      <AdminSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <Box component="section" sx={{ minWidth: 0, flex: 1 }}>
+        <AdminHeader onMenuClick={() => setMobileOpen(true)} />
+        <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary">Admin</Typography>
           <Typography variant="subtitle2" color="primary.main">Dashboard</Typography>
@@ -178,7 +264,8 @@ const AdminDashboard: FC = () => {
             </Paper>
           </Grid>
         </Grid>
-      </Container>
+        </Container>
+      </Box>
     </Box>
   )
 }
