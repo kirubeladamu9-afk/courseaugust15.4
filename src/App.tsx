@@ -14,6 +14,7 @@ const HomePopularCourse = lazy(() => import('@/components/home/popular-courses')
 const HomeTestimonial = lazy(() => import('@/components/home/testimonial'))
 const HomeOurMentors = lazy(() => import('@/components/home/mentors'))
 const HomeNewsLetter = lazy(() => import('@/components/home/newsletter'))
+const AdminDashboard = lazy(() => import('@/components/admin/admin-dashboard'))
 
 interface PageLayoutProps {
   children: ReactNode
@@ -86,6 +87,7 @@ const App: React.FC = () => (
       <Route path="/courses" element={<PageLayout><HomePopularCourse /></PageLayout>} />
       <Route path="/testimonials" element={<PageLayout><HomeTestimonial /></PageLayout>} />
       <Route path="/mentors" element={<PageLayout><HomeOurMentors /></PageLayout>} />
+      <Route path="/admin" element={<Suspense fallback={<LoadingState />}><AdminDashboard /></Suspense>} />
       <Route path="/contact" element={<InfoPage title="Contact Us" description="We would love to hear from you." />} />
       <Route path="/privacy" element={<InfoPage title="Privacy & Policy" description="Your privacy matters to us." />} />
       <Route path="/terms" element={<InfoPage title="Terms & Conditions" description="Please review our platform terms." />} />
