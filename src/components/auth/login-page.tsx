@@ -88,7 +88,7 @@ const LoginPage: FC = () => {
                 }}
               />
               <FormControlLabel control={<Checkbox checked={remember} onChange={(event) => setRemember(event.target.checked)} color="primary" />} label="Remember Me" />
-              <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%', '& > button': { width: '100%' } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%', '& > button': { width: '100%', justifyContent: 'center' } }}>
                 <StyledButton type="submit" size="large" disableHoverEffect={loading}>
                   {loading ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
                 </StyledButton>
