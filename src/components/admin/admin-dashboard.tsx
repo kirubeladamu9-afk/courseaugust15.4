@@ -96,7 +96,7 @@ const LearningActivityChart: FC = () => (
 interface FeedItemProps { title: string; detail: string; time: string; icon: ReactNode }
 const FeedItem: FC<FeedItemProps> = ({ title, detail, time, icon }) => (
   <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 1.5 }}>
-    <Box sx={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: 'secondary.main', flexShrink: 0 }}>{icon}</Box>
+    <Box sx={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: '#ffffff', flexShrink: 0 }}>{icon}</Box>
     <Box sx={{ minWidth: 0, flex: 1 }}>
       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{title}</Typography>
       <Typography variant="caption" color="text.secondary" noWrap>{detail}</Typography>
