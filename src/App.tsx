@@ -24,7 +24,10 @@ const LoadingState: React.FC = () => (
     role="status"
     aria-label="Loading content"
     sx={{
-      minHeight: '40vh',
+      position: 'fixed',
+      inset: 0,
+      zIndex: (theme) => theme.zIndex.modal,
+      backgroundColor: 'background.paper',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -38,13 +41,13 @@ const LoadingState: React.FC = () => (
 )
 
 const PageLayout: React.FC<PageLayoutProps> = ({ children }) => (
-  <Box component="main" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-    <Header />
-    <Box component="div" sx={{ flex: 1 }}>
-      <Suspense fallback={<LoadingState />}>{children}</Suspense>
+  <Suspense fallback={<LoadingState />}>
+    <Box component="main" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Header />
+      <Box component="div" sx={{ flex: 1 }}>{children}</Box>
+      <Footer />
     </Box>
-    <Footer />
-  </Box>
+  </Suspense>
 )
 
 const HomePage: React.FC = () => (
