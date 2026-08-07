@@ -99,6 +99,10 @@ const LoginPage: FC = () => {
             </Stack>
           </Box>
         </Paper>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 2, lineHeight: 1.7 }}>
+          © 2026 EKD Tech Solutions<br />
+          Version 1.0.0
+        </Typography>
       </Container>
     </Box>
   )
