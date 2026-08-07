@@ -107,7 +107,7 @@ const FeedItem: FC<FeedItemProps> = ({ title, detail, time, icon }) => (
 
 const QuickAction: FC<{ label: string; icon: ReactNode }> = ({ label, icon }) => (
   <ButtonBase sx={{ display: 'flex', justifyContent: 'flex-start', width: '100%', p: 1.25, borderRadius: 2, textAlign: 'left', '&:hover': { backgroundColor: 'background.default' } }}>
-    <Box sx={{ width: 34, height: 34, mr: 1.25, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: 'secondary.main' }}>{icon}</Box>
+    <Box sx={{ width: 34, height: 34, mr: 1.25, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: '#ffffff' }}>{icon}</Box>
     <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{label}</Typography>
   </ButtonBase>
 )
