@@ -1,36 +1,25 @@
 import React, { FC } from 'react'
 import Grid from '@mui/material/Grid'
 import MuiLink from '@mui/material/Link'
+import { Link as RouterLink } from 'react-router-dom'
 import type { Navigation } from '@/interfaces/navigation'
 import { navigations as headerNavigations } from '@/components/navigation/navigation.data'
 import { FooterSectionTitle } from '@/components/footer'
 
 const courseMenu: Array<Navigation> = [
-  {
-    label: 'UI/UX Design',
-    path: '#',
-  },
-  {
-    label: 'Mobile Development',
-    path: '#',
-  },
-  {
-    label: 'Machine Learning',
-    path: '#',
-  },
-  {
-    label: 'Web Development',
-    path: '#',
-  },
+  { label: 'UI/UX Design', path: '/courses' },
+  { label: 'Mobile Development', path: '/courses' },
+  { label: 'Machine Learning', path: '/courses' },
+  { label: 'Web Development', path: '/courses' },
 ]
 
 const pageMenu = headerNavigations
 
 const companyMenu: Array<Navigation> = [
-  { label: 'Contact Us', path: '#' },
-  { label: 'Privacy & Policy', path: '#' },
-  { label: 'Term & Condition', path: '#' },
-  { label: 'FAQ', path: '#' },
+  { label: 'Contact Us', path: '/contact' },
+  { label: 'Privacy & Policy', path: '/privacy' },
+  { label: 'Terms & Conditions', path: '/terms' },
+  { label: 'FAQ', path: '/faq' },
 ]
 
 interface NavigationItemProps {
@@ -41,7 +30,8 @@ interface NavigationItemProps {
 const NavigationItem: FC<NavigationItemProps> = ({ label, path }) => {
   return (
     <MuiLink
-      href={path}
+      component={RouterLink}
+      to={path}
       underline="hover"
       sx={{
         display: 'block',
@@ -60,7 +50,7 @@ const FooterNavigation: FC = () => {
       <Grid item xs={12} md={4}>
         <FooterSectionTitle title="Course" />
         {courseMenu.map(({ label, path }, index) => (
-          <NavigationItem key={index + path} label={label} path={/* path */ '#'} />
+          <NavigationItem key={index + path} label={label} path={path} />
         ))}
       </Grid>
       <Grid item xs={12} md={4}>

@@ -1,6 +1,6 @@
 import React, { FC } from 'react'
 import Box from '@mui/material/Box'
-import { Link as ScrollLink } from 'react-scroll'
+import { NavLink } from 'react-router-dom'
 import { navigations } from './navigation.data'
 
 const Navigation: FC = () => {
@@ -8,13 +8,10 @@ const Navigation: FC = () => {
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
       {navigations.map(({ path: destination, label }) => (
         <Box
-          component={ScrollLink}
+          component={NavLink}
           key={destination}
-          activeClass="current"
           to={destination}
-          spy={true}
-          smooth={true}
-          duration={350}
+          end={destination === '/'}
           sx={{
             position: 'relative',
             color: 'text.disabled',
@@ -26,13 +23,9 @@ const Navigation: FC = () => {
             px: { xs: 0, md: 3 },
             mb: { xs: 3, md: 0 },
             fontSize: { xs: '1.2rem', md: 'inherit' },
-            ...(destination === '/' && {
-              color: 'primary.main',
-            }),
-
+            '&.active': { color: 'primary.main' },
             '& > div': { display: 'none' },
-
-            '&.current>div': { display: 'block' },
+            '&.active>div': { display: 'block' },
 
             '&:hover': {
               color: 'primary.main',
