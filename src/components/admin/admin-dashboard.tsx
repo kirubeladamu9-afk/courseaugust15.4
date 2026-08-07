@@ -151,7 +151,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const nestedButtonSx = { justifyContent: 'flex-start', width: '100%', py: 0.65, pl: 2.75, borderRadius: 1.5, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
 
   return (
-    <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflow: 'hidden' }}>
+    <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 4 }}>
         <Logo />
         {onClose && <IconButton onClick={onClose} aria-label="Close navigation"><CloseRounded /></IconButton>}
