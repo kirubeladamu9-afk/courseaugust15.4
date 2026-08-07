@@ -2,6 +2,7 @@ import React from 'react'
 import { lazy, Suspense, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
+import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Footer } from '@/components/footer'
@@ -18,11 +19,29 @@ interface PageLayoutProps {
   children: ReactNode
 }
 
+const LoadingState: React.FC = () => (
+  <Box
+    role="status"
+    aria-label="Loading content"
+    sx={{
+      minHeight: '40vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: 2,
+    }}
+  >
+    <CircularProgress color="primary" />
+    <Typography color="text.secondary">Loading content...</Typography>
+  </Box>
+)
+
 const PageLayout: React.FC<PageLayoutProps> = ({ children }) => (
   <Box component="main" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
     <Header />
     <Box component="div" sx={{ flex: 1 }}>
-      <Suspense fallback={<Box sx={{ minHeight: '40vh' }} />}>{children}</Suspense>
+      <Suspense fallback={<LoadingState />}>{children}</Suspense>
     </Box>
     <Footer />
   </Box>
