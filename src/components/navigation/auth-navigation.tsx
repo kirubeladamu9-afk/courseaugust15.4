@@ -1,14 +1,16 @@
 import React, { FC } from 'react'
 import Box from '@mui/material/Box'
+import { useNavigate } from 'react-router-dom'
 import { StyledButton } from '@/components/styled-button'
 
 const AuthNavigation: FC = () => {
+  const navigate = useNavigate()
+
   return (
-    <Box sx={{ '& button:first-child': { mr: 2 } }}>
-      <StyledButton disableHoverEffect={true} variant="outlined">
+    <Box>
+      <StyledButton disableHoverEffect={true} variant="outlined" onClick={() => navigate('/login')}>
         Sign In
       </StyledButton>
-      <StyledButton disableHoverEffect={true}>Sign Up</StyledButton>
     </Box>
   )
 }

@@ -4,7 +4,8 @@ import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider, useAuth, type UserRole } from '@/auth/auth-context'
 import { Footer } from '@/components/footer'
 import { Header } from '@/components/header'
 
@@ -15,6 +16,7 @@ const HomeTestimonial = lazy(() => import('@/components/home/testimonial'))
 const HomeOurMentors = lazy(() => import('@/components/home/mentors'))
 const HomeNewsLetter = lazy(() => import('@/components/home/newsletter'))
 const AdminDashboard = lazy(() => import('@/components/admin/admin-dashboard'))
+const LoginPage = lazy(() => import('@/components/auth/login-page'))
 
 interface PageLayoutProps {
   children: ReactNode
@@ -80,20 +82,45 @@ const InfoPage: React.FC<InfoPageProps> = ({ title, description }) => (
   </PageLayout>
 )
 
+const roleDestinations: Record<UserRole, string> = {
+  admin: '/admin',
+  teacher: '/teacher',
+  parent: '/parent',
+  student: '/student',
+}
+
+interface RoleRouteProps {
+  role: UserRole
+  children: ReactNode
+}
+
+const RoleRoute: React.FC<RoleRouteProps> = ({ role, children }) => {
+  const { user, isAuthenticated } = useAuth()
+  if (!isAuthenticated || !user) return <Navigate to="/login" replace />
+  if (user.role !== role) return <Navigate to={roleDestinations[user.role]} replace />
+  return <>{children}</>
+}
+
 const App: React.FC = () => (
   <BrowserRouter>
-    <Routes>
+    <AuthProvider>
+      <Routes>
+      <Route path="/login" element={<Suspense fallback={<LoadingState />}><LoginPage /></Suspense>} />
       <Route path="/" element={<HomePage />} />
       <Route path="/courses" element={<PageLayout><HomePopularCourse /></PageLayout>} />
       <Route path="/testimonials" element={<PageLayout><HomeTestimonial /></PageLayout>} />
       <Route path="/mentors" element={<PageLayout><HomeOurMentors /></PageLayout>} />
-      <Route path="/admin" element={<Suspense fallback={<LoadingState />}><AdminDashboard /></Suspense>} />
+      <Route path="/admin" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminDashboard /></Suspense></RoleRoute>} />
+      <Route path="/teacher" element={<RoleRoute role="teacher"><InfoPage title="Teacher Dashboard" description="Your teacher dashboard is ready for your classes and lessons." /></RoleRoute>} />
+      <Route path="/parent" element={<RoleRoute role="parent"><InfoPage title="Parent Dashboard" description="Your parent dashboard is ready to help you follow student progress." /></RoleRoute>} />
+      <Route path="/student" element={<RoleRoute role="student"><InfoPage title="Student Dashboard" description="Your student dashboard is ready for your lessons and assessments." /></RoleRoute>} />
       <Route path="/contact" element={<InfoPage title="Contact Us" description="We would love to hear from you." />} />
       <Route path="/privacy" element={<InfoPage title="Privacy & Policy" description="Your privacy matters to us." />} />
       <Route path="/terms" element={<InfoPage title="Terms & Conditions" description="Please review our platform terms." />} />
       <Route path="/faq" element={<InfoPage title="FAQ" description="Find answers to common questions about Coursespace." />} />
       <Route path="*" element={<InfoPage title="Page not found" description="The page you requested does not exist." />} />
-    </Routes>
+      </Routes>
+    </AuthProvider>
   </BrowserRouter>
 )
 
