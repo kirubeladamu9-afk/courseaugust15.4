@@ -28,6 +28,19 @@ router.get('/students', async (_req, res, next) => {
   }
 })
 
+router.get('/assigned-grades', async (_req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: res.locals.auth.sub }, select: { name: true } })
+    const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { assignedClasses: true } }) : null
+    const assignedClasses = teacher?.assignedClasses?.split(',').map((value) => value.trim()).filter(Boolean) || []
+    const classSections = assignedClasses.length ? await prisma.classSection.findMany({ where: { name: { in: assignedClasses } }, select: { gradeLevel: { select: { name: true } } } }) : []
+    const grades = [...new Set(classSections.map(({ gradeLevel }) => gradeLevel?.name).filter((name): name is string => Boolean(name)))]
+    return res.json({ grades })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.post('/assessments', async (req, res, next) => {
   try {
     const input = assessmentSchema.parse(req.body)
