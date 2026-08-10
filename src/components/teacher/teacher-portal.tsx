@@ -117,6 +117,12 @@ type AssessmentQuestion = { type: QuestionType; prompt: string; options: string[
 const questionTypeLabels: Record<QuestionType, string> = { single: 'Multiple Choice (Single Answer)', multiple: 'Multiple Choice (Multiple Answers)', 'true-false': 'True / False', 'fill-blank': 'Fill in the Blank' }
 
 const newQuestion = (type: QuestionType): AssessmentQuestion => ({ type, prompt: '', options: type === 'true-false' ? ['True', 'False'] : type === 'fill-blank' ? [] : ['', '', '', ''], correctAnswer: type === 'multiple' ? [] : type === 'true-false' ? '0' : '', points: 1 })
+const isQuestionComplete = (question: AssessmentQuestion) => {
+  if (!question.prompt.trim() || !question.points) return false
+  if (question.type === 'fill-blank') return typeof question.correctAnswer === 'string' && Boolean(question.correctAnswer.trim())
+  if (question.options.length < 2 || question.options.some((option) => !option.trim())) return false
+  return Array.isArray(question.correctAnswer) ? question.correctAnswer.length > 0 : Boolean(question.correctAnswer)
+}
 
 const AssessmentBuilder: FC = () => {
   const [title, setTitle] = useState('')
@@ -139,8 +145,8 @@ const AssessmentBuilder: FC = () => {
   const addOption = (index: number) => setQuestions((current) => current.map((question, questionIndex) => questionIndex === index ? { ...question, options: [...question.options, ''] } : question))
   const removeQuestion = (index: number) => setQuestions((current) => current.filter((_, questionIndex) => questionIndex !== index))
   const saveAssessment = async () => {
-    if (!title.trim() || !className || !questions.length || questions.some((question) => !question.prompt.trim() || !question.points || (question.type !== 'fill-blank' && (Array.isArray(question.correctAnswer) ? !question.correctAnswer.length : question.correctAnswer === '')))) {
-      setError('Add an assessment title and complete every question before saving.')
+    if (!title.trim() || !className || !questions.length || questions.some((question) => !isQuestionComplete(question))) {
+      setError('Add a title, assigned class, and complete every question with valid options, a correct answer, and points before saving.')
       return
     }
     setSaving(true)
