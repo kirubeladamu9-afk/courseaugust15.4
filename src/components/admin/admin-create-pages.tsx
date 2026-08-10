@@ -97,6 +97,7 @@ const pageConfig: Record<CreateType, { title: string; description: string; field
 const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const navigate = useNavigate()
   const config = pageConfig[type]
+  const listRoutes: Record<CreateType, string> = { student: '/admin/students', teacher: '/admin/teachers', lesson: '/admin/lessons', quiz: '/admin/quizzes' }
   const [values, setValues] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
   const [validationError, setValidationError] = useState('')
@@ -129,6 +130,12 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
       }))
       .catch(() => setValidationError('Unable to load grade levels and classes. Please try again.'))
   }, [type])
+
+  useEffect(() => {
+    if (!saved) return
+    const redirectTimer = window.setTimeout(() => navigate(listRoutes[type]), 800)
+    return () => window.clearTimeout(redirectTimer)
+  }, [saved, type, navigate])
 
   const searchGuardians = async () => {
     const query = values.existingGuardian?.trim()
