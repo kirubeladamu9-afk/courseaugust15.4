@@ -15,10 +15,10 @@ router.post('/:id/submissions', requireAuth, requireRole('STUDENT'), async (req,
   try {
     const { answers } = submissionSchema.parse(req.body)
     const assessmentId = z.string().min(1).parse(req.params.id)
-    const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId }, include: { questions: { orderBy: { createdAt: 'asc' } } } })
+    const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
     if (!assessment) return res.status(404).json({ message: 'Assessment not found.' })
     const data = assessment.data as AssessmentData
-    const questions: StoredQuestion[] = assessment.questions.map((question) => ({ type: question.type as StoredQuestion['type'], correctAnswer: question.correctAnswer as string | string[], points: question.points }))
+    const questions = data.questions || []
     if (answers.length !== questions.length) return res.status(400).json({ message: 'An answer is required for each question.' })
 
     let score = 0
