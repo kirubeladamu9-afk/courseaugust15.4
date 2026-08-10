@@ -12,7 +12,13 @@ const recordSchema = z.object({
 })
 const guardianSchema = z.object({
   name: z.string().trim().min(1).max(160),
-  email: z.string().trim().email().max(160),
+  email: z.string().trim().email().max(160).optional(),
+  relationshipType: z.enum(['Mother', 'Father', 'Guardian', 'Emergency Contact']).default('Guardian'),
+  phone: z.string().trim().max(40).optional(),
+  address: z.string().trim().max(300).optional(),
+  occupation: z.string().trim().max(120).optional(),
+  nationalId: z.string().trim().max(120).optional(),
+  photoName: z.string().trim().max(255).optional(),
 })
 const studentSchema = z.object({
   fullName: z.string().trim().min(1).max(160),
@@ -26,6 +32,7 @@ const studentSchema = z.object({
   enrollmentDate: z.coerce.date(),
   address: z.string().trim().max(300).optional(),
   guardianSearch: z.string().trim().min(1).max(160),
+  relationshipType: z.enum(['Mother', 'Father', 'Guardian', 'Emergency Contact']).default('Guardian'),
   status: z.enum(['Active', 'Inactive', 'Pending']),
 })
 
@@ -72,7 +79,10 @@ router.get('/guardians/search', async (req, res, next) => {
 router.post('/guardians', async (req, res, next) => {
   try {
     const input = guardianSchema.parse(req.body)
-    const guardian = await prisma.guardian.upsert({ where: { email: input.email }, update: { name: input.name }, create: input })
+    const { relationshipType: _relationshipType, ...guardianData } = input
+    const guardian = input.email
+      ? await prisma.guardian.upsert({ where: { email: input.email }, update: guardianData, create: guardianData })
+      : await prisma.guardian.create({ data: guardianData })
     return res.status(201).json({ guardian })
   } catch (error) {
     return next(error)
@@ -107,7 +117,7 @@ router.post('/students', async (req, res, next) => {
         enrollmentDate: input.enrollmentDate,
         address: input.address,
         status: input.status,
-        guardianLinks: { create: { guardianId: guardian.id } },
+        guardianLinks: { create: { guardianId: guardian.id, relationshipType: input.relationshipType } },
       },
       include: { guardianLinks: { include: { guardian: true } } },
     })

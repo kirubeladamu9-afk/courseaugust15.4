@@ -182,7 +182,12 @@ model PerformanceAnalytic {
 model Guardian {
   id String @id @default(cuid())
   name String
-  email String @unique
+  email String? @unique
+  phone String?
+  address String?
+  occupation String?
+  nationalId String?
+  photoName String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   studentLinks StudentGuardian[]

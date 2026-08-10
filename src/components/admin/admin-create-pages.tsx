@@ -29,7 +29,7 @@ interface FieldConfig {
 interface Guardian {
   id: string
   name: string
-  email: string
+  email?: string | null
 }
 
 const pageConfig: Record<CreateType, { title: string; description: string; fields: FieldConfig[] }> = {
@@ -95,7 +95,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const [guardianMatches, setGuardianMatches] = useState<Guardian[]>([])
   const [guardianFormPrompt, setGuardianFormPrompt] = useState(false)
   const [guardianFormOpen, setGuardianFormOpen] = useState(false)
-  const [guardianForm, setGuardianForm] = useState({ name: '', email: '' })
+  const [guardianForm, setGuardianForm] = useState({ name: '', relationshipType: 'Guardian', phone: '', address: '', occupation: '', nationalId: '', photoName: '' })
 
   const searchGuardians = async () => {
     const query = values.existingGuardian?.trim()
@@ -117,7 +117,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const createGuardian = async () => {
     try {
       const { data } = await api.post<{ guardian: Guardian }>('/api/admin/guardians', guardianForm, { withCredentials: true })
-      setValues((current) => ({ ...current, existingGuardian: data.guardian.email }))
+      setValues((current) => ({ ...current, existingGuardian: data.guardian.email || data.guardian.name }))
       setGuardianMatches([data.guardian])
       setGuardianFormPrompt(false)
       setGuardianFormOpen(false)
@@ -136,7 +136,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
     setValidationError('')
     if (type === 'student') {
       try {
-        await api.post('/api/admin/students', { ...values, guardianSearch: values.existingGuardian, photoName: values.photo }, { withCredentials: true })
+        await api.post('/api/admin/students', { ...values, guardianSearch: values.existingGuardian, relationshipType: guardianForm.relationshipType, photoName: values.photo }, { withCredentials: true })
         setSaved(true)
       } catch {
         setValidationError('Unable to save the student. Check the details and guardian search, then try again.')
@@ -181,15 +181,20 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                   </TextField>
                   {type === 'student' && field.name === 'existingGuardian' && <Stack spacing={1} sx={{ mt: 1 }}>
                     <Button type="button" variant="outlined" size="small" onClick={searchGuardians}>Search Guardian</Button>
-                    {guardianMatches.map((guardian) => <Button key={guardian.id} type="button" onClick={() => setValues((current) => ({ ...current, existingGuardian: guardian.email }))} sx={{ justifyContent: 'flex-start', textTransform: 'none', px: 1 }}>
-                      {guardian.name} · {guardian.email}
+                    {guardianMatches.map((guardian) => <Button key={guardian.id} type="button" onClick={() => setValues((current) => ({ ...current, existingGuardian: guardian.email || guardian.name }))} sx={{ justifyContent: 'flex-start', textTransform: 'none', px: 1 }}>
+                      {guardian.name} · {guardian.email || 'No email'}
                     </Button>)}
                     {guardianFormPrompt && !guardianFormOpen && <Button type="button" variant="outlined" size="small" onClick={() => setGuardianFormOpen(true)}>Add New Guardian</Button>}
                     {guardianFormOpen && <Paper variant="outlined" sx={{ p: 1.5, mt: 0.5 }}>
                       <Typography variant="subtitle2" sx={{ mb: 1 }}>Add Guardian</Typography>
                       <Stack spacing={1}>
-                        <TextField size="small" label="Guardian name" value={guardianForm.name} onChange={(event) => setGuardianForm((current) => ({ ...current, name: event.target.value }))} />
-                        <TextField size="small" label="Guardian email" type="email" value={guardianForm.email} onChange={(event) => setGuardianForm((current) => ({ ...current, email: event.target.value }))} />
+                        <TextField size="small" label="Full name" required value={guardianForm.name} onChange={(event) => setGuardianForm((current) => ({ ...current, name: event.target.value }))} />
+                        <TextField size="small" label="Relationship to student" select required value={guardianForm.relationshipType} onChange={(event) => setGuardianForm((current) => ({ ...current, relationshipType: event.target.value }))}>{['Mother', 'Father', 'Guardian', 'Emergency Contact'].map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField>
+                        <TextField size="small" label="Phone number" value={guardianForm.phone} onChange={(event) => setGuardianForm((current) => ({ ...current, phone: event.target.value }))} />
+                        <TextField size="small" label="Address" value={guardianForm.address} onChange={(event) => setGuardianForm((current) => ({ ...current, address: event.target.value }))} />
+                        <TextField size="small" label="Occupation" value={guardianForm.occupation} onChange={(event) => setGuardianForm((current) => ({ ...current, occupation: event.target.value }))} />
+                        <TextField size="small" label="National ID / Passport number" value={guardianForm.nationalId} onChange={(event) => setGuardianForm((current) => ({ ...current, nationalId: event.target.value }))} />
+                        <TextField size="small" label="Photo" type="file" InputLabelProps={{ shrink: true }} onChange={(event) => setGuardianForm((current) => ({ ...current, photoName: (event.target as HTMLInputElement).files?.[0]?.name || '' }))} />
                         <Button type="button" variant="contained" size="small" onClick={createGuardian}>Save Guardian</Button>
                       </Stack>
                     </Paper>}
