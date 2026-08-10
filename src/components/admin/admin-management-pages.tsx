@@ -19,7 +19,7 @@ import AddRounded from '@mui/icons-material/AddRounded'
 import DownloadRounded from '@mui/icons-material/DownloadRounded'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
 import axios from 'axios'
-import { useEffect, useMemo, useState, type FC } from 'react'
+import { useEffect, useMemo, useState, type FC, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import api from '@/lib/api'
 import { AdminPanelLayout } from './admin-dashboard'
@@ -32,6 +32,7 @@ type SectionConfig = {
   rows: string[][]
   metrics: [string, string, string][]
   analytics?: boolean
+  createFields?: { name: string; label: string; type?: string; required?: boolean }[]
 }
 
 const sections: Record<string, SectionConfig> = {
@@ -39,7 +40,7 @@ const sections: Record<string, SectionConfig> = {
   'student-progress': { title: 'Student Progress', description: 'Monitor learning progress and engagement across all students.', action: 'Export Progress', columns: ['Student', 'Grade', 'Courses', 'Completion', 'Status'], rows: [['Ava Johnson', 'Grade 8', '6 courses', '86%', 'On track'], ['Noah Williams', 'Grade 7', '5 courses', '72%', 'On track'], ['Sophia Brown', 'Grade 9', '7 courses', '64%', 'Needs support'], ['Liam Davis', 'Grade 8', '6 courses', '91%', 'Excellent']], metrics: [['Students tracked', '2,480', '+12.5%'], ['Avg. completion', '78%', '+6.8%'], ['At risk', '124', '-8.4%']], analytics: true },
   'parent-student-link': { title: 'Parent-Student Link', description: 'Connect parents with students and manage family access.', action: 'Link Parent', columns: ['Parent', 'Student', 'Relationship', 'Linked on', 'Status'], rows: [['Olivia Johnson', 'Ava Johnson', 'Mother', 'Jul 12, 2024', 'Active'], ['James Williams', 'Noah Williams', 'Father', 'Jul 10, 2024', 'Active'], ['Emma Brown', 'Sophia Brown', 'Mother', 'Jul 08, 2024', 'Pending'], ['William Davis', 'Liam Davis', 'Father', 'Jul 05, 2024', 'Active']], metrics: [['Linked families', '1,920', '+6.4%'], ['Pending links', '18', '-3.2%'], ['Unlinked students', '42', '-10.1%']] },
   'teacher-assignments': { title: 'Teacher Assignments', description: 'Assign teachers to courses, grades, and classrooms.', action: 'Create Assignment', columns: ['Teacher', 'Subject', 'Grade', 'Students', 'Status'], rows: [['Maria Garcia', 'Mathematics', 'Grade 8', '124', 'Assigned'], ['Daniel Wilson', 'Science', 'Grade 7', '98', 'Assigned'], ['James Miller', 'English', 'Grade 9', '112', 'Assigned'], ['Sarah Lee', 'History', 'Grade 8', '86', 'Review']], metrics: [['Active assignments', '186', '+8.2%'], ['Open classes', '12', '-4.0%'], ['Avg. class size', '28', '+2.1%']] },
-  subjects: { title: 'Subjects', description: 'Organize the subjects available in your academic program.', action: 'Add Subject', columns: ['Subject', 'Grade levels', 'Chapters', 'Teachers', 'Status'], rows: [['Mathematics', '6–9', '24', '32', 'Published'], ['Science', '6–9', '18', '28', 'Published'], ['English Language', '6–9', '20', '35', 'Published'], ['World History', '7–9', '12', '18', 'Draft']], metrics: [['Total subjects', '18', '+2.0%'], ['Published', '15', '+7.1%'], ['Drafts', '3', '-14.3%']] },
+  subjects: { title: 'Subjects', description: 'Organize the subjects available in your academic program.', action: 'Add Subject', columns: ['Subject', 'Grade levels', 'Chapters', 'Teachers', 'Status'], rows: [['Mathematics', '6–9', '24', '32', 'Published'], ['Science', '6–9', '18', '28', 'Published'], ['English Language', '6–9', '20', '35', 'Published'], ['World History', '7–9', '12', '18', 'Draft']], metrics: [['Total subjects', '18', '+2.0%'], ['Published', '15', '+7.1%'], ['Drafts', '3', '-14.3%']], createFields: [{ name: 'subject', label: 'Subject name', required: true }, { name: 'gradeLevels', label: 'Grade levels', required: true }] },
   chapters: { title: 'Chapters', description: 'Manage the chapters that structure each subject.', action: 'Add Chapter', columns: ['Chapter', 'Subject', 'Lessons', 'Completion', 'Status'], rows: [['Algebraic Expressions', 'Mathematics', '12', '84%', 'Published'], ['Energy & Matter', 'Science', '9', '76%', 'Published'], ['Grammar Essentials', 'English Language', '14', '91%', 'Published'], ['Industrial Revolution', 'World History', '8', '—', 'Draft']], metrics: [['Total chapters', '74', '+10.4%'], ['Published', '61', '+8.9%'], ['In review', '7', '-5.3%']] },
   lessons: { title: 'Lessons', description: 'Create and manage lessons for every course and chapter.', action: 'Create Lesson', columns: ['Lesson', 'Subject', 'Chapter', 'Views', 'Status'], rows: [['Solving Linear Equations', 'Mathematics', 'Algebraic Expressions', '1,284', 'Published'], ['Forms of Energy', 'Science', 'Energy & Matter', '982', 'Published'], ['Parts of Speech', 'English Language', 'Grammar Essentials', '1,102', 'Published'], ['Factory Systems', 'World History', 'Industrial Revolution', '—', 'Draft']], metrics: [['Total lessons', '864', '+10.8%'], ['Published', '742', '+9.2%'], ['Drafts', '122', '-2.7%']] },
   'learning-materials': { title: 'Learning Materials', description: 'Publish videos, documents, and resources for learners.', action: 'Add Material', columns: ['Material', 'Type', 'Course', 'Downloads', 'Status'], rows: [['Algebra workbook', 'PDF', 'Mathematics', '842', 'Published'], ['Energy lab guide', 'Document', 'Science', '621', 'Published'], ['Grammar video series', 'Video', 'English Language', '1,204', 'Published'], ['History timeline', 'Presentation', 'World History', '—', 'Review']], metrics: [['Total materials', '326', '+14.6%'], ['Published', '284', '+11.2%'], ['Needs review', '9', '-18.0%']] },
@@ -60,8 +61,8 @@ const additionalSections: Record<string, SectionConfig> = {
   teachers: makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Teacher', 'Subjects', 'Classes', 'Status'], 'No teachers yet'),
   guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status'], 'No guardians yet'),
   'academic-years': makeSection('Academic Years', 'Define the school years that organize every academic record.', 'Add Academic Year', ['Academic year', 'Start date', 'End date', 'Status'], '2025/2026'),
-  'grade-levels': makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'),
-  'classes-sections': makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade', 'Students', 'Status'], 'Grade 5 - A'),
+  'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade name', required: true }] },
+  'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade', 'Students', 'Status'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / section', required: true }, { name: 'grade', label: 'Grade', required: true }] },
   timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
   'assessment-types': makeSection('Assessment Types', 'Define categories such as quizzes, midterms, and final exams.', 'Add Assessment Type', ['Type', 'Weight', 'Assessments', 'Status'], 'Quiz'),
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
@@ -93,10 +94,14 @@ const AdminManagementPage: FC = () => {
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false)
+  const [createValues, setCreateValues] = useState<Record<string, string>>({})
 
   useEffect(() => {
     setIsLoading(true)
     setError('')
+    setIsCreateFormOpen(false)
+    setCreateValues({})
     if (!isBackendSection) {
       setRecords(config.rows.map((row, index) => ({ id: `${section}-${index}`, title: row[0], data: Object.fromEntries(config.columns.slice(0, -1).map((column, columnIndex) => [column, row[columnIndex]])), status: row[row.length - 1] })))
       setIsLoading(false)
@@ -117,6 +122,21 @@ const AdminManagementPage: FC = () => {
 
   const rows = records.map((record) => config.columns.map((column, index) => index === config.columns.length - 1 ? record.status : record.data[column] ?? (index === 0 ? record.title : '—')))
   const filteredRows = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [rows, query])
+  const handleCreateFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const fields = config.createFields
+    if (!fields) return
+    const title = createValues[fields[0].name]?.trim()
+    if (!title) return
+    const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => {
+      const fieldName = fields[index - 1]?.name || ''
+      return [column, index === 0 ? title : createValues[fieldName] || '—']
+    }))
+    setRecords((current) => [...current, { id: `${section}-${Date.now()}`, title, data, status: 'Draft' }])
+    setCreateValues({})
+    setIsCreateFormOpen(false)
+  }
+
   const handleCreate = async () => {
     if (section === 'students') {
       navigate('/admin/students/new')
@@ -142,13 +162,19 @@ const AdminManagementPage: FC = () => {
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="primary.main">{config.title}</Typography></Breadcrumbs>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
           <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>{config.title}</Typography><Typography color="text.secondary">{config.description}</Typography></Box>
-          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button><Button variant="contained" onClick={handleCreate} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button></Stack>
+          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button><Button variant="contained" onClick={() => config.createFields ? setIsCreateFormOpen((current) => !current) : handleCreate()} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button></Stack>
         </Stack>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {config.metrics.map(([label, value, change]) => <Grid item xs={12} sm={4} key={label}><Paper elevation={0} sx={{ p: 2.5, borderRadius: 3 }}><Typography variant="subtitle1" color="text.secondary">{label}</Typography><Stack direction="row" alignItems="baseline" spacing={1} sx={{ mt: 1 }}><Typography variant="h3" sx={{ fontSize: { xs: 26, md: 30 } }}>{value}</Typography><Typography variant="caption" color="primary.main">{change}</Typography></Stack></Paper></Grid>)}
         </Grid>
         {config.analytics && <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 2 }}><Stack direction="row" spacing={1} alignItems="center"><InsightsOutlined color="primary" /><Box><Typography variant="h5">Performance trends</Typography><Typography variant="subtitle2" color="text.secondary">Key indicators over the current reporting period</Typography></Box></Stack><Stack spacing={1.5} sx={{ mt: 3 }}>{[['Engagement', 82], ['Completion', 78], ['Assessment scores', 79]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper>}
         <Paper elevation={0} sx={{ p: { xs: 1, md: 2 }, borderRadius: 3 }}>
+          {isCreateFormOpen && config.createFields && <Box component="form" onSubmit={handleCreateFormSubmit} sx={{ p: 1, mb: 1 }}>
+            <Grid container spacing={1.5}>
+              {config.createFields.map((field) => <Grid item xs={12} sm={6} key={field.name}><TextField fullWidth size="small" label={field.label} type={field.type || 'text'} required={field.required} value={createValues[field.name] || ''} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: event.target.value }))} /></Grid>)}
+              <Grid item xs={12}><Button type="submit" variant="contained">Save</Button></Grid>
+            </Grid>
+          </Box>}
           {error && <Typography color="error" sx={{ px: 1, pt: 1 }}>{error}</Typography>}
           {isLoading && <LinearProgress sx={{ mx: 1, mb: 1 }} />}
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
