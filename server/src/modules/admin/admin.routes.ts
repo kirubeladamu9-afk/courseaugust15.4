@@ -10,6 +10,10 @@ const recordSchema = z.object({
   data: z.record(z.string(), z.string().max(300)),
   status: z.string().trim().min(1).max(40).default('Draft'),
 })
+const guardianSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  email: z.string().trim().email().max(160),
+})
 const studentSchema = z.object({
   fullName: z.string().trim().min(1).max(160),
   dateOfBirth: z.coerce.date(),
@@ -54,6 +58,26 @@ const getModel = (section: string) => {
 }
 
 router.use(requireAdmin)
+
+router.get('/guardians/search', async (req, res, next) => {
+  try {
+    const query = z.string().trim().min(1).max(160).parse(req.query.q)
+    const guardians = await prisma.guardian.findMany({ where: { OR: [{ name: { contains: query, mode: 'insensitive' } }, { email: { contains: query, mode: 'insensitive' } }] }, orderBy: { name: 'asc' }, take: 10 })
+    return res.json({ guardians })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/guardians', async (req, res, next) => {
+  try {
+    const input = guardianSchema.parse(req.body)
+    const guardian = await prisma.guardian.upsert({ where: { email: input.email }, update: { name: input.name }, create: input })
+    return res.status(201).json({ guardian })
+  } catch (error) {
+    return next(error)
+  }
+})
 
 router.get('/students', async (_req, res, next) => {
   try {

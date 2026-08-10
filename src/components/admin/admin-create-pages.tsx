@@ -26,6 +26,12 @@ interface FieldConfig {
   multiline?: boolean
 }
 
+interface Guardian {
+  id: string
+  name: string
+  email: string
+}
+
 const pageConfig: Record<CreateType, { title: string; description: string; fields: FieldConfig[] }> = {
   student: {
     title: 'Add Student',
@@ -86,6 +92,40 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const [values, setValues] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
   const [validationError, setValidationError] = useState('')
+  const [guardianMatches, setGuardianMatches] = useState<Guardian[]>([])
+  const [guardianFormPrompt, setGuardianFormPrompt] = useState(false)
+  const [guardianFormOpen, setGuardianFormOpen] = useState(false)
+  const [guardianForm, setGuardianForm] = useState({ name: '', email: '' })
+
+  const searchGuardians = async () => {
+    const query = values.existingGuardian?.trim()
+    if (!query) {
+      setValidationError('Enter a guardian name or email to search.')
+      return
+    }
+    try {
+      const { data } = await api.get<{ guardians: Guardian[] }>(`/api/admin/guardians/search?q=${encodeURIComponent(query)}`, { withCredentials: true })
+      setGuardianMatches(data.guardians)
+      setGuardianFormPrompt(data.guardians.length === 0)
+      setGuardianFormOpen(false)
+      setValidationError(data.guardians.length === 0 ? 'No guardian found. Add a new guardian to continue.' : '')
+    } catch {
+      setValidationError('Unable to search guardians. Please try again.')
+    }
+  }
+
+  const createGuardian = async () => {
+    try {
+      const { data } = await api.post<{ guardian: Guardian }>('/api/admin/guardians', guardianForm, { withCredentials: true })
+      setValues((current) => ({ ...current, existingGuardian: data.guardian.email }))
+      setGuardianMatches([data.guardian])
+      setGuardianFormPrompt(false)
+      setGuardianFormOpen(false)
+      setValidationError('')
+    } catch {
+      setValidationError('Unable to add guardian. Check the name and email address.')
+    }
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -139,6 +179,21 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                   >
                     {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
                   </TextField>
+                  {type === 'student' && field.name === 'existingGuardian' && <Stack spacing={1} sx={{ mt: 1 }}>
+                    <Button type="button" variant="outlined" size="small" onClick={searchGuardians}>Search Guardian</Button>
+                    {guardianMatches.map((guardian) => <Button key={guardian.id} type="button" onClick={() => setValues((current) => ({ ...current, existingGuardian: guardian.email }))} sx={{ justifyContent: 'flex-start', textTransform: 'none', px: 1 }}>
+                      {guardian.name} · {guardian.email}
+                    </Button>)}
+                    {guardianFormPrompt && !guardianFormOpen && <Button type="button" variant="outlined" size="small" onClick={() => setGuardianFormOpen(true)}>Add New Guardian</Button>}
+                    {guardianFormOpen && <Paper variant="outlined" sx={{ p: 1.5, mt: 0.5 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Add Guardian</Typography>
+                      <Stack spacing={1}>
+                        <TextField size="small" label="Guardian name" value={guardianForm.name} onChange={(event) => setGuardianForm((current) => ({ ...current, name: event.target.value }))} />
+                        <TextField size="small" label="Guardian email" type="email" value={guardianForm.email} onChange={(event) => setGuardianForm((current) => ({ ...current, email: event.target.value }))} />
+                        <Button type="button" variant="contained" size="small" onClick={createGuardian}>Save Guardian</Button>
+                      </Stack>
+                    </Paper>}
+                  </Stack>}
                 </Grid>
               ))}
             </Grid>
