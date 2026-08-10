@@ -187,17 +187,17 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     {guardianFormPrompt && !guardianFormOpen && <Button type="button" variant="outlined" size="small" onClick={() => setGuardianFormOpen(true)}>Add New Guardian</Button>}
                     {guardianFormOpen && <Paper variant="outlined" sx={{ p: 1.5, mt: 0.5 }}>
                       <Typography variant="subtitle2" sx={{ mb: 1 }}>Add Guardian</Typography>
-                      <Stack spacing={1}>
-                        <TextField size="small" label="Full name" required value={guardianForm.name} onChange={(event) => setGuardianForm((current) => ({ ...current, name: event.target.value }))} />
-                        <TextField size="small" label="Email address" type="email" value={guardianForm.email} onChange={(event) => setGuardianForm((current) => ({ ...current, email: event.target.value }))} />
-                        <TextField size="small" label="Relationship to student" select required value={guardianForm.relationshipType} onChange={(event) => setGuardianForm((current) => ({ ...current, relationshipType: event.target.value }))}>{['Mother', 'Father', 'Guardian', 'Emergency Contact'].map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField>
-                        <TextField size="small" label="Phone number" value={guardianForm.phone} onChange={(event) => setGuardianForm((current) => ({ ...current, phone: event.target.value }))} />
-                        <TextField size="small" label="Address" value={guardianForm.address} onChange={(event) => setGuardianForm((current) => ({ ...current, address: event.target.value }))} />
-                        <TextField size="small" label="Occupation" value={guardianForm.occupation} onChange={(event) => setGuardianForm((current) => ({ ...current, occupation: event.target.value }))} />
-                        <TextField size="small" label="National ID / Passport number" value={guardianForm.nationalId} onChange={(event) => setGuardianForm((current) => ({ ...current, nationalId: event.target.value }))} />
-                        <TextField size="small" label="Photo" type="file" InputLabelProps={{ shrink: true }} onChange={(event) => setGuardianForm((current) => ({ ...current, photoName: (event.target as HTMLInputElement).files?.[0]?.name || '' }))} />
-                        <Button type="button" variant="contained" size="small" onClick={createGuardian}>Save Guardian</Button>
-                      </Stack>
+                      <Grid container spacing={1.25}>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Full name" required value={guardianForm.name} onChange={(event) => setGuardianForm((current) => ({ ...current, name: event.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Email address" type="email" value={guardianForm.email} onChange={(event) => setGuardianForm((current) => ({ ...current, email: event.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Relationship to student" select required value={guardianForm.relationshipType} onChange={(event) => setGuardianForm((current) => ({ ...current, relationshipType: event.target.value }))}>{['Mother', 'Father', 'Guardian', 'Emergency Contact'].map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Phone number" value={guardianForm.phone} onChange={(event) => setGuardianForm((current) => ({ ...current, phone: event.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Address" value={guardianForm.address} onChange={(event) => setGuardianForm((current) => ({ ...current, address: event.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Occupation" value={guardianForm.occupation} onChange={(event) => setGuardianForm((current) => ({ ...current, occupation: event.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="National ID / Passport number" value={guardianForm.nationalId} onChange={(event) => setGuardianForm((current) => ({ ...current, nationalId: event.target.value }))} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Photo" type="file" InputLabelProps={{ shrink: true }} onChange={(event) => setGuardianForm((current) => ({ ...current, photoName: (event.target as HTMLInputElement).files?.[0]?.name || '' }))} /></Grid>
+                        <Grid item xs={12}><Button type="button" variant="contained" size="small" onClick={createGuardian}>Save Guardian</Button></Grid>
+                      </Grid>
                     </Paper>}
                   </Stack>}
                 </Grid>
