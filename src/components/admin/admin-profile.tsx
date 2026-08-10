@@ -44,7 +44,7 @@ const AdminProfile: FC = () => {
               <Typography component="h1" variant="h2" sx={{ fontSize: { xs: 26, md: 30 }, mb: 0.5 }}>{user?.name || 'Administrator'}</Typography>
               <Stack direction="row" justifyContent={{ xs: 'center', sm: 'flex-start' }} flexWrap="wrap" spacing={1} sx={{ mb: 1 }}>
                 <Chip label="Administrator" size="small" color="primary" />
-                <Chip label={user?.status === 'active' ? 'Active account' : user?.status || 'Unknown status'} size="small" sx={{ backgroundColor: '#e4f7ef', color: '#127c71' }} />
+                <Chip label={user?.status === 'active' ? 'Active account' : user?.status || 'Unknown status'} size="small" sx={{ backgroundColor: 'rgba(50, 220, 136, 0.16)', color: '#32dc88' }} />
               </Stack>
               <Stack direction="row" alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} spacing={0.75}>
                 <EmailOutlined sx={{ fontSize: 17, color: 'text.secondary' }} />

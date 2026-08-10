@@ -38,13 +38,12 @@ import MenuRounded from '@mui/icons-material/MenuRounded'
 import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
 import SearchRounded from '@mui/icons-material/SearchRounded'
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined'
-import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
-import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
 import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded'
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
 import { useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/logo'
 import { useAuth } from '@/auth/auth-context'
+import ThemeToggle from '@/components/theme-toggle'
 
 interface StatCardProps {
   label: string
@@ -57,8 +56,8 @@ interface StatCardProps {
 const toneStyles = {
   primary: { backgroundColor: 'primary.main', color: 'primary.contrastText' },
   secondary: { backgroundColor: 'secondary.main', color: 'text.primary' },
-  success: { backgroundColor: '#e4f7ef', color: '#127c71' },
-  warning: { backgroundColor: '#fff3d7', color: '#936b00' },
+  success: { backgroundColor: 'rgba(50, 220, 136, 0.16)', color: '#32dc88' },
+  warning: { backgroundColor: 'rgba(245, 184, 46, 0.18)', color: '#f5b82e' },
 }
 
 const StatCard: FC<StatCardProps> = ({ label, value, change, icon, tone }) => (
@@ -81,7 +80,7 @@ const StatCard: FC<StatCardProps> = ({ label, value, change, icon, tone }) => (
           </Typography>
         </Stack>
       </Box>
-      <Box sx={{ ...toneStyles[tone], backgroundColor: '#ffffff', width: 44, height: 44, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ ...toneStyles[tone], backgroundColor: 'background.paper', width: 44, height: 44, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {icon}
       </Box>
     </Stack>
@@ -121,7 +120,7 @@ const LearningActivityChart: FC = () => (
 interface FeedItemProps { title: string; detail: string; time: string; icon: ReactNode }
 const FeedItem: FC<FeedItemProps> = ({ title, detail, time, icon }) => (
   <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 1.5 }}>
-    <Box sx={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: '#ffffff', flexShrink: 0 }}>{icon}</Box>
+    <Box sx={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: 'background.paper', flexShrink: 0 }}>{icon}</Box>
     <Box sx={{ minWidth: 0, flex: 1 }}>
       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{title}</Typography>
       <Typography variant="caption" color="text.secondary" noWrap>{detail}</Typography>
@@ -132,7 +131,7 @@ const FeedItem: FC<FeedItemProps> = ({ title, detail, time, icon }) => (
 
 const QuickAction: FC<{ label: string; icon: ReactNode }> = ({ label, icon }) => (
   <ButtonBase sx={{ display: 'flex', justifyContent: 'flex-start', width: '100%', p: 1.25, borderRadius: 2, textAlign: 'left', '&:hover': { backgroundColor: 'background.default' } }}>
-    <Box sx={{ width: 34, height: 34, mr: 1.25, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: '#ffffff' }}>{icon}</Box>
+    <Box sx={{ width: 34, height: 34, mr: 1.25, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: 'background.paper' }}>{icon}</Box>
     <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{label}</Typography>
   </ButtonBase>
 )
@@ -212,7 +211,6 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
   const navigate = useNavigate()
   const { logout } = useAuth()
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
-  const [darkMode, setDarkMode] = useState(false)
   const profileOpen = Boolean(profileAnchor)
 
   const handleProfileAction = async (item: string) => {
@@ -266,9 +264,7 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
         <Stack direction="row" alignItems="center" spacing={{ xs: 0.25, md: 1 }} sx={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', flexShrink: 0, backgroundColor: 'background.paper' }}>
           <IconButton aria-label="Search" sx={{ display: { xs: 'inline-flex', sm: 'none' } }}><SearchRounded /></IconButton>
           <IconButton aria-label="Language" sx={{ display: { xs: 'none', md: 'inline-flex' } }}><TranslateOutlined /></IconButton>
-          <IconButton aria-label={darkMode ? 'Use light mode' : 'Use dark mode'} onClick={() => setDarkMode(!darkMode)}>
-            {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
-          </IconButton>
+          <ThemeToggle />
           <IconButton aria-label="Notifications">
             <Badge badgeContent={4} color="primary"><NotificationsNoneOutlined /></Badge>
           </IconButton>

@@ -7,6 +7,7 @@ import { Logo } from '@/components/logo'
 import { Navigation, AuthNavigation } from '@/components/navigation'
 import { useTheme } from '@mui/material/styles'
 import { Menu, Close } from '@mui/icons-material'
+import ThemeToggle from '@/components/theme-toggle'
 
 const Header: FC = () => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
@@ -45,7 +46,10 @@ const Header: FC = () => {
           >
             <Box /> {/* Magic space */}
             <Navigation />
-            <AuthNavigation />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ThemeToggle />
+              <AuthNavigation />
+            </Box>
             {visibleMenu && matchMobileView && (
               <IconButton
                 sx={{

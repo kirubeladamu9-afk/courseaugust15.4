@@ -7,16 +7,31 @@ import paletteDark from './palette-dark'
 import shadows from './shadows'
 
 // default
-const createTheme = (darkMode?: boolean): Theme => {
+const createAppTheme = (darkMode = false): Theme => {
   const palette = darkMode ? { ...paletteBase, ...paletteDark } : { ...paletteBase, ...paletteLight }
   return createMuiTheme({
     palette,
     typography,
     shadows,
+    components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          html: {
+            transition: 'background-color 180ms ease, color 180ms ease',
+          },
+          body: {
+            transition: 'background-color 180ms ease, color 180ms ease',
+          },
+          '*, *::before, *::after': {
+            transition: 'background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease',
+          },
+        },
+      },
+    },
   })
 }
 
-const theme = createTheme(false)
+const theme = createAppTheme()
 
-export { paletteBase, paletteLight, paletteDark, typography, shadows }
+export { createAppTheme, paletteBase, paletteLight, paletteDark, typography, shadows }
 export default theme
