@@ -31,7 +31,7 @@ interface PageLayoutProps {
 const LoadingState: React.FC = () => (
   <Box
     role="status"
-    aria-label="Loading content"
+    aria-label="Loading"
     sx={{
       position: 'fixed',
       inset: 0,
@@ -45,7 +45,7 @@ const LoadingState: React.FC = () => (
     }}
   >
     <CircularProgress color="primary" />
-    <Typography color="text.secondary">Loading content...</Typography>
+    <Typography color="text.secondary">Loading...</Typography>
   </Box>
 )
 
