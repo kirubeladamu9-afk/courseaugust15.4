@@ -18,8 +18,9 @@ import Typography from '@mui/material/Typography'
 import AddRounded from '@mui/icons-material/AddRounded'
 import DownloadRounded from '@mui/icons-material/DownloadRounded'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
-import { useMemo, useState, type FC } from 'react'
+import { useEffect, useMemo, useState, type FC } from 'react'
 import { useParams } from 'react-router-dom'
+import api from '@/lib/api'
 import { AdminPanelLayout } from './admin-dashboard'
 
 type SectionConfig = {
@@ -51,11 +52,37 @@ const sections: Record<string, SectionConfig> = {
 
 const statusColor = (status: string): 'success' | 'warning' | 'info' => status === 'Published' || status === 'Active' || status === 'Assigned' || status === 'Completed' ? 'success' : status === 'Draft' || status === 'Pending' || status === 'Review' ? 'warning' : 'info'
 
+type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string }
+
 const AdminManagementPage: FC = () => {
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? sections['student-progress']
+  const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
-  const filteredRows = useMemo(() => config.rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [config.rows, query])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setIsLoading(true)
+    setError('')
+    api.get<{ records: AdminRecord[] }>(`/api/admin/${section}`, { withCredentials: true })
+      .then(({ data }) => setRecords(data.records))
+      .catch(() => setError('Unable to load records. Please refresh and try again.'))
+      .finally(() => setIsLoading(false))
+  }, [section])
+
+  const rows = records.map((record) => config.columns.map((column, index) => index === config.columns.length - 1 ? record.status : record.data[column] ?? (index === 0 ? record.title : '—')))
+  const filteredRows = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [rows, query])
+  const handleCreate = async () => {
+    if (config.action.includes('Export')) return
+    const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, index === 0 ? `New ${config.title} record` : '—']))
+    try {
+      const { data: response } = await api.post<{ record: AdminRecord }>(`/api/admin/${section}`, { title: `New ${config.title} record`, data, status: 'Draft' }, { withCredentials: true })
+      setRecords((current) => [...current, response.record])
+    } catch {
+      setError('Unable to create the record. Please try again.')
+    }
+  }
 
   return (
     <AdminPanelLayout title={config.title}>
@@ -63,13 +90,15 @@ const AdminManagementPage: FC = () => {
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="primary.main">{config.title}</Typography></Breadcrumbs>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
           <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>{config.title}</Typography><Typography color="text.secondary">{config.description}</Typography></Box>
-          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button><Button variant="contained" startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button></Stack>
+          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button><Button variant="contained" onClick={handleCreate} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button></Stack>
         </Stack>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {config.metrics.map(([label, value, change]) => <Grid item xs={12} sm={4} key={label}><Paper elevation={0} sx={{ p: 2.5, borderRadius: 3 }}><Typography variant="subtitle1" color="text.secondary">{label}</Typography><Stack direction="row" alignItems="baseline" spacing={1} sx={{ mt: 1 }}><Typography variant="h3" sx={{ fontSize: { xs: 26, md: 30 } }}>{value}</Typography><Typography variant="caption" color="primary.main">{change}</Typography></Stack></Paper></Grid>)}
         </Grid>
         {config.analytics && <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 2 }}><Stack direction="row" spacing={1} alignItems="center"><InsightsOutlined color="primary" /><Box><Typography variant="h5">Performance trends</Typography><Typography variant="subtitle2" color="text.secondary">Key indicators over the current reporting period</Typography></Box></Stack><Stack spacing={1.5} sx={{ mt: 3 }}>{[['Engagement', 82], ['Completion', 78], ['Assessment scores', 79]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper>}
         <Paper elevation={0} sx={{ p: { xs: 1, md: 2 }, borderRadius: 3 }}>
+          {error && <Typography color="error" sx={{ px: 1, pt: 1 }}>{error}</Typography>}
+          {isLoading && <LinearProgress sx={{ mx: 1, mb: 1 }} />}
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
           <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRows.map((row) => <TableRow hover key={row.join('-')}>{row.map((cell, index) => <TableCell key={`${cell}-${index}`} sx={{ whiteSpace: 'nowrap' }}>{index === row.length - 1 && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>
           {!filteredRows.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
