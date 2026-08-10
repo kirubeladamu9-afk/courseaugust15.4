@@ -148,10 +148,10 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const itemRoutes: Record<string, string> = {
     'Roles & Permissions': '/admin/roles-permissions',
     'User Accounts': '/admin/user-accounts',
-    'Student List': '/admin/students',
+    Students: '/admin/students',
     'Admissions / Enrollment': '/admin/admissions-enrollment',
     Promotions: '/admin/promotions',
-    'Teacher List': '/admin/teachers',
+    Teachers: '/admin/teachers',
     'Class & Teacher Assignments': '/admin/teacher-assignments',
     'Guardian List': '/admin/guardians',
     'Academic Years': '/admin/academic-years',
@@ -176,8 +176,8 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   }
   const menuGroups = [
     { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions', 'User Accounts'] },
-    { label: 'Students', parent: 'Student List', icon: <PeopleAltOutlined fontSize="small" />, items: ['Admissions / Enrollment', 'Promotions'] },
-    { label: 'Teachers', parent: 'Teacher List', icon: <SchoolOutlined fontSize="small" />, items: [] },
+    { label: 'Students', parent: 'Students', icon: <PeopleAltOutlined fontSize="small" />, items: ['Admissions / Enrollment', 'Promotions'] },
+    { label: 'Teachers', parent: 'Teachers', icon: <SchoolOutlined fontSize="small" />, items: [] },
     { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
     { label: 'Academic Structure', parent: 'Academic Years', icon: <MenuBookOutlined fontSize="small" />, items: ['Grade Levels', 'Classes & Sections', 'Subjects'] },
     { label: 'Scheduling', parent: 'Timetable', icon: <PlayLessonOutlined fontSize="small" />, items: [] },
@@ -209,7 +209,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
               <ButtonBase onClick={() => { const route = itemRoutes[parent]; if (route) { navigate(route); onClose?.() } setExpandedMenu(isExpanded ? '' : label) }} sx={{ ...menuButtonSx, mt: 0.5 }}>
                 <Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{icon}</Box>
                 <Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{parent}</Typography>
-                <Box sx={{ display: 'flex', ml: 'auto' }}>{isExpanded ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box>
+                {items.length > 0 && <Box sx={{ display: 'flex', ml: 'auto' }}>{isExpanded ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box>}
               </ButtonBase>
               <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                 <Stack spacing={0.25} sx={{ mt: 0.25 }}>
