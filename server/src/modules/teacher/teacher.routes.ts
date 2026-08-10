@@ -7,16 +7,27 @@ const router = Router()
 
 router.use(requireAuth, requireRole('TEACHER'))
 
+const assessmentQuestionSchema = z.object({
+  type: z.enum(['single', 'multiple', 'true-false', 'fill-blank']),
+  prompt: z.string().trim().min(1).max(1000),
+  options: z.array(z.string().trim().min(1).max(300)).max(20),
+  correctAnswer: z.union([z.string(), z.array(z.string())]),
+  points: z.number().int().positive().max(100),
+}).superRefine((question, context) => {
+  if (question.type === 'fill-blank') {
+    if (question.options.length || typeof question.correctAnswer !== 'string' || !question.correctAnswer.trim()) context.addIssue({ code: 'custom', message: 'Fill-in-the-blank questions require one text answer and no options.' })
+    return
+  }
+  if (question.options.length < 2 || new Set(question.options).size !== question.options.length) context.addIssue({ code: 'custom', message: 'Choice questions require at least two unique options.' })
+  if (question.type === 'true-false' && (question.options.join('|') !== 'True|False' || typeof question.correctAnswer !== 'string' || !['0', '1'].includes(question.correctAnswer))) context.addIssue({ code: 'custom', message: 'True/False questions must use True and False with one correct answer.' })
+  if (question.type === 'single' && (typeof question.correctAnswer !== 'string' || !question.options.includes(question.options[Number(question.correctAnswer)]))) context.addIssue({ code: 'custom', message: 'Single-answer questions require one valid correct option.' })
+  if (question.type === 'multiple' && (!Array.isArray(question.correctAnswer) || !question.correctAnswer.length || question.correctAnswer.some((answer) => !question.options[Number(answer)]))) context.addIssue({ code: 'custom', message: 'Multiple-answer questions require one or more valid correct options.' })
+})
+
 const assessmentSchema = z.object({
   title: z.string().trim().min(1).max(160),
   className: z.string().trim().min(1).max(80),
-  questions: z.array(z.object({
-    type: z.enum(['single', 'multiple', 'true-false', 'fill-blank']),
-    prompt: z.string().trim().min(1).max(1000),
-    options: z.array(z.string().max(300)).max(20),
-    correctAnswer: z.union([z.string(), z.array(z.string())]),
-    points: z.number().int().positive().max(100),
-  })).min(1).max(100),
+  questions: z.array(assessmentQuestionSchema).min(1).max(100),
 })
 
 router.get('/students', async (_req, res, next) => {
@@ -42,7 +53,7 @@ router.get('/assigned-classes', async (_req, res, next) => {
 router.post('/assessments', async (req, res, next) => {
   try {
     const input = assessmentSchema.parse(req.body)
-    const assessment = await prisma.quiz.create({ data: { title: input.title, data: { className: input.className, questions: input.questions }, status: 'Draft' } })
+    const assessment = await prisma.quiz.create({ data: { title: input.title, data: { teacherId: res.locals.auth.sub, className: input.className, questions: input.questions }, status: 'Draft' } })
     return res.status(201).json({ assessment: { id: assessment.id, title: assessment.title, status: assessment.status } })
   } catch (error) {
     return next(error)
