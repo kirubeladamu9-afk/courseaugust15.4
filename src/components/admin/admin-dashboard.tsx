@@ -208,7 +208,7 @@ const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, collapsed, onClose })
   </>
 )
 
-const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; sidebarCollapsed: boolean }> = ({ onMenuClick, onToggleSidebar, sidebarCollapsed }) => {
+const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; sidebarCollapsed: boolean; title: string }> = ({ onMenuClick, onToggleSidebar, sidebarCollapsed, title }) => {
   const navigate = useNavigate()
   const { logout } = useAuth()
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
@@ -246,7 +246,7 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
           {sidebarCollapsed ? <KeyboardDoubleArrowRight /> : <KeyboardDoubleArrowLeft />}
         </IconButton>
         <IconButton onClick={onMenuClick} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', md: 'none' } }}><MenuRounded /></IconButton>
-        <Typography variant="h5" sx={{ fontSize: { xs: '1rem', sm: '1.2rem' }, whiteSpace: 'nowrap' }}>Dashboard Overview</Typography>
+        <Typography variant="h5" sx={{ fontSize: { xs: '1rem', sm: '1.2rem' }, whiteSpace: 'nowrap' }}>{title}</Typography>
         <Box
           sx={{
             ml: { xs: 'auto', sm: 2 },
@@ -284,7 +284,7 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
   )
 }
 
-const AdminDashboard: FC = () => {
+export const AdminPanelLayout: FC<{ children: ReactNode; title: string }> = ({ children, title }) => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
@@ -292,8 +292,16 @@ const AdminDashboard: FC = () => {
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh', display: 'flex' }}>
       <AdminSidebar mobileOpen={mobileOpen} collapsed={sidebarCollapsed} onClose={() => setMobileOpen(false)} />
       <Box component="section" sx={{ minWidth: 0, flex: 1, ml: { xs: 0, md: sidebarCollapsed ? 0 : '248px' }, transition: 'margin-left 240ms ease' }}>
-        <AdminHeader onMenuClick={() => setMobileOpen(true)} onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />
-        <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+        <AdminHeader onMenuClick={() => setMobileOpen(true)} onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} title={title} />
+        {children}
+      </Box>
+    </Box>
+  )
+}
+
+const AdminDashboard: FC = () => (
+  <AdminPanelLayout title="Dashboard Overview">
+    <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary">Admin</Typography>
           <Typography variant="subtitle2" color="primary.main">Dashboard</Typography>
@@ -355,10 +363,8 @@ const AdminDashboard: FC = () => {
             </Paper>
           </Grid>
         </Grid>
-        </Container>
-      </Box>
-    </Box>
-  )
-}
+    </Container>
+  </AdminPanelLayout>
+)
 
 export default AdminDashboard

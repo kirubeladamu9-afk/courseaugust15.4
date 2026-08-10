@@ -17,7 +17,7 @@ import ShieldOutlined from '@mui/icons-material/ShieldOutlined'
 import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/auth-context'
-import { Header } from '@/components/header'
+import { AdminPanelLayout } from '@/components/admin/admin-dashboard'
 
 const AdminProfile: FC = () => {
   const navigate = useNavigate()
@@ -26,8 +26,7 @@ const AdminProfile: FC = () => {
   const lastLogin = user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Not available'
 
   return (
-    <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh' }}>
-      <Header />
+    <AdminPanelLayout title="Profile">
       <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 } }}>
         <Breadcrumbs sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary">Admin</Typography>
@@ -73,7 +72,7 @@ const AdminProfile: FC = () => {
           </Grid>
         </Paper>
       </Container>
-    </Box>
+    </AdminPanelLayout>
   )
 }
 
