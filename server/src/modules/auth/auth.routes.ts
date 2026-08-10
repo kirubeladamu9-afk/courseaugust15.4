@@ -14,10 +14,11 @@ const credentialsSchema = z.object({ identifier: z.string().trim().min(1), passw
 const createSessionToken = (user: { id: string; role: string }, remember: boolean) => jwt.sign({ sub: user.id, role: user.role }, env.JWT_SECRET, { expiresIn: remember ? '30d' : '8h' })
 
 const setSessionCookie: RequestHandler = (req, res, next) => {
+  const isHttps = req.secure || req.get('x-forwarded-proto') === 'https' || req.get('origin')?.startsWith('https://')
   res.cookie(sessionCookie, (res.locals.sessionToken as string), {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: isHttps ? 'none' : 'lax',
+    secure: isHttps,
     path: '/',
     maxAge: res.locals.remember ? 30 * 24 * 60 * 60 * 1000 : undefined,
   })
@@ -50,8 +51,9 @@ router.post('/login', async (req, res, next) => {
   }
 })
 
-router.post('/logout', (_req, res) => {
-  res.clearCookie(sessionCookie, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' })
+router.post('/logout', (req, res) => {
+  const isHttps = req.secure || req.get('x-forwarded-proto') === 'https' || req.get('origin')?.startsWith('https://')
+  res.clearCookie(sessionCookie, { httpOnly: true, sameSite: isHttps ? 'none' : 'lax', secure: isHttps, path: '/' })
   res.status(204).send()
 })
 
