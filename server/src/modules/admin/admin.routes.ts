@@ -1,4 +1,6 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
+import { AccountStatus, UserRole } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../config/prisma'
 import { requireAdmin } from '../../middleware/require-admin'
@@ -10,6 +12,22 @@ const recordSchema = z.object({
   data: z.record(z.string(), z.string().max(300)),
   status: z.string().trim().min(1).max(40).default('Draft'),
 })
+const userAccountSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  username: z.string().trim().min(3).max(80).regex(/^[a-zA-Z0-9_.-]+$/),
+  email: z.string().trim().email().max(160),
+  password: z.string().min(8).max(200),
+  role: z.enum(['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+})
+
+const toUserAccountRecord = (user: { id: string; name: string; username: string; email: string; role: UserRole; lastLoginAt: Date | null; status: AccountStatus }) => ({
+  id: user.id,
+  title: user.name,
+  data: { User: user.name, Role: user.role.charAt(0) + user.role.slice(1).toLowerCase(), Email: user.email, 'Last login': user.lastLoginAt?.toISOString() || 'Never' },
+  status: user.status.charAt(0) + user.status.slice(1).toLowerCase(),
+})
+
 const guardianSchema = z.object({
   name: z.string().trim().min(1).max(160),
   email: z.preprocess((value) => value === '' ? undefined : value, z.string().trim().email().max(160).optional()),
@@ -65,6 +83,35 @@ const getModel = (section: string) => {
 }
 
 router.use(requireAdmin)
+
+router.get('/user-accounts', async (_req, res, next) => {
+  try {
+    const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true } })
+    return res.json({ records: users.map(toUserAccountRecord) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/user-accounts', async (req, res, next) => {
+  try {
+    const input = userAccountSchema.parse(req.body)
+    const user = await prisma.user.create({
+      data: {
+        name: input.name,
+        username: input.username.toLowerCase(),
+        email: input.email.toLowerCase(),
+        passwordHash: await bcrypt.hash(input.password, 12),
+        role: UserRole[input.role],
+        status: AccountStatus[input.status],
+      },
+      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+    })
+    return res.status(201).json({ record: toUserAccountRecord(user) })
+  } catch (error) {
+    return next(error)
+  }
+})
 
 router.get('/guardians', async (_req, res, next) => {
   try {

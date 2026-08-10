@@ -78,7 +78,7 @@ const additionalSections: Record<string, SectionConfig> = {
   'enrollment-reports': makeSection('Enrollment Reports', 'Review admissions and enrollment trends over time.', 'Export Report', ['Period', 'Applications', 'Enrolled', 'Status'], 'No enrollment data'),
   'performance-trends': makeSection('Performance Trends', 'Analyze academic performance patterns across classes and terms.', 'Export Trends', ['Term', 'Class', 'Average score', 'Status'], 'No trend data'),
   'custom-export-reports': makeSection('Custom / Export Reports', 'Build and export custom data reports for school leadership.', 'Create Report', ['Report', 'Filters', 'Created by', 'Status'], 'No custom reports'),
-  'user-accounts': makeSection('User Accounts', 'Create and manage staff login accounts.', 'Add Account', ['User', 'Role', 'Last login', 'Status'], 'No accounts yet'),
+  'user-accounts': { ...makeSection('User Accounts', 'Create and manage login accounts for teachers, admins, students, and parents.', 'Create Account', ['User', 'Role', 'Email', 'Last login', 'Status'], 'No accounts yet'), createFields: [{ name: 'name', label: 'Full name', required: true }, { name: 'username', label: 'Username', required: true }, { name: 'email', label: 'Email', type: 'email', required: true }, { name: 'password', label: 'Temporary password', type: 'password', required: true }, { name: 'role', label: 'Role', options: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT'], required: true }, { name: 'status', label: 'Status', options: ['ACTIVE', 'INACTIVE'], required: true }] },
   'general-settings': makeSection('General Settings', 'Manage school name, logo, and contact information.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'School information'),
   'academic-settings': makeSection('Academic Settings', 'Configure default rules for the academic structure.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'Default academic year'),
   'system-settings': makeSection('System Settings', 'Manage backups, notifications, and technical configuration.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'Backup schedule'),
@@ -92,7 +92,7 @@ const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections', 'teachers'].includes(section)
+  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections', 'teachers', 'user-accounts'].includes(section)
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
