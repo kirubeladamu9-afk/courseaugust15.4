@@ -1,6 +1,7 @@
 import { useMemo, useState, type FC } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
+import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Button from '@mui/material/Button'
 import ButtonBase from '@mui/material/ButtonBase'
 import Chip from '@mui/material/Chip'
@@ -9,6 +10,7 @@ import Container from '@mui/material/Container'
 import Drawer from '@mui/material/Drawer'
 import Grid from '@mui/material/Grid'
 import IconButton from '@mui/material/IconButton'
+import InputBase from '@mui/material/InputBase'
 import LinearProgress from '@mui/material/LinearProgress'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
@@ -34,11 +36,13 @@ import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutl
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined'
 import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
 import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined'
-import SchoolOutlined from '@mui/icons-material/SchoolOutlined'
+import SearchRounded from '@mui/icons-material/SearchRounded'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined'
 import Badge from '@mui/material/Badge'
 import Menu from '@mui/material/Menu'
+import TranslateOutlined from '@mui/icons-material/TranslateOutlined'
+import { Logo } from '@/components/logo'
 import ThemeToggle from '@/components/theme-toggle'
 import { useAuth } from '@/auth/auth-context'
 
@@ -82,10 +86,7 @@ const SidebarContent: FC<{ currentPath: string; onNavigate: (path: string) => vo
   const navigate = (path: string) => { onNavigate(path); onClose?.() }
 
   return <Box sx={{ width: 256, height: '100%', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
-    <Stack direction="row" alignItems="center" spacing={1.25} sx={{ mb: 4 }}>
-      <Box sx={{ width: 34, height: 34, borderRadius: 2, display: 'grid', placeItems: 'center', backgroundColor: 'primary.main', color: 'primary.contrastText' }}><SchoolOutlined fontSize="small" /></Box>
-      <Typography variant="h6" color="primary.main">CourseSpace</Typography>
-    </Stack>
+    <Box sx={{ mb: 4 }}><Logo /></Box>
     <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>Teacher Portal</Typography>
     <Stack spacing={0.5} sx={{ mt: 1 }}>
       {[...portalItems, ...footerItems].map((item) => <ButtonBase key={item.path} onClick={() => navigate(item.path)} sx={{ ...buttonSx, ...(isActive(item.path) ? { color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' } } : {}) }}><Box sx={{ display: 'flex', mr: 1.25 }}>{item.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{item.label}</Typography></ButtonBase>)}
@@ -130,8 +131,8 @@ const TeacherPortal: FC = () => {
     <Box component="aside" sx={{ display: { xs: 'none', md: 'block' }, position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: (theme) => theme.zIndex.drawer, width: 256, borderRight: 1, borderColor: 'divider' }}><SidebarContent currentPath={location.pathname} onNavigate={navigate} /></Box>
     <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} sx={{ display: { xs: 'block', md: 'none' } }}><SidebarContent currentPath={location.pathname} onNavigate={navigate} onClose={() => setMobileOpen(false)} /></Drawer>
     <Box component="section" sx={{ minWidth: 0, flex: 1, ml: { xs: 0, md: '256px' } }}>
-      <Paper component="header" elevation={0} sx={{ position: 'sticky', top: 0, zIndex: (theme) => theme.zIndex.appBar, px: { xs: 1.5, md: 3 }, py: 1, borderBottom: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}><Stack direction="row" alignItems="center" spacing={{ xs: 1, md: 2 }} sx={{ minHeight: 48 }}><IconButton onClick={() => setMobileOpen(true)} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', md: 'none' } }}><MenuRounded /></IconButton><Typography variant="h5" sx={{ fontSize: { xs: '1rem', sm: '1.2rem' }, flex: 1 }}>{details.title}</Typography><ThemeToggle /><IconButton aria-label="Notifications"><Badge badgeContent={3} color="primary"><NotificationsNoneOutlined /></Badge></IconButton><IconButton aria-label="Open profile menu" onClick={(event) => setProfileAnchor(event.currentTarget)}><AccountCircleOutlined color="primary" /></IconButton><Menu anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)}><MenuItem onClick={() => { setProfileAnchor(null); navigate('/teacher/profile') }}>My Profile</MenuItem><MenuItem onClick={() => { setProfileAnchor(null); navigate('/teacher/change-password') }}>Change Password</MenuItem><MenuItem onClick={handleLogout}>Logout</MenuItem></Menu></Stack></Paper>
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}><Stack spacing={0.5} sx={{ mb: 4 }}><Typography variant="h1" sx={{ fontSize: { xs: 30, md: 38 } }}>{details.title}</Typography><Typography color="text.secondary">{details.description}{user?.name ? ` Welcome back, ${user.name}.` : ''}</Typography></Stack><TeacherPageContent pageKey={pageKey} /></Container>
+      <Paper component="header" elevation={0} sx={{ position: 'sticky', top: 0, zIndex: (theme) => theme.zIndex.appBar, px: { xs: 1.5, md: 3 }, py: 1, borderBottom: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}><Stack direction="row" alignItems="center" spacing={{ xs: 0.5, md: 2 }} sx={{ minHeight: 48, position: 'relative' }}><IconButton onClick={() => setMobileOpen(true)} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', md: 'none' } }}><MenuRounded /></IconButton><Typography variant="h5" sx={{ fontSize: { xs: '1rem', sm: '1.2rem' }, whiteSpace: 'nowrap' }}>{details.title}</Typography><Box sx={{ ml: { xs: 'auto', sm: 2 }, display: { xs: 'none', sm: 'flex' }, alignItems: 'center', width: '100%', maxWidth: 440, px: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><SearchRounded sx={{ color: 'text.disabled', mr: 1 }} /><InputBase fullWidth placeholder="Search students, materials, assessments..." inputProps={{ 'aria-label': 'Search teacher portal' }} sx={{ py: 0.75, fontSize: '0.85rem' }} /></Box><Stack direction="row" alignItems="center" spacing={{ xs: 0.25, md: 1 }} sx={{ ml: 'auto', backgroundColor: 'background.paper' }}><IconButton aria-label="Language" sx={{ display: { xs: 'none', md: 'inline-flex' } }}><TranslateOutlined /></IconButton><ThemeToggle /><IconButton aria-label="Notifications"><Badge badgeContent={3} color="primary"><NotificationsNoneOutlined /></Badge></IconButton><IconButton aria-label="Open profile menu" onClick={(event) => setProfileAnchor(event.currentTarget)}><AccountCircleOutlined color="primary" /></IconButton><Menu anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)}><MenuItem onClick={() => { setProfileAnchor(null); navigate('/teacher/profile') }}>My Profile</MenuItem><MenuItem onClick={() => { setProfileAnchor(null); navigate('/teacher/change-password') }}>Change Password</MenuItem><MenuItem onClick={handleLogout}>Logout</MenuItem></Menu></Stack></Stack></Paper>
+      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}><Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Teacher Portal</Typography><Typography variant="subtitle2" color="primary.main">{details.title}</Typography></Breadcrumbs><Stack spacing={0.5} sx={{ mb: 4 }}><Typography variant="h1" sx={{ fontSize: { xs: 30, md: 38 } }}>{details.title}</Typography><Typography color="text.secondary">{details.description}{user?.name ? ` Welcome back, ${user.name}.` : ''}</Typography></Stack><TeacherPageContent pageKey={pageKey} /></Container>
     </Box>
   </Box>
 }
