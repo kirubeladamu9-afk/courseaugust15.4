@@ -164,7 +164,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
             {validationError && <Alert severity="error" onClose={() => setValidationError('')} sx={{ mb: 3 }}>{validationError}</Alert>}
             <Grid container spacing={2.25}>
               {config.fields.map((field) => (
-                <Grid item xs={12} sm={field.multiline ? 12 : 6} key={field.name}>
+                <Grid item xs={12} sm={field.multiline || field.name === 'existingGuardian' ? 12 : 6} key={field.name}>
                   <TextField
                     fullWidth
                     required={field.required}
