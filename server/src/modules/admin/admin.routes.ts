@@ -28,7 +28,7 @@ type UserAccountRecord = { id: string; title: string; data: Record<string, strin
 const toUserAccountRecord = (user: { id: string; name: string; username: string; email: string; role: UserRole; lastLoginAt: Date | null; status: AccountStatus }): UserAccountRecord => ({
   id: user.id,
   title: user.name,
-  data: { User: user.name, Role: user.role.charAt(0) + user.role.slice(1).toLowerCase(), Email: user.email, 'Last login': user.lastLoginAt?.toISOString() || 'Never' },
+  data: { User: user.name, Username: user.username, Role: user.role.charAt(0) + user.role.slice(1).toLowerCase(), Email: user.email, 'Last login': user.lastLoginAt?.toISOString() || 'Never' },
   status: user.status.charAt(0) + user.status.slice(1).toLowerCase(),
   sourceType: 'user',
   sourceId: user.id,

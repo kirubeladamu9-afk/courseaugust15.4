@@ -169,7 +169,15 @@ const AdminManagementPage: FC = () => {
     try {
       const { data: response } = await api.post<{ record: AdminRecord; temporaryPassword: string; created: boolean }>(`/api/admin/user-accounts/${record.sourceType}/${record.sourceId}/reset-password`, {}, { withCredentials: true })
       setRecords((current) => current.map((currentRecord) => currentRecord.id === record.id || currentRecord.userId === response.record.userId ? response.record : currentRecord))
-      setNotice(`${response.created ? 'Account created' : 'Password reset'} for ${response.record.title}. Temporary password: ${response.temporaryPassword}`)
+      const username = response.record.data.Username || response.record.data.Email || response.record.title
+      const credentials = `CourseSpace login credentials\n\nName: ${response.record.title}\nUsername: ${username}\nRole: ${response.record.data.Role}\nTemporary password: ${response.temporaryPassword}\n\nPlease change this password after signing in.`
+      const downloadUrl = URL.createObjectURL(new Blob([credentials], { type: 'text/plain;charset=utf-8' }))
+      const downloadLink = document.createElement('a')
+      downloadLink.href = downloadUrl
+      downloadLink.download = `${username.replace(/[^a-z0-9_.-]/gi, '-')}-login-credentials.txt`
+      downloadLink.click()
+      URL.revokeObjectURL(downloadUrl)
+      setNotice(`${response.created ? 'Account created' : 'Password reset'} for ${response.record.title}. Credentials downloaded.`)
       setError('')
     } catch (error) {
       setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || 'Unable to reset the password.' : 'Unable to reset the password.')
