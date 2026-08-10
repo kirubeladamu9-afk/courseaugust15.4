@@ -177,7 +177,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const menuGroups = [
     { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions', 'User Accounts'] },
     { label: 'Students', parent: 'Student List', icon: <PeopleAltOutlined fontSize="small" />, items: ['Admissions / Enrollment', 'Promotions'] },
-    { label: 'Teachers', parent: 'Teacher List', icon: <SchoolOutlined fontSize="small" />, items: ['Class & Teacher Assignments'] },
+    { label: 'Teachers', parent: 'Teacher List', icon: <SchoolOutlined fontSize="small" />, items: [] },
     { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
     { label: 'Academic Structure', parent: 'Academic Years', icon: <MenuBookOutlined fontSize="small" />, items: ['Grade Levels', 'Classes & Sections', 'Subjects'] },
     { label: 'Scheduling', parent: 'Class & Teacher Assignments', icon: <PlayLessonOutlined fontSize="small" />, items: ['Timetable'] },
