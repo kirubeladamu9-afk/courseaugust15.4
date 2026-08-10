@@ -20,6 +20,10 @@ import SchoolOutlined from '@mui/icons-material/SchoolOutlined'
 import FamilyRestroomOutlined from '@mui/icons-material/FamilyRestroomOutlined'
 import PlayLessonOutlined from '@mui/icons-material/PlayLessonOutlined'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
+import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined'
+import MenuBookOutlined from '@mui/icons-material/MenuBookOutlined'
+import BarChartOutlined from '@mui/icons-material/BarChartOutlined'
+import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import PersonAddAltOutlined from '@mui/icons-material/PersonAddAltOutlined'
 import CoPresentOutlined from '@mui/icons-material/CoPresentOutlined'
 import AddTaskOutlined from '@mui/icons-material/AddTaskOutlined'
@@ -140,14 +144,14 @@ interface AdminSidebarProps {
 const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [expandedMenu, setExpandedMenu] = useState('User Management')
   const menuGroups = [
-    { label: 'User Management', parent: 'All Users', items: ['Roles & Permissions'] },
-    { label: 'Students', parent: 'All Students', items: ['Student Enrollment', 'Student Progress'] },
-    { label: 'Parents', parent: 'All Parents', items: ['Parent-Student Link'] },
-    { label: 'Teachers', parent: 'All Teachers', items: ['Teacher Assignments'] },
-    { label: 'Academic', parent: 'Grades', items: ['Subjects', 'Chapters', 'Lessons', 'Learning Materials'] },
-    { label: 'Assessments', parent: 'Question Bank', items: ['Quizzes', 'Exams', 'Assignments'] },
-    { label: 'Reports & Analytics', parent: 'Student Reports', items: ['Teacher Reports', 'Course Reports', 'Performance Analytics'] },
-    { label: 'Settings', parent: 'General', items: ['School Information', 'Email', 'Security', 'Backup'] },
+    { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions'] },
+    { label: 'Students', parent: 'All Students', icon: <PeopleAltOutlined fontSize="small" />, items: ['Student Enrollment', 'Student Progress'] },
+    { label: 'Parents', parent: 'All Parents', icon: <FamilyRestroomOutlined fontSize="small" />, items: ['Parent-Student Link'] },
+    { label: 'Teachers', parent: 'All Teachers', icon: <SchoolOutlined fontSize="small" />, items: ['Teacher Assignments'] },
+    { label: 'Academic', parent: 'Grades', icon: <MenuBookOutlined fontSize="small" />, items: ['Subjects', 'Chapters', 'Lessons', 'Learning Materials'] },
+    { label: 'Assessments', parent: 'Question Bank', icon: <QuizOutlined fontSize="small" />, items: ['Quizzes', 'Exams', 'Assignments'] },
+    { label: 'Reports & Analytics', parent: 'Student Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Teacher Reports', 'Course Reports', 'Performance Analytics'] },
+    { label: 'Settings', parent: 'General', icon: <SettingsOutlined fontSize="small" />, items: ['School Information', 'Email', 'Security', 'Backup'] },
   ]
 
   const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
@@ -164,12 +168,13 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Dashboard</Typography>
       </ButtonBase>
       <Stack spacing={2}>
-        {menuGroups.map(({ label, parent, items }) => {
+        {menuGroups.map(({ label, parent, icon, items }) => {
           const isExpanded = expandedMenu === label
           return (
             <Box key={label}>
               <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
               <ButtonBase onClick={() => setExpandedMenu(isExpanded ? '' : label)} sx={{ ...menuButtonSx, mt: 0.5 }}>
+                <Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{icon}</Box>
                 <Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{parent}</Typography>
                 <Box sx={{ display: 'flex', ml: 'auto' }}>{isExpanded ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box>
               </ButtonBase>
