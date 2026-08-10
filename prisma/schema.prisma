@@ -239,7 +239,6 @@ model GradeLevel {
 model ClassSection {
   id String @id @default(cuid())
   name String
-  grade String
   students Int @default(0)
   status String @default("Draft")
   createdAt DateTime @default(now())

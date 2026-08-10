@@ -108,10 +108,10 @@ router.get('/students', async (_req, res, next) => {
 })
 
 const gradeLevelSchema = z.object({ grade: z.string().trim().min(1).max(80), classes: z.coerce.number().int().nonnegative(), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
-const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), grade: z.string().trim().min(1).max(80), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
+const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
-const toClassSectionRecord = (record: { id: string; name: string; grade: string; students: number; status: string }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, Grade: record.grade, Students: String(record.students) }, status: record.status })
+const toClassSectionRecord = (record: { id: string; name: string; students: number; status: string }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, Students: String(record.students) }, status: record.status })
 
 router.get('/grade-levels', async (_req, res, next) => {
   try {
@@ -144,7 +144,7 @@ router.get('/classes-sections', async (_req, res, next) => {
 router.post('/classes-sections', async (req, res, next) => {
   try {
     const input = classSectionSchema.parse(req.body)
-    const record = await prisma.classSection.create({ data: { name: input.classSection, grade: input.grade, students: input.students, status: input.status } })
+    const record = await prisma.classSection.create({ data: { name: input.classSection, students: input.students, status: input.status } })
     return res.status(201).json({ record: toClassSectionRecord(record) })
   } catch (error) {
     return next(error)
