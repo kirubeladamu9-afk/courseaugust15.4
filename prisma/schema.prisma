@@ -126,7 +126,23 @@ model Quiz {
   status String @default("Draft")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  questions AssessmentQuestion[]
   @@map("quizzes")
+}
+
+model AssessmentQuestion {
+  id String @id @default(cuid())
+  quizId String
+  type String
+  prompt String
+  options Json
+  correctAnswer Json
+  points Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  @@index([quizId])
+  @@map("assessment_questions")
 }
 
 model Exam {

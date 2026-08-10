@@ -52,12 +52,12 @@ router.get('/assigned-classes', async (_req, res, next) => {
 
 router.get('/assessments', async (_req, res, next) => {
   try {
-    const assessments = await prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } })
+    const assessments = await prisma.quiz.findMany({ orderBy: { createdAt: 'desc' }, include: { _count: { select: { questions: true } } } })
     const records = assessments
       .filter((assessment) => (assessment.data as { teacherId?: string }).teacherId === res.locals.auth.sub)
       .map((assessment) => {
-        const data = assessment.data as { className?: string; questions?: unknown[] }
-        return { id: assessment.id, title: assessment.title, className: data.className || '—', questionCount: data.questions?.length || 0, status: assessment.status }
+        const data = assessment.data as { className?: string }
+        return { id: assessment.id, title: assessment.title, className: data.className || '—', questionCount: assessment._count.questions, status: assessment.status }
       })
     return res.json({ assessments: records })
   } catch (error) {
@@ -68,7 +68,11 @@ router.get('/assessments', async (_req, res, next) => {
 router.post('/assessments', async (req, res, next) => {
   try {
     const input = assessmentSchema.parse(req.body)
-    const assessment = await prisma.quiz.create({ data: { title: input.title, data: { teacherId: res.locals.auth.sub, className: input.className, questions: input.questions }, status: 'Draft' } })
+    const assessment = await prisma.$transaction(async (transaction) => {
+      const createdAssessment = await transaction.quiz.create({ data: { title: input.title, data: { teacherId: res.locals.auth.sub, className: input.className }, status: 'Draft' } })
+      await transaction.assessmentQuestion.createMany({ data: input.questions.map((question) => ({ quizId: createdAssessment.id, type: question.type, prompt: question.prompt, options: question.options, correctAnswer: question.correctAnswer, points: question.points })) })
+      return createdAssessment
+    })
     return res.status(201).json({ assessment: { id: assessment.id, title: assessment.title, status: assessment.status } })
   } catch (error) {
     return next(error)
