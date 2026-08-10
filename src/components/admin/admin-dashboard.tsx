@@ -28,6 +28,8 @@ import ArrowUpwardRounded from '@mui/icons-material/ArrowUpwardRounded'
 import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined'
 import CloseRounded from '@mui/icons-material/CloseRounded'
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined'
+import KeyboardDoubleArrowLeft from '@mui/icons-material/KeyboardDoubleArrowLeft'
+import KeyboardDoubleArrowRight from '@mui/icons-material/KeyboardDoubleArrowRight'
 import MenuRounded from '@mui/icons-material/MenuRounded'
 import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
 import SearchRounded from '@mui/icons-material/SearchRounded'
@@ -131,6 +133,7 @@ const QuickAction: FC<{ label: string; icon: ReactNode }> = ({ label, icon }) =>
 
 interface AdminSidebarProps {
   mobileOpen: boolean
+  collapsed: boolean
   onClose: () => void
 }
 
@@ -187,9 +190,9 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   )
 }
 
-const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, onClose }) => (
+const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, collapsed, onClose }) => (
   <>
-    <Box component="aside" sx={{ display: { xs: 'none', md: 'block' }, position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: (theme) => theme.zIndex.drawer, borderRight: 1, borderColor: 'divider' }}>
+    <Box component="aside" sx={{ display: { xs: 'none', md: 'block' }, position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: (theme) => theme.zIndex.drawer, width: collapsed ? 0 : 248, overflow: 'hidden', transition: 'width 240ms ease', borderRight: collapsed ? 0 : 1, borderColor: 'divider' }}>
       <SidebarContent />
     </Box>
     <Drawer open={mobileOpen} onClose={onClose} ModalProps={{ keepMounted: true }} sx={{ display: { xs: 'block', md: 'none' } }}>
@@ -198,7 +201,7 @@ const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, onClose }) => (
   </>
 )
 
-const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
+const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; sidebarCollapsed: boolean }> = ({ onMenuClick, onToggleSidebar, sidebarCollapsed }) => {
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
   const [darkMode, setDarkMode] = useState(false)
   const profileOpen = Boolean(profileAnchor)
@@ -219,7 +222,10 @@ const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
       }}
     >
       <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, md: 2 }} sx={{ minHeight: 48, position: 'relative' }}>
-        <IconButton onClick={onMenuClick} aria-label="Open navigation"><MenuRounded /></IconButton>
+        <IconButton onClick={onToggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} sx={{ display: { xs: 'none', md: 'inline-flex' } }}>
+          {sidebarCollapsed ? <KeyboardDoubleArrowRight /> : <KeyboardDoubleArrowLeft />}
+        </IconButton>
+        <IconButton onClick={onMenuClick} aria-label="Open navigation" sx={{ display: { xs: 'inline-flex', md: 'none' } }}><MenuRounded /></IconButton>
         <Typography variant="h5" sx={{ fontSize: { xs: '1rem', sm: '1.2rem' }, whiteSpace: 'nowrap' }}>Dashboard Overview</Typography>
         <Box
           sx={{
@@ -260,12 +266,13 @@ const AdminHeader: FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
 
 const AdminDashboard: FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   return (
     <Box sx={{ backgroundColor: 'background.default', minHeight: '100vh', display: 'flex' }}>
-      <AdminSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <Box component="section" sx={{ minWidth: 0, flex: 1, ml: { xs: 0, md: '248px' } }}>
-        <AdminHeader onMenuClick={() => setMobileOpen(true)} />
+      <AdminSidebar mobileOpen={mobileOpen} collapsed={sidebarCollapsed} onClose={() => setMobileOpen(false)} />
+      <Box component="section" sx={{ minWidth: 0, flex: 1, ml: { xs: 0, md: sidebarCollapsed ? 0 : '248px' }, transition: 'margin-left 240ms ease' }}>
+        <AdminHeader onMenuClick={() => setMobileOpen(true)} onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} sidebarCollapsed={sidebarCollapsed} />
         <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary">Admin</Typography>
