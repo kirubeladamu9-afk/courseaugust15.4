@@ -180,7 +180,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     { label: 'Teachers', parent: 'Teacher List', icon: <SchoolOutlined fontSize="small" />, items: [] },
     { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
     { label: 'Academic Structure', parent: 'Academic Years', icon: <MenuBookOutlined fontSize="small" />, items: ['Grade Levels', 'Classes & Sections', 'Subjects'] },
-    { label: 'Scheduling', parent: 'Class & Teacher Assignments', icon: <PlayLessonOutlined fontSize="small" />, items: ['Timetable'] },
+    { label: 'Scheduling', parent: 'Timetable', icon: <PlayLessonOutlined fontSize="small" />, items: [] },
     { label: 'Assessments', parent: 'Assessment Types', icon: <QuizOutlined fontSize="small" />, items: ['Grading Scale', 'Assessment Policy', 'All Assessments', 'Result Approval', 'Report Cards'] },
     { label: 'Communication', parent: 'Announcements', icon: <NotificationsNoneOutlined fontSize="small" />, items: ['Messages / Notices'] },
     { label: 'Reports & Analytics', parent: 'Enrollment Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Performance Trends', 'Custom / Export Reports'] },
