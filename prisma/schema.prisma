@@ -224,3 +224,25 @@ model StudentGuardian {
   @@id([studentId, guardianId])
   @@map("student_guardians")
 }
+
+model GradeLevel {
+  id String @id @default(cuid())
+  name String
+  classes Int @default(0)
+  students Int @default(0)
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("grade_levels")
+}
+
+model ClassSection {
+  id String @id @default(cuid())
+  name String
+  grade String
+  students Int @default(0)
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("class_sections")
+}

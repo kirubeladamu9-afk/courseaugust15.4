@@ -90,7 +90,7 @@ const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = (Boolean(sections[section]) && !config.createFields) || section === 'students'
+  const isBackendSection = Boolean(sections[section]) || section === 'students'
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -123,17 +123,24 @@ const AdminManagementPage: FC = () => {
 
   const rows = records.map((record) => config.columns.map((column, index) => index === config.columns.length - 1 ? record.status : record.data[column] ?? (index === 0 ? record.title : '—')))
   const filteredRows = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [rows, query])
-  const handleCreateFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const fields = config.createFields
     if (!fields) return
     const title = createValues[fields[0].name]?.trim()
     if (!title) return
-    const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, createValues[fields[index].name] || (index === 0 ? title : '—')]))
     const status = createValues.status || 'Draft'
-    setRecords((current) => [...current, { id: `${section}-${Date.now()}`, title, data, status }])
-    setCreateValues({})
-    setIsCreateFormOpen(false)
+    try {
+      const payload = section === 'subjects'
+        ? { title, data: Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, createValues[fields[index].name] || '—'])), status }
+        : Object.fromEntries(fields.map((field) => [field.name, createValues[field.name] || '']))
+      const { data: response } = await api.post<{ record: AdminRecord }>(`/api/admin/${section}`, payload, { withCredentials: true })
+      setRecords((current) => [...current, response.record])
+      setCreateValues({})
+      setIsCreateFormOpen(false)
+    } catch (error) {
+      setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || 'Unable to create the record.' : 'Unable to create the record.')
+    }
   }
 
   const handleCreate = async () => {
