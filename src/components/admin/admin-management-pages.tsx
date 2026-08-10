@@ -5,6 +5,7 @@ import Chip from '@mui/material/Chip'
 import Container from '@mui/material/Container'
 import Grid from '@mui/material/Grid'
 import LinearProgress from '@mui/material/LinearProgress'
+import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Table from '@mui/material/Table'
@@ -32,7 +33,7 @@ type SectionConfig = {
   rows: string[][]
   metrics: [string, string, string][]
   analytics?: boolean
-  createFields?: { name: string; label: string; type?: string; required?: boolean }[]
+  createFields?: { name: string; label: string; type?: string; required?: boolean; options?: string[] }[]
 }
 
 const sections: Record<string, SectionConfig> = {
@@ -40,7 +41,7 @@ const sections: Record<string, SectionConfig> = {
   'student-progress': { title: 'Student Progress', description: 'Monitor learning progress and engagement across all students.', action: 'Export Progress', columns: ['Student', 'Grade', 'Courses', 'Completion', 'Status'], rows: [['Ava Johnson', 'Grade 8', '6 courses', '86%', 'On track'], ['Noah Williams', 'Grade 7', '5 courses', '72%', 'On track'], ['Sophia Brown', 'Grade 9', '7 courses', '64%', 'Needs support'], ['Liam Davis', 'Grade 8', '6 courses', '91%', 'Excellent']], metrics: [['Students tracked', '2,480', '+12.5%'], ['Avg. completion', '78%', '+6.8%'], ['At risk', '124', '-8.4%']], analytics: true },
   'parent-student-link': { title: 'Parent-Student Link', description: 'Connect parents with students and manage family access.', action: 'Link Parent', columns: ['Parent', 'Student', 'Relationship', 'Linked on', 'Status'], rows: [['Olivia Johnson', 'Ava Johnson', 'Mother', 'Jul 12, 2024', 'Active'], ['James Williams', 'Noah Williams', 'Father', 'Jul 10, 2024', 'Active'], ['Emma Brown', 'Sophia Brown', 'Mother', 'Jul 08, 2024', 'Pending'], ['William Davis', 'Liam Davis', 'Father', 'Jul 05, 2024', 'Active']], metrics: [['Linked families', '1,920', '+6.4%'], ['Pending links', '18', '-3.2%'], ['Unlinked students', '42', '-10.1%']] },
   'teacher-assignments': { title: 'Teacher Assignments', description: 'Assign teachers to courses, grades, and classrooms.', action: 'Create Assignment', columns: ['Teacher', 'Subject', 'Grade', 'Students', 'Status'], rows: [['Maria Garcia', 'Mathematics', 'Grade 8', '124', 'Assigned'], ['Daniel Wilson', 'Science', 'Grade 7', '98', 'Assigned'], ['James Miller', 'English', 'Grade 9', '112', 'Assigned'], ['Sarah Lee', 'History', 'Grade 8', '86', 'Review']], metrics: [['Active assignments', '186', '+8.2%'], ['Open classes', '12', '-4.0%'], ['Avg. class size', '28', '+2.1%']] },
-  subjects: { title: 'Subjects', description: 'Organize the subjects available in your academic program.', action: 'Add Subject', columns: ['Subject', 'Grade levels', 'Chapters', 'Teachers', 'Status'], rows: [['Mathematics', '6–9', '24', '32', 'Published'], ['Science', '6–9', '18', '28', 'Published'], ['English Language', '6–9', '20', '35', 'Published'], ['World History', '7–9', '12', '18', 'Draft']], metrics: [['Total subjects', '18', '+2.0%'], ['Published', '15', '+7.1%'], ['Drafts', '3', '-14.3%']], createFields: [{ name: 'subject', label: 'Subject name', required: true }, { name: 'gradeLevels', label: 'Grade levels', required: true }] },
+  subjects: { title: 'Subjects', description: 'Organize the subjects available in your academic program.', action: 'Add Subject', columns: ['Subject', 'Grade levels', 'Chapters', 'Teachers', 'Status'], rows: [['Mathematics', '6–9', '24', '32', 'Published'], ['Science', '6–9', '18', '28', 'Published'], ['English Language', '6–9', '20', '35', 'Published'], ['World History', '7–9', '12', '18', 'Draft']], metrics: [['Total subjects', '18', '+2.0%'], ['Published', '15', '+7.1%'], ['Drafts', '3', '-14.3%']], createFields: [{ name: 'subject', label: 'Subject', required: true }, { name: 'gradeLevels', label: 'Grade levels', required: true }, { name: 'chapters', label: 'Chapters', required: true }, { name: 'teachers', label: 'Teachers', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Published'], required: true }] },
   chapters: { title: 'Chapters', description: 'Manage the chapters that structure each subject.', action: 'Add Chapter', columns: ['Chapter', 'Subject', 'Lessons', 'Completion', 'Status'], rows: [['Algebraic Expressions', 'Mathematics', '12', '84%', 'Published'], ['Energy & Matter', 'Science', '9', '76%', 'Published'], ['Grammar Essentials', 'English Language', '14', '91%', 'Published'], ['Industrial Revolution', 'World History', '8', '—', 'Draft']], metrics: [['Total chapters', '74', '+10.4%'], ['Published', '61', '+8.9%'], ['In review', '7', '-5.3%']] },
   lessons: { title: 'Lessons', description: 'Create and manage lessons for every course and chapter.', action: 'Create Lesson', columns: ['Lesson', 'Subject', 'Chapter', 'Views', 'Status'], rows: [['Solving Linear Equations', 'Mathematics', 'Algebraic Expressions', '1,284', 'Published'], ['Forms of Energy', 'Science', 'Energy & Matter', '982', 'Published'], ['Parts of Speech', 'English Language', 'Grammar Essentials', '1,102', 'Published'], ['Factory Systems', 'World History', 'Industrial Revolution', '—', 'Draft']], metrics: [['Total lessons', '864', '+10.8%'], ['Published', '742', '+9.2%'], ['Drafts', '122', '-2.7%']] },
   'learning-materials': { title: 'Learning Materials', description: 'Publish videos, documents, and resources for learners.', action: 'Add Material', columns: ['Material', 'Type', 'Course', 'Downloads', 'Status'], rows: [['Algebra workbook', 'PDF', 'Mathematics', '842', 'Published'], ['Energy lab guide', 'Document', 'Science', '621', 'Published'], ['Grammar video series', 'Video', 'English Language', '1,204', 'Published'], ['History timeline', 'Presentation', 'World History', '—', 'Review']], metrics: [['Total materials', '326', '+14.6%'], ['Published', '284', '+11.2%'], ['Needs review', '9', '-18.0%']] },
@@ -61,8 +62,8 @@ const additionalSections: Record<string, SectionConfig> = {
   teachers: makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Teacher', 'Subjects', 'Classes', 'Status'], 'No teachers yet'),
   guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status'], 'No guardians yet'),
   'academic-years': makeSection('Academic Years', 'Define the school years that organize every academic record.', 'Add Academic Year', ['Academic year', 'Start date', 'End date', 'Status'], '2025/2026'),
-  'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade name', required: true }] },
-  'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade', 'Students', 'Status'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / section', required: true }, { name: 'grade', label: 'Grade', required: true }] },
+  'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade', required: true }, { name: 'classes', label: 'Classes', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
+  'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade', 'Students', 'Status'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / Section', required: true }, { name: 'grade', label: 'Grade', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
   timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
   'assessment-types': makeSection('Assessment Types', 'Define categories such as quizzes, midterms, and final exams.', 'Add Assessment Type', ['Type', 'Weight', 'Assessments', 'Status'], 'Quiz'),
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
@@ -128,11 +129,9 @@ const AdminManagementPage: FC = () => {
     if (!fields) return
     const title = createValues[fields[0].name]?.trim()
     if (!title) return
-    const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => {
-      const fieldName = fields[index - 1]?.name || ''
-      return [column, index === 0 ? title : createValues[fieldName] || '—']
-    }))
-    setRecords((current) => [...current, { id: `${section}-${Date.now()}`, title, data, status: 'Draft' }])
+    const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, createValues[fields[index].name] || (index === 0 ? title : '—')]))
+    const status = createValues.status || 'Draft'
+    setRecords((current) => [...current, { id: `${section}-${Date.now()}`, title, data, status }])
     setCreateValues({})
     setIsCreateFormOpen(false)
   }
@@ -171,7 +170,7 @@ const AdminManagementPage: FC = () => {
         <Paper elevation={0} sx={{ p: { xs: 1, md: 2 }, borderRadius: 3 }}>
           {isCreateFormOpen && config.createFields && <Box component="form" onSubmit={handleCreateFormSubmit} sx={{ p: 1, mb: 1 }}>
             <Grid container spacing={1.5}>
-              {config.createFields.map((field) => <Grid item xs={12} sm={6} key={field.name}><TextField fullWidth size="small" label={field.label} type={field.type || 'text'} required={field.required} value={createValues[field.name] || ''} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: event.target.value }))} /></Grid>)}
+              {config.createFields.map((field) => <Grid item xs={12} sm={6} key={field.name}><TextField fullWidth size="small" label={field.label} type={field.options ? undefined : field.type || 'text'} select={Boolean(field.options)} required={field.required} value={createValues[field.name] || ''} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: event.target.value }))}>{field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField></Grid>)}
               <Grid item xs={12}><Button type="submit" variant="contained">Save</Button></Grid>
             </Grid>
           </Box>}
