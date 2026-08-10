@@ -19,7 +19,7 @@ import AddRounded from '@mui/icons-material/AddRounded'
 import DownloadRounded from '@mui/icons-material/DownloadRounded'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
 import { useEffect, useMemo, useState, type FC } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import api from '@/lib/api'
 import { AdminPanelLayout } from './admin-dashboard'
 
@@ -84,6 +84,7 @@ const statusColor = (status: string): 'success' | 'warning' | 'info' => status =
 type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string }
 
 const AdminManagementPage: FC = () => {
+  const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
   const isBackendSection = Boolean(sections[section])
@@ -109,6 +110,10 @@ const AdminManagementPage: FC = () => {
   const rows = records.map((record) => config.columns.map((column, index) => index === config.columns.length - 1 ? record.status : record.data[column] ?? (index === 0 ? record.title : '—')))
   const filteredRows = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [rows, query])
   const handleCreate = async () => {
+    if (section === 'students') {
+      navigate('/admin/students/new')
+      return
+    }
     if (config.action.includes('Export')) return
     const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, index === 0 ? `New ${config.title} record` : '—']))
     if (!isBackendSection) {
