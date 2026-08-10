@@ -28,13 +28,28 @@ interface FieldConfig {
 const pageConfig: Record<CreateType, { title: string; description: string; fields: FieldConfig[] }> = {
   student: {
     title: 'Add Student',
-    description: 'Create a student profile, assign the learner to a class, and link at least one guardian.',
+    description: 'Create a complete student profile, assign academic placement, and link at least one guardian.',
     fields: [
-      { name: 'firstName', label: 'First name', required: true },
-      { name: 'lastName', label: 'Last name', required: true },
-      { name: 'email', label: 'Email address', type: 'email', required: true },
-      { name: 'class', label: 'Class', options: ['Grade 6', 'Grade 7', 'Grade 8', 'Grade 9'], required: true },
-      { name: 'parentEmail', label: 'Guardian email(s)', required: true },
+      { name: 'fullName', label: 'Full name', required: true },
+      { name: 'dateOfBirth', label: 'Date of birth', type: 'date', required: true },
+      { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true },
+      { name: 'admissionNumber', label: 'Student ID / Admission number', required: true },
+      { name: 'photo', label: 'Student photo', type: 'file' },
+      { name: 'academicYear', label: 'Academic year', options: ['2025/2026', '2026/2027'], required: true },
+      { name: 'gradeLevel', label: 'Grade level', options: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'], required: true },
+      { name: 'classSection', label: 'Class & section', options: ['Grade 5 - A', 'Grade 5 - B', 'Grade 6 - A', 'Grade 6 - B'], required: true },
+      { name: 'enrollmentDate', label: 'Enrollment date', type: 'date', required: true },
+      { name: 'bloodGroup', label: 'Blood group', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+      { name: 'nationality', label: 'Nationality' },
+      { name: 'address', label: 'Address', multiline: true },
+      { name: 'phone', label: 'Phone number (if applicable)', type: 'tel' },
+      { name: 'email', label: 'Email (if applicable)', type: 'email' },
+      { name: 'previousSchool', label: 'Previous school (if transfer student)' },
+      { name: 'existingGuardian', label: 'Search existing guardian' },
+      { name: 'newGuardian', label: 'Add new guardian' },
+      { name: 'relationshipType', label: 'Relationship type', options: ['Mother', 'Father', 'Guardian', 'Emergency Contact'] },
+      { name: 'medicalNotes', label: 'Medical notes / allergies', multiline: true },
+      { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'Pending'], required: true },
     ],
   },
   teacher: {
@@ -77,9 +92,15 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const config = pageConfig[type]
   const [values, setValues] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
+  const [validationError, setValidationError] = useState('')
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (type === 'student' && !values.existingGuardian?.trim() && !values.newGuardian?.trim()) {
+      setValidationError('Link at least one existing guardian or add a new guardian before saving.')
+      return
+    }
+    setValidationError('')
     setSaved(true)
   }
 
@@ -98,6 +119,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
             <Typography component="h1" variant="h2" sx={{ fontSize: { xs: 26, md: 32 }, mb: 0.75 }}>{config.title}</Typography>
             <Typography color="text.secondary" sx={{ mb: 3 }}>{config.description}</Typography>
             {saved && <Alert severity="success" onClose={() => setSaved(false)} sx={{ mb: 3 }}>The form was saved successfully.</Alert>}
+            {validationError && <Alert severity="error" onClose={() => setValidationError('')} sx={{ mb: 3 }}>{validationError}</Alert>}
             <Grid container spacing={2.25}>
               {config.fields.map((field) => (
                 <Grid item xs={12} sm={field.multiline ? 12 : 6} key={field.name}>
@@ -109,7 +131,8 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     select={Boolean(field.options)}
                     multiline={field.multiline}
                     minRows={field.multiline ? 4 : undefined}
-                    value={values[field.name] || ''}
+                    InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined}
+                    value={field.type === 'file' ? undefined : values[field.name] || ''}
                     onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}
                   >
                     {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
