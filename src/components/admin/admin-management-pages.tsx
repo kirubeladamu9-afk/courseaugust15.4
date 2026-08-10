@@ -105,7 +105,7 @@ const AdminManagementPage: FC = () => {
     if (section === 'students') {
       api.get<{ students: { id: string; fullName: string; gradeLevel: string; status: string; guardianLinks: { guardian: { name: string } }[] }[] }>('/api/admin/students', { withCredentials: true })
         .then(({ data }) => setRecords(data.students.map((student) => ({ id: student.id, title: student.fullName, data: { Student: student.fullName, Grade: student.gradeLevel, Guardians: student.guardianLinks.map(({ guardian }) => guardian.name).join(', ') || '—' }, status: student.status }))))
-        .catch((error) => setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || `Unable to load records (${error.response?.status || 'network error'}).` : 'Unable to load records. Please refresh and try again.'))
+        .catch((error) => { if (axios.isAxiosError<{ message?: string }>(error) && error.response?.status === 401) { navigate('/login', { replace: true }); return } setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || `Unable to load records (${error.response?.status || 'network error'}).` : 'Unable to load records. Please refresh and try again.') })
         .finally(() => setIsLoading(false))
       return
     }
@@ -113,7 +113,7 @@ const AdminManagementPage: FC = () => {
       .then(({ data }) => setRecords(data.records))
       .catch(() => setError('Unable to load records. Please refresh and try again.'))
       .finally(() => setIsLoading(false))
-  }, [section, config, isBackendSection])
+  }, [section, config, isBackendSection, navigate])
 
   const rows = records.map((record) => config.columns.map((column, index) => index === config.columns.length - 1 ? record.status : record.data[column] ?? (index === 0 ? record.title : '—')))
   const filteredRows = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [rows, query])
