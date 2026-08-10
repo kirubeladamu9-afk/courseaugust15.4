@@ -27,6 +27,7 @@ const assessmentQuestionSchema = z.object({
 const assessmentSchema = z.object({
   title: z.string().trim().min(1).max(160),
   className: z.string().trim().min(1).max(80),
+  subjectName: z.string().trim().min(1).max(120),
   questions: z.array(assessmentQuestionSchema).min(1).max(100),
 })
 
@@ -34,6 +35,17 @@ router.get('/students', async (_req, res, next) => {
   try {
     const students = await prisma.student.findMany({ orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, gradeLevel: true, status: true } })
     return res.json({ students })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/assigned-subjects', async (_req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: res.locals.auth.sub }, select: { name: true } })
+    const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { assignedSubjects: true } }) : null
+    const subjects = teacher?.assignedSubjects?.split(',').map((value) => value.trim()).filter(Boolean) || []
+    return res.json({ subjects })
   } catch (error) {
     return next(error)
   }
@@ -68,7 +80,7 @@ router.get('/assessments', async (_req, res, next) => {
 router.post('/assessments', async (req, res, next) => {
   try {
     const input = assessmentSchema.parse(req.body)
-    const assessment = await prisma.quiz.create({ data: { title: input.title, data: { teacherId: res.locals.auth.sub, className: input.className, questions: input.questions }, status: 'Draft' } })
+    const assessment = await prisma.quiz.create({ data: { title: input.title, data: { teacherId: res.locals.auth.sub, className: input.className, subjectName: input.subjectName, questions: input.questions }, status: 'Draft' } })
     return res.status(201).json({ assessment: { id: assessment.id, title: assessment.title, status: assessment.status } })
   } catch (error) {
     return next(error)
