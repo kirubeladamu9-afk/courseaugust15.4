@@ -109,9 +109,30 @@ router.get('/students', async (_req, res, next) => {
 
 const gradeLevelSchema = z.object({ grade: z.string().trim().min(1).max(80), classes: z.coerce.number().int().nonnegative(), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), gradeLevelId: z.string().trim().min(1), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
+const teacherSchema = z.object({ fullName: z.string().trim().min(1).max(160), gender: z.string().trim().min(1).max(40), photoName: z.string().trim().max(255).optional(), phoneNumber: z.string().trim().max(40).optional(), address: z.string().trim().max(300).optional(), nationalId: z.string().trim().max(120).optional(), assignedSubjects: z.string().trim().max(300).optional(), assignedClasses: z.string().trim().max(300).optional(), status: z.enum(['Active', 'Inactive', 'On Leave']) })
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
 const toClassSectionRecord = (record: { id: string; name: string; students: number; status: string; gradeLevel: { name: string } | null }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, 'Grade Level': record.gradeLevel?.name || '—', Students: String(record.students) }, status: record.status })
+const toTeacherRecord = (record: { id: string; fullName: string; gender: string; photoName: string | null; phoneNumber: string | null; address: string | null; nationalId: string | null; assignedSubjects: string | null; assignedClasses: string | null; status: string }) => ({ id: record.id, title: record.fullName, data: { 'Full Name': record.fullName, Gender: record.gender, Photo: record.photoName || '—', 'Phone Number': record.phoneNumber || '—', Address: record.address || '—', 'National ID / Passport Number': record.nationalId || '—', 'Assigned Subjects': record.assignedSubjects || '—', 'Assigned Classes': record.assignedClasses || '—' }, status: record.status })
+
+router.get('/teachers', async (_req, res, next) => {
+  try {
+    const records = await prisma.teacher.findMany({ orderBy: { createdAt: 'asc' } })
+    return res.json({ records: records.map(toTeacherRecord) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/teachers', async (req, res, next) => {
+  try {
+    const input = teacherSchema.parse(req.body)
+    const record = await prisma.teacher.create({ data: input })
+    return res.status(201).json({ record: toTeacherRecord(record) })
+  } catch (error) {
+    return next(error)
+  }
+})
 
 router.get('/grade-levels', async (_req, res, next) => {
   try {

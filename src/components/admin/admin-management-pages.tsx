@@ -59,7 +59,7 @@ const additionalSections: Record<string, SectionConfig> = {
   students: makeSection('Student List', 'Search students, review profiles, and manage required guardian links.', 'Add Student', ['Student', 'Grade', 'Guardians', 'Status'], 'No students yet'),
   'admissions-enrollment': makeSection('Admissions / Enrollment', 'Move new student applications from intake through approval to enrollment.', 'New Application', ['Applicant', 'Applied on', 'Stage', 'Status'], 'No applications yet'),
   promotions: makeSection('Promotions', 'Move students to their next grade level in bulk at year-end.', 'Start Promotion', ['Academic year', 'From grade', 'To grade', 'Status'], 'No promotion batches yet'),
-  teachers: makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Teacher', 'Subjects', 'Classes', 'Status'], 'No teachers yet'),
+  teachers: { ...makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Full Name', 'Gender', 'Photo', 'Phone Number', 'Address', 'National ID / Passport Number', 'Assigned Subjects', 'Assigned Classes', 'Status'], 'No teachers yet'), createFields: [{ name: 'fullName', label: 'Full Name', required: true }, { name: 'gender', label: 'Gender', required: true }, { name: 'photoName', label: 'Photo' }, { name: 'phoneNumber', label: 'Phone Number' }, { name: 'address', label: 'Address' }, { name: 'nationalId', label: 'National ID / Passport Number' }, { name: 'assignedSubjects', label: 'Assigned Subjects' }, { name: 'assignedClasses', label: 'Assigned Classes' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true }] },
   guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status'], 'No guardians yet'),
   'academic-years': makeSection('Academic Years', 'Define the school years that organize every academic record.', 'Add Academic Year', ['Academic year', 'Start date', 'End date', 'Status'], '2025/2026'),
   'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade', required: true }, { name: 'classes', label: 'Classes', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
@@ -90,7 +90,7 @@ const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections'].includes(section)
+  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections', 'teachers'].includes(section)
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
