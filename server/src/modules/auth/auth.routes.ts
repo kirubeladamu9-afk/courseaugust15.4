@@ -18,6 +18,7 @@ const setSessionCookie: RequestHandler = (req, res, next) => {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
+    path: '/',
     maxAge: res.locals.remember ? 30 * 24 * 60 * 60 * 1000 : undefined,
   })
   next()
@@ -50,7 +51,7 @@ router.post('/login', async (req, res, next) => {
 })
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie(sessionCookie, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+  res.clearCookie(sessionCookie, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' })
   res.status(204).send()
 })
 
