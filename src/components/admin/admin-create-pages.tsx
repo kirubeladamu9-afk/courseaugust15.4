@@ -1,4 +1,4 @@
-import { useState, type FC, type FormEvent } from 'react'
+import { useEffect, useState, type FC, type FormEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
@@ -96,6 +96,20 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const [guardianFormPrompt, setGuardianFormPrompt] = useState(false)
   const [guardianFormOpen, setGuardianFormOpen] = useState(false)
   const [guardianForm, setGuardianForm] = useState({ name: '', email: '', relationshipType: 'Guardian', phone: '', address: '', occupation: '', nationalId: '', photoName: '' })
+  const [academicOptions, setAcademicOptions] = useState({ gradeLevel: [] as string[], classSection: [] as string[] })
+
+  useEffect(() => {
+    if (type !== 'student') return
+    Promise.all([
+      api.get<{ records: { data: { Grade: string } }[] }>('/api/admin/grade-levels', { withCredentials: true }),
+      api.get<{ records: { data: { 'Class / Section': string } }[] }>('/api/admin/classes-sections', { withCredentials: true }),
+    ])
+      .then(([gradeResponse, classResponse]) => setAcademicOptions({
+        gradeLevel: gradeResponse.data.records.map(({ data }) => data.Grade),
+        classSection: classResponse.data.records.map(({ data }) => data['Class / Section']),
+      }))
+      .catch(() => setValidationError('Unable to load grade levels and classes. Please try again.'))
+  }, [type])
 
   const searchGuardians = async () => {
     const query = values.existingGuardian?.trim()
@@ -169,15 +183,15 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     fullWidth
                     required={field.required}
                     label={field.label}
-                    type={field.options ? undefined : field.type || 'text'}
-                    select={Boolean(field.options)}
+                    type={field.options || field.name === 'gradeLevel' || field.name === 'classSection' ? undefined : field.type || 'text'}
+                    select={Boolean(field.options || field.name === 'gradeLevel' || field.name === 'classSection')}
                     multiline={field.multiline}
                     minRows={field.multiline ? 4 : undefined}
                     InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined}
                     value={field.type === 'file' ? undefined : values[field.name] || ''}
                     onChange={(event) => setValues((current) => ({ ...current, [field.name]: field.type === 'file' ? (event.target as HTMLInputElement).files?.[0]?.name || '' : event.target.value }))}
                   >
-                    {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+                    {(field.name === 'gradeLevel' ? academicOptions.gradeLevel : field.name === 'classSection' ? academicOptions.classSection : field.options)?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
                   </TextField>
                   {type === 'student' && field.name === 'existingGuardian' && <Stack spacing={1} sx={{ mt: 1 }}>
                     <Button type="button" variant="outlined" size="small" onClick={searchGuardians}>Search Guardian</Button>
