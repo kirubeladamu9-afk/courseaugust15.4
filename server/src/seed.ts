@@ -53,7 +53,7 @@ const adminRecords = [
   ['performance-analytics', 'Average assessment score', { Metric: 'Average assessment score', 'Current period': '79%', 'Previous period': '75%' }, 'Published'],
 ] as const
 
-const adminModels = {
+const adminModels: Record<string, { deleteMany: () => Promise<unknown>; create: (args: { data: { title: string; data: Record<string, string>; status: string } }) => Promise<unknown> }> = {
   'roles-permissions': prisma.rolePermission,
   'student-progress': prisma.studentProgress,
   'parent-student-link': prisma.parentStudentLink,
