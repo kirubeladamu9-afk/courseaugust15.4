@@ -28,13 +28,13 @@ interface FieldConfig {
 const pageConfig: Record<CreateType, { title: string; description: string; fields: FieldConfig[] }> = {
   student: {
     title: 'Add Student',
-    description: 'Create a student profile and assign the learner to a class.',
+    description: 'Create a student profile, assign the learner to a class, and link at least one guardian.',
     fields: [
       { name: 'firstName', label: 'First name', required: true },
       { name: 'lastName', label: 'Last name', required: true },
       { name: 'email', label: 'Email address', type: 'email', required: true },
       { name: 'class', label: 'Class', options: ['Grade 6', 'Grade 7', 'Grade 8', 'Grade 9'], required: true },
-      { name: 'parentEmail', label: 'Parent email', type: 'email' },
+      { name: 'parentEmail', label: 'Guardian email(s)', required: true },
     ],
   },
   teacher: {

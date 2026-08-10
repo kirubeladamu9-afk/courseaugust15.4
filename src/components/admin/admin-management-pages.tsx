@@ -50,13 +50,43 @@ const sections: Record<string, SectionConfig> = {
   'performance-analytics': { title: 'Performance Analytics', description: 'Understand the trends shaping student and course performance.', action: 'Export Analytics', columns: ['Metric', 'Current period', 'Previous period', 'Change'], rows: [['Course completion', '78%', '73%', '+6.8%'], ['Average assessment score', '79%', '75%', '+5.3%'], ['Weekly active learners', '1,842', '1,604', '+14.8%'], ['Assignment submission rate', '87%', '81%', '+7.3%']], metrics: [['Active learners', '1,842', '+14.8%'], ['Avg. score', '79%', '+5.3%'], ['Completion rate', '78%', '+6.8%']], analytics: true },
 }
 
+const makeSection = (title: string, description: string, action: string, columns: string[], firstRecord: string): SectionConfig => ({ title, description, action, columns, rows: [[firstRecord, ...Array(Math.max(columns.length - 2, 0)).fill('—'), 'Draft']], metrics: [['Total records', '0', '—'], ['Active', '0', '—'], ['Pending review', '0', '—']] })
+
+const additionalSections: Record<string, SectionConfig> = {
+  students: makeSection('Student List', 'Search students, review profiles, and manage required guardian links.', 'Add Student', ['Student', 'Grade', 'Guardians', 'Status'], 'No students yet'),
+  'admissions-enrollment': makeSection('Admissions / Enrollment', 'Move new student applications from intake through approval to enrollment.', 'New Application', ['Applicant', 'Applied on', 'Stage', 'Status'], 'No applications yet'),
+  promotions: makeSection('Promotions', 'Move students to their next grade level in bulk at year-end.', 'Start Promotion', ['Academic year', 'From grade', 'To grade', 'Status'], 'No promotion batches yet'),
+  teachers: makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Teacher', 'Subjects', 'Classes', 'Status'], 'No teachers yet'),
+  guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status'], 'No guardians yet'),
+  'academic-years': makeSection('Academic Years', 'Define the school years that organize every academic record.', 'Add Academic Year', ['Academic year', 'Start date', 'End date', 'Status'], '2025/2026'),
+  'grade-levels': makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'),
+  'classes-sections': makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade', 'Students', 'Status'], 'Grade 5 - A'),
+  timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
+  'assessment-types': makeSection('Assessment Types', 'Define categories such as quizzes, midterms, and final exams.', 'Add Assessment Type', ['Type', 'Weight', 'Assessments', 'Status'], 'Quiz'),
+  'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
+  'assessment-policy': makeSection('Assessment Policy', 'Set grading rules and weights for each assessment type.', 'Add Policy Rule', ['Assessment type', 'Weight', 'Term', 'Status'], 'Quiz'),
+  'all-assessments': makeSection('All Assessments', 'Read-only overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Teacher', 'Class', 'Status'], 'No assessments yet'),
+  'result-approval': makeSection('Result Approval', 'Review and approve results before they are finalized.', 'Review Results', ['Assessment', 'Submissions', 'Submitted on', 'Status'], 'No pending results'),
+  'report-cards': makeSection('Report Cards', 'Generate and publish final report cards for students and guardians.', 'Generate Report Cards', ['Term', 'Students', 'Published', 'Status'], 'No report cards yet'),
+  announcements: makeSection('Announcements', 'Publish school-wide notices to the community.', 'Create Announcement', ['Announcement', 'Audience', 'Published on', 'Status'], 'No announcements yet'),
+  'messages-notices': makeSection('Messages / Notices', 'Send targeted messages to guardians, classes, or teachers.', 'New Message', ['Subject', 'Audience', 'Sent on', 'Status'], 'No messages yet'),
+  'enrollment-reports': makeSection('Enrollment Reports', 'Review admissions and enrollment trends over time.', 'Export Report', ['Period', 'Applications', 'Enrolled', 'Status'], 'No enrollment data'),
+  'performance-trends': makeSection('Performance Trends', 'Analyze academic performance patterns across classes and terms.', 'Export Trends', ['Term', 'Class', 'Average score', 'Status'], 'No trend data'),
+  'custom-export-reports': makeSection('Custom / Export Reports', 'Build and export custom data reports for school leadership.', 'Create Report', ['Report', 'Filters', 'Created by', 'Status'], 'No custom reports'),
+  'user-accounts': makeSection('User Accounts', 'Create and manage staff login accounts.', 'Add Account', ['User', 'Role', 'Last login', 'Status'], 'No accounts yet'),
+  'general-settings': makeSection('General Settings', 'Manage school name, logo, and contact information.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'School information'),
+  'academic-settings': makeSection('Academic Settings', 'Configure default rules for the academic structure.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'Default academic year'),
+  'system-settings': makeSection('System Settings', 'Manage backups, notifications, and technical configuration.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'Backup schedule'),
+}
+
 const statusColor = (status: string): 'success' | 'warning' | 'info' => status === 'Published' || status === 'Active' || status === 'Assigned' || status === 'Completed' ? 'success' : status === 'Draft' || status === 'Pending' || status === 'Review' ? 'warning' : 'info'
 
 type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string }
 
 const AdminManagementPage: FC = () => {
   const { section = 'student-progress' } = useParams()
-  const config = sections[section] ?? sections['student-progress']
+  const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
+  const isBackendSection = Boolean(sections[section])
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -65,17 +95,26 @@ const AdminManagementPage: FC = () => {
   useEffect(() => {
     setIsLoading(true)
     setError('')
+    if (!isBackendSection) {
+      setRecords(config.rows.map((row, index) => ({ id: `${section}-${index}`, title: row[0], data: Object.fromEntries(config.columns.slice(0, -1).map((column, columnIndex) => [column, row[columnIndex]])), status: row[row.length - 1] })))
+      setIsLoading(false)
+      return
+    }
     api.get<{ records: AdminRecord[] }>(`/api/admin/${section}`, { withCredentials: true })
       .then(({ data }) => setRecords(data.records))
       .catch(() => setError('Unable to load records. Please refresh and try again.'))
       .finally(() => setIsLoading(false))
-  }, [section])
+  }, [section, config, isBackendSection])
 
   const rows = records.map((record) => config.columns.map((column, index) => index === config.columns.length - 1 ? record.status : record.data[column] ?? (index === 0 ? record.title : '—')))
   const filteredRows = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [rows, query])
   const handleCreate = async () => {
     if (config.action.includes('Export')) return
     const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, index === 0 ? `New ${config.title} record` : '—']))
+    if (!isBackendSection) {
+      setRecords((current) => [...current, { id: `${section}-${Date.now()}`, title: `New ${config.title} record`, data, status: 'Draft' }])
+      return
+    }
     try {
       const { data: response } = await api.post<{ record: AdminRecord }>(`/api/admin/${section}`, { title: `New ${config.title} record`, data, status: 'Draft' }, { withCredentials: true })
       setRecords((current) => [...current, response.record])

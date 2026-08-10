@@ -147,30 +147,44 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [expandedMenu, setExpandedMenu] = useState('User Management')
   const itemRoutes: Record<string, string> = {
     'Roles & Permissions': '/admin/roles-permissions',
-    'Student Enrollment': '/admin/students/new',
-    'Student Progress': '/admin/student-progress',
-    'Parent-Student Link': '/admin/parent-student-link',
-    'Teacher Assignments': '/admin/teachers/new',
+    'User Accounts': '/admin/user-accounts',
+    'Student List': '/admin/students',
+    'Admissions / Enrollment': '/admin/admissions-enrollment',
+    Promotions: '/admin/promotions',
+    'Teacher List': '/admin/teachers',
+    'Class & Teacher Assignments': '/admin/teacher-assignments',
+    'Guardian List': '/admin/guardians',
+    'Academic Years': '/admin/academic-years',
+    'Grade Levels': '/admin/grade-levels',
+    'Classes & Sections': '/admin/classes-sections',
     Subjects: '/admin/subjects',
-    Chapters: '/admin/chapters',
-    Lessons: '/admin/lessons',
-    'Learning Materials': '/admin/learning-materials',
-    Quizzes: '/admin/quizzes',
-    Exams: '/admin/exams',
-    Assignments: '/admin/assignments',
-    'Teacher Reports': '/admin/teacher-reports',
-    'Course Reports': '/admin/course-reports',
-    'Performance Analytics': '/admin/performance-analytics',
+    Timetable: '/admin/timetable',
+    'Assessment Types': '/admin/assessment-types',
+    'Grading Scale': '/admin/grading-scale',
+    'Assessment Policy': '/admin/assessment-policy',
+    'All Assessments': '/admin/all-assessments',
+    'Result Approval': '/admin/result-approval',
+    'Report Cards': '/admin/report-cards',
+    Announcements: '/admin/announcements',
+    'Messages / Notices': '/admin/messages-notices',
+    'Enrollment Reports': '/admin/enrollment-reports',
+    'Performance Trends': '/admin/performance-trends',
+    'Custom / Export Reports': '/admin/custom-export-reports',
+    'General Settings': '/admin/general-settings',
+    'Academic Settings': '/admin/academic-settings',
+    'System Settings': '/admin/system-settings',
   }
   const menuGroups = [
-    { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions'] },
-    { label: 'Students', parent: 'All Students', icon: <PeopleAltOutlined fontSize="small" />, items: ['Student Enrollment', 'Student Progress'] },
-    { label: 'Parents', parent: 'All Parents', icon: <FamilyRestroomOutlined fontSize="small" />, items: ['Parent-Student Link'] },
-    { label: 'Teachers', parent: 'All Teachers', icon: <SchoolOutlined fontSize="small" />, items: ['Teacher Assignments'] },
-    { label: 'Academic', parent: 'Grades', icon: <MenuBookOutlined fontSize="small" />, items: ['Subjects', 'Chapters', 'Lessons', 'Learning Materials'] },
-    { label: 'Assessments', parent: 'Question Bank', icon: <QuizOutlined fontSize="small" />, items: ['Quizzes', 'Exams', 'Assignments'] },
-    { label: 'Reports & Analytics', parent: 'Student Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Teacher Reports', 'Course Reports', 'Performance Analytics'] },
-    { label: 'Settings', parent: 'General', icon: <SettingsOutlined fontSize="small" />, items: ['School Information', 'Email', 'Security', 'Backup'] },
+    { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions', 'User Accounts'] },
+    { label: 'Students', parent: 'Student List', icon: <PeopleAltOutlined fontSize="small" />, items: ['Admissions / Enrollment', 'Promotions'] },
+    { label: 'Teachers', parent: 'Teacher List', icon: <SchoolOutlined fontSize="small" />, items: ['Class & Teacher Assignments'] },
+    { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
+    { label: 'Academic Structure', parent: 'Academic Years', icon: <MenuBookOutlined fontSize="small" />, items: ['Grade Levels', 'Classes & Sections', 'Subjects'] },
+    { label: 'Scheduling', parent: 'Class & Teacher Assignments', icon: <PlayLessonOutlined fontSize="small" />, items: ['Timetable'] },
+    { label: 'Assessments', parent: 'Assessment Types', icon: <QuizOutlined fontSize="small" />, items: ['Grading Scale', 'Assessment Policy', 'All Assessments', 'Result Approval', 'Report Cards'] },
+    { label: 'Communication', parent: 'Announcements', icon: <NotificationsNoneOutlined fontSize="small" />, items: ['Messages / Notices'] },
+    { label: 'Reports & Analytics', parent: 'Enrollment Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Performance Trends', 'Custom / Export Reports'] },
+    { label: 'Settings', parent: 'General Settings', icon: <SettingsOutlined fontSize="small" />, items: ['Academic Settings', 'User Accounts', 'Roles & Permissions', 'System Settings'] },
   ]
 
   const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
@@ -192,7 +206,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
           return (
             <Box key={label}>
               <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
-              <ButtonBase onClick={() => setExpandedMenu(isExpanded ? '' : label)} sx={{ ...menuButtonSx, mt: 0.5 }}>
+              <ButtonBase onClick={() => { const route = itemRoutes[parent]; if (route) { navigate(route); onClose?.() } setExpandedMenu(isExpanded ? '' : label) }} sx={{ ...menuButtonSx, mt: 0.5 }}>
                 <Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{icon}</Box>
                 <Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{parent}</Typography>
                 <Box sx={{ display: 'flex', ml: 'auto' }}>{isExpanded ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box>
