@@ -146,7 +146,6 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const navigate = useNavigate()
   const [expandedMenu, setExpandedMenu] = useState('User Management')
   const itemRoutes: Record<string, string> = {
-    'Roles & Permissions': '/admin/roles-permissions',
     'User Accounts': '/admin/user-accounts',
     Students: '/admin/students',
     Teachers: '/admin/teachers',
@@ -172,7 +171,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     'System Settings': '/admin/system-settings',
   }
   const menuGroups = [
-    { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions', 'User Accounts'] },
+    { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['User Accounts'] },
     { label: 'Students', parent: 'Students', icon: <PeopleAltOutlined fontSize="small" />, items: [] },
     { label: 'Teachers', parent: 'Teachers', icon: <SchoolOutlined fontSize="small" />, items: [] },
     { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
@@ -181,7 +180,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     { label: 'Assessments', parent: 'Assessment Types', icon: <QuizOutlined fontSize="small" />, items: ['Grading Scale', 'Assessment Policy', 'All Assessments', 'Result Approval', 'Report Cards'] },
     { label: 'Communication', parent: 'Announcements', icon: <NotificationsNoneOutlined fontSize="small" />, items: ['Messages / Notices'] },
     { label: 'Reports & Analytics', parent: 'Enrollment Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Performance Trends', 'Custom / Export Reports'] },
-    { label: 'Settings', parent: 'General Settings', icon: <SettingsOutlined fontSize="small" />, items: ['Academic Settings', 'User Accounts', 'Roles & Permissions', 'System Settings'] },
+    { label: 'Settings', parent: 'General Settings', icon: <SettingsOutlined fontSize="small" />, items: ['Academic Settings', 'User Accounts', 'System Settings'] },
   ]
 
   const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
