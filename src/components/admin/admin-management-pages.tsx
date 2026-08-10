@@ -89,7 +89,7 @@ const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = Boolean(sections[section]) || section === 'students'
+  const isBackendSection = (Boolean(sections[section]) && !config.createFields) || section === 'students'
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
