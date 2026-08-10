@@ -1,0 +1,82 @@
+import Box from '@mui/material/Box'
+import Breadcrumbs from '@mui/material/Breadcrumbs'
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Container from '@mui/material/Container'
+import Grid from '@mui/material/Grid'
+import LinearProgress from '@mui/material/LinearProgress'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableContainer from '@mui/material/TableContainer'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+import AddRounded from '@mui/icons-material/AddRounded'
+import DownloadRounded from '@mui/icons-material/DownloadRounded'
+import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
+import { useMemo, useState, type FC } from 'react'
+import { useParams } from 'react-router-dom'
+import { AdminPanelLayout } from './admin-dashboard'
+
+type SectionConfig = {
+  title: string
+  description: string
+  action: string
+  columns: string[]
+  rows: string[][]
+  metrics: [string, string, string][]
+  analytics?: boolean
+}
+
+const sections: Record<string, SectionConfig> = {
+  'roles-permissions': { title: 'Roles & Permissions', description: 'Manage access levels and permissions across your school.', action: 'Add Role', columns: ['Role', 'Users', 'Permissions', 'Status'], rows: [['Administrator', '8', 'Full access', 'Active'], ['Teacher', '186', 'Academic management', 'Active'], ['Parent', '1,920', 'Student progress', 'Active'], ['Student', '2,480', 'Course access', 'Active']], metrics: [['Active roles', '4', '+1.2%'], ['Permissions', '28', '+4.5%'], ['Pending reviews', '3', '-12.0%']] },
+  'student-progress': { title: 'Student Progress', description: 'Monitor learning progress and engagement across all students.', action: 'Export Progress', columns: ['Student', 'Grade', 'Courses', 'Completion', 'Status'], rows: [['Ava Johnson', 'Grade 8', '6 courses', '86%', 'On track'], ['Noah Williams', 'Grade 7', '5 courses', '72%', 'On track'], ['Sophia Brown', 'Grade 9', '7 courses', '64%', 'Needs support'], ['Liam Davis', 'Grade 8', '6 courses', '91%', 'Excellent']], metrics: [['Students tracked', '2,480', '+12.5%'], ['Avg. completion', '78%', '+6.8%'], ['At risk', '124', '-8.4%']], analytics: true },
+  'parent-student-link': { title: 'Parent-Student Link', description: 'Connect parents with students and manage family access.', action: 'Link Parent', columns: ['Parent', 'Student', 'Relationship', 'Linked on', 'Status'], rows: [['Olivia Johnson', 'Ava Johnson', 'Mother', 'Jul 12, 2024', 'Active'], ['James Williams', 'Noah Williams', 'Father', 'Jul 10, 2024', 'Active'], ['Emma Brown', 'Sophia Brown', 'Mother', 'Jul 08, 2024', 'Pending'], ['William Davis', 'Liam Davis', 'Father', 'Jul 05, 2024', 'Active']], metrics: [['Linked families', '1,920', '+6.4%'], ['Pending links', '18', '-3.2%'], ['Unlinked students', '42', '-10.1%']] },
+  'teacher-assignments': { title: 'Teacher Assignments', description: 'Assign teachers to courses, grades, and classrooms.', action: 'Create Assignment', columns: ['Teacher', 'Subject', 'Grade', 'Students', 'Status'], rows: [['Maria Garcia', 'Mathematics', 'Grade 8', '124', 'Assigned'], ['Daniel Wilson', 'Science', 'Grade 7', '98', 'Assigned'], ['James Miller', 'English', 'Grade 9', '112', 'Assigned'], ['Sarah Lee', 'History', 'Grade 8', '86', 'Review']], metrics: [['Active assignments', '186', '+8.2%'], ['Open classes', '12', '-4.0%'], ['Avg. class size', '28', '+2.1%']] },
+  subjects: { title: 'Subjects', description: 'Organize the subjects available in your academic program.', action: 'Add Subject', columns: ['Subject', 'Grade levels', 'Chapters', 'Teachers', 'Status'], rows: [['Mathematics', '6–9', '24', '32', 'Published'], ['Science', '6–9', '18', '28', 'Published'], ['English Language', '6–9', '20', '35', 'Published'], ['World History', '7–9', '12', '18', 'Draft']], metrics: [['Total subjects', '18', '+2.0%'], ['Published', '15', '+7.1%'], ['Drafts', '3', '-14.3%']] },
+  chapters: { title: 'Chapters', description: 'Manage the chapters that structure each subject.', action: 'Add Chapter', columns: ['Chapter', 'Subject', 'Lessons', 'Completion', 'Status'], rows: [['Algebraic Expressions', 'Mathematics', '12', '84%', 'Published'], ['Energy & Matter', 'Science', '9', '76%', 'Published'], ['Grammar Essentials', 'English Language', '14', '91%', 'Published'], ['Industrial Revolution', 'World History', '8', '—', 'Draft']], metrics: [['Total chapters', '74', '+10.4%'], ['Published', '61', '+8.9%'], ['In review', '7', '-5.3%']] },
+  lessons: { title: 'Lessons', description: 'Create and manage lessons for every course and chapter.', action: 'Create Lesson', columns: ['Lesson', 'Subject', 'Chapter', 'Views', 'Status'], rows: [['Solving Linear Equations', 'Mathematics', 'Algebraic Expressions', '1,284', 'Published'], ['Forms of Energy', 'Science', 'Energy & Matter', '982', 'Published'], ['Parts of Speech', 'English Language', 'Grammar Essentials', '1,102', 'Published'], ['Factory Systems', 'World History', 'Industrial Revolution', '—', 'Draft']], metrics: [['Total lessons', '864', '+10.8%'], ['Published', '742', '+9.2%'], ['Drafts', '122', '-2.7%']] },
+  'learning-materials': { title: 'Learning Materials', description: 'Publish videos, documents, and resources for learners.', action: 'Add Material', columns: ['Material', 'Type', 'Course', 'Downloads', 'Status'], rows: [['Algebra workbook', 'PDF', 'Mathematics', '842', 'Published'], ['Energy lab guide', 'Document', 'Science', '621', 'Published'], ['Grammar video series', 'Video', 'English Language', '1,204', 'Published'], ['History timeline', 'Presentation', 'World History', '—', 'Review']], metrics: [['Total materials', '326', '+14.6%'], ['Published', '284', '+11.2%'], ['Needs review', '9', '-18.0%']] },
+  quizzes: { title: 'Quizzes', description: 'Build quizzes and review learner assessment activity.', action: 'Create Quiz', columns: ['Quiz', 'Subject', 'Questions', 'Attempts', 'Status'], rows: [['Linear Equations Check', 'Mathematics', '15', '842', 'Published'], ['Energy Fundamentals', 'Science', '20', '621', 'Published'], ['Grammar Review', 'English Language', '12', '1,204', 'Published'], ['History Unit Quiz', 'World History', '18', '—', 'Draft']], metrics: [['Active quizzes', '48', '+12.0%'], ['Attempts this month', '8,642', '+19.4%'], ['Avg. score', '76%', '+3.8%']] },
+  exams: { title: 'Exams', description: 'Schedule exams and manage formal assessments.', action: 'Create Exam', columns: ['Exam', 'Term', 'Subjects', 'Submissions', 'Status'], rows: [['Midterm Assessment', 'Fall 2024', '6', '2,104', 'Scheduled'], ['Mathematics Final', 'Spring 2024', '1', '2,312', 'Completed'], ['Science Practical', 'Fall 2024', '1', '—', 'Draft'], ['Annual Review', 'Spring 2024', '8', '2,480', 'Completed']], metrics: [['Scheduled exams', '6', '+20.0%'], ['Submissions', '6,842', '+15.1%'], ['Avg. score', '81%', '+5.6%']] },
+  assignments: { title: 'Assignments', description: 'Track coursework, due dates, and submissions.', action: 'Create Assignment', columns: ['Assignment', 'Course', 'Due date', 'Submissions', 'Status'], rows: [['Algebra practice set', 'Mathematics', 'Jul 19, 2024', '114/124', 'Active'], ['Energy lab report', 'Science', 'Jul 21, 2024', '82/98', 'Active'], ['Grammar essay', 'English Language', 'Jul 24, 2024', '96/112', 'Active'], ['History project', 'World History', 'Jul 28, 2024', '—', 'Draft']], metrics: [['Active assignments', '126', '+9.6%'], ['Due this week', '18', '-4.8%'], ['Submission rate', '87%', '+7.3%']] },
+  'teacher-reports': { title: 'Teacher Reports', description: 'Review teaching activity, outcomes, and classroom engagement.', action: 'Export Report', columns: ['Teacher', 'Classes', 'Students', 'Completion', 'Rating'], rows: [['Maria Garcia', '4', '124', '92%', '4.9'], ['Daniel Wilson', '3', '98', '88%', '4.7'], ['James Miller', '4', '112', '86%', '4.8'], ['Sarah Lee', '3', '86', '81%', '4.5']], metrics: [['Teachers reporting', '178', '+8.2%'], ['Avg. completion', '87%', '+4.5%'], ['Avg. rating', '4.7', '+2.1%']], analytics: true },
+  'course-reports': { title: 'Course Reports', description: 'Compare course performance and learner outcomes.', action: 'Export Report', columns: ['Course', 'Students', 'Completion', 'Avg. score', 'Engagement'], rows: [['Mathematics', '624', '84%', '82%', 'High'], ['Science', '498', '78%', '76%', 'High'], ['English Language', '572', '81%', '79%', 'Medium'], ['World History', '386', '69%', '73%', 'Medium']], metrics: [['Active courses', '42', '+5.0%'], ['Avg. completion', '78%', '+6.8%'], ['Total enrollments', '2,480', '+12.5%']], analytics: true },
+  'performance-analytics': { title: 'Performance Analytics', description: 'Understand the trends shaping student and course performance.', action: 'Export Analytics', columns: ['Metric', 'Current period', 'Previous period', 'Change'], rows: [['Course completion', '78%', '73%', '+6.8%'], ['Average assessment score', '79%', '75%', '+5.3%'], ['Weekly active learners', '1,842', '1,604', '+14.8%'], ['Assignment submission rate', '87%', '81%', '+7.3%']], metrics: [['Active learners', '1,842', '+14.8%'], ['Avg. score', '79%', '+5.3%'], ['Completion rate', '78%', '+6.8%']], analytics: true },
+}
+
+const statusColor = (status: string): 'success' | 'warning' | 'info' => status === 'Published' || status === 'Active' || status === 'Assigned' || status === 'Completed' ? 'success' : status === 'Draft' || status === 'Pending' || status === 'Review' ? 'warning' : 'info'
+
+const AdminManagementPage: FC = () => {
+  const { section = 'student-progress' } = useParams()
+  const config = sections[section] ?? sections['student-progress']
+  const [query, setQuery] = useState('')
+  const filteredRows = useMemo(() => config.rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [config.rows, query])
+
+  return (
+    <AdminPanelLayout title={config.title}>
+      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+        <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="primary.main">{config.title}</Typography></Breadcrumbs>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
+          <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>{config.title}</Typography><Typography color="text.secondary">{config.description}</Typography></Box>
+          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button><Button variant="contained" startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button></Stack>
+        </Stack>
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          {config.metrics.map(([label, value, change]) => <Grid item xs={12} sm={4} key={label}><Paper elevation={0} sx={{ p: 2.5, borderRadius: 3 }}><Typography variant="subtitle1" color="text.secondary">{label}</Typography><Stack direction="row" alignItems="baseline" spacing={1} sx={{ mt: 1 }}><Typography variant="h3" sx={{ fontSize: { xs: 26, md: 30 } }}>{value}</Typography><Typography variant="caption" color="primary.main">{change}</Typography></Stack></Paper></Grid>)}
+        </Grid>
+        {config.analytics && <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 2 }}><Stack direction="row" spacing={1} alignItems="center"><InsightsOutlined color="primary" /><Box><Typography variant="h5">Performance trends</Typography><Typography variant="subtitle2" color="text.secondary">Key indicators over the current reporting period</Typography></Box></Stack><Stack spacing={1.5} sx={{ mt: 3 }}>{[['Engagement', 82], ['Completion', 78], ['Assessment scores', 79]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper>}
+        <Paper elevation={0} sx={{ p: { xs: 1, md: 2 }, borderRadius: 3 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
+          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRows.map((row) => <TableRow hover key={row.join('-')}>{row.map((cell, index) => <TableCell key={`${cell}-${index}`} sx={{ whiteSpace: 'nowrap' }}>{index === row.length - 1 && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>
+          {!filteredRows.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
+        </Paper>
+      </Container>
+    </AdminPanelLayout>
+  )
+}
+
+export default AdminManagementPage

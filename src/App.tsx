@@ -21,6 +21,7 @@ const AddStudentPage = lazy(() => import('@/components/admin/admin-create-pages'
 const AddTeacherPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.AddTeacherPage })))
 const CreateLessonPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.CreateLessonPage })))
 const CreateQuizPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.CreateQuizPage })))
+const AdminManagementPage = lazy(() => import('@/components/admin/admin-management-pages'))
 const LoginPage = lazy(() => import('@/components/auth/login-page'))
 
 interface PageLayoutProps {
@@ -118,6 +119,7 @@ const App: React.FC = () => (
       <Route path="/mentors" element={<PageLayout><HomeOurMentors /></PageLayout>} />
       <Route path="/admin" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminDashboard /></Suspense></RoleRoute>} />
       <Route path="/admin/profile" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminProfile /></Suspense></RoleRoute>} />
+      <Route path="/admin/:section" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminManagementPage /></Suspense></RoleRoute>} />
       <Route path="/admin/students/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddStudentPage /></Suspense></RoleRoute>} />
       <Route path="/admin/teachers/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddTeacherPage /></Suspense></RoleRoute>} />
       <Route path="/admin/lessons/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateLessonPage /></Suspense></RoleRoute>} />

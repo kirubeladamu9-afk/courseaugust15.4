@@ -146,10 +146,21 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const navigate = useNavigate()
   const [expandedMenu, setExpandedMenu] = useState('User Management')
   const itemRoutes: Record<string, string> = {
+    'Roles & Permissions': '/admin/roles-permissions',
     'Student Enrollment': '/admin/students/new',
+    'Student Progress': '/admin/student-progress',
+    'Parent-Student Link': '/admin/parent-student-link',
     'Teacher Assignments': '/admin/teachers/new',
-    Lessons: '/admin/lessons/new',
-    Quizzes: '/admin/quizzes/new',
+    Subjects: '/admin/subjects',
+    Chapters: '/admin/chapters',
+    Lessons: '/admin/lessons',
+    'Learning Materials': '/admin/learning-materials',
+    Quizzes: '/admin/quizzes',
+    Exams: '/admin/exams',
+    Assignments: '/admin/assignments',
+    'Teacher Reports': '/admin/teacher-reports',
+    'Course Reports': '/admin/course-reports',
+    'Performance Analytics': '/admin/performance-analytics',
   }
   const menuGroups = [
     { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions'] },
