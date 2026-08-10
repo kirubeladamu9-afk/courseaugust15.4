@@ -177,7 +177,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
     { label: 'Academic Structure', parent: 'Grade Levels', icon: <MenuBookOutlined fontSize="small" />, items: ['Classes & Sections', 'Subjects'] },
     { label: 'Scheduling', parent: 'Timetable', icon: <PlayLessonOutlined fontSize="small" />, items: [] },
-    { label: 'Assessments', parent: 'Assessment Types', icon: <QuizOutlined fontSize="small" />, items: ['Grading Scale', 'Assessment Policy', 'All Assessments', 'Result Approval', 'Report Cards'] },
+    { label: 'Assessments', parent: 'Assessment Types', icon: <QuizOutlined fontSize="small" />, items: ['All Assessments'] },
     { label: 'Communication', parent: 'Announcements', icon: <NotificationsNoneOutlined fontSize="small" />, items: ['Messages / Notices'] },
     { label: 'Reports & Analytics', parent: 'Enrollment Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Performance Trends', 'Custom / Export Reports'] },
     { label: 'Settings', parent: 'General Settings', icon: <SettingsOutlined fontSize="small" />, items: ['Academic Settings', 'User Accounts', 'System Settings'] },
