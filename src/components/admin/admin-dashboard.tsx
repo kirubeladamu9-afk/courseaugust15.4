@@ -42,7 +42,9 @@ import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
 import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
 import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded'
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
+import { useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/logo'
+import { useAuth } from '@/auth/auth-context'
 
 interface StatCardProps {
   label: string
@@ -207,9 +209,19 @@ const AdminSidebar: FC<AdminSidebarProps> = ({ mobileOpen, collapsed, onClose })
 )
 
 const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; sidebarCollapsed: boolean }> = ({ onMenuClick, onToggleSidebar, sidebarCollapsed }) => {
+  const navigate = useNavigate()
+  const { logout } = useAuth()
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
   const [darkMode, setDarkMode] = useState(false)
   const profileOpen = Boolean(profileAnchor)
+
+  const handleProfileAction = async (item: string) => {
+    setProfileAnchor(null)
+    if (item === 'Logout') {
+      await logout()
+      navigate('/login', { replace: true })
+    }
+  }
 
   return (
     <Paper
@@ -261,7 +273,7 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
             <AccountCircleOutlined color="primary" />
           </IconButton>
           <Menu anchorEl={profileAnchor} open={profileOpen} onClose={() => setProfileAnchor(null)}>
-            {['Profile', 'My Account', 'Change Password', 'Settings', 'Logout'].map((item) => <MenuItem key={item} onClick={() => setProfileAnchor(null)}>{item}</MenuItem>)}
+            {['Profile', 'My Account', 'Change Password', 'Settings', 'Logout'].map((item) => <MenuItem key={item} onClick={() => handleProfileAction(item)}>{item}</MenuItem>)}
           </Menu>
         </Stack>
       </Stack>
