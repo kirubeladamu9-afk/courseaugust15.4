@@ -10,6 +10,20 @@ const recordSchema = z.object({
   data: z.record(z.string(), z.string().max(300)),
   status: z.string().trim().min(1).max(40).default('Draft'),
 })
+const studentSchema = z.object({
+  fullName: z.string().trim().min(1).max(160),
+  dateOfBirth: z.coerce.date(),
+  gender: z.string().trim().min(1).max(40),
+  admissionNumber: z.string().trim().min(1).max(80),
+  photoName: z.string().trim().max(255).optional(),
+  academicYear: z.string().trim().min(1).max(20),
+  gradeLevel: z.string().trim().min(1).max(40),
+  classSection: z.string().trim().min(1).max(80),
+  enrollmentDate: z.coerce.date(),
+  address: z.string().trim().max(300).optional(),
+  guardianSearch: z.string().trim().min(1).max(160),
+  status: z.enum(['Active', 'Inactive', 'Pending']),
+})
 
 type AdminRecordModel = {
   findMany: (args: { orderBy: { createdAt: 'asc' } }) => Promise<unknown[]>
@@ -40,6 +54,44 @@ const getModel = (section: string) => {
 }
 
 router.use(requireAdmin)
+
+router.get('/students', async (_req, res, next) => {
+  try {
+    const students = await prisma.student.findMany({ orderBy: { createdAt: 'asc' }, include: { guardianLinks: { include: { guardian: true } } } })
+    return res.json({ students })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/students', async (req, res, next) => {
+  try {
+    const input = studentSchema.parse(req.body)
+    const guardian = await prisma.guardian.findFirst({ where: { OR: [{ email: { contains: input.guardianSearch, mode: 'insensitive' } }, { name: { contains: input.guardianSearch, mode: 'insensitive' } }] } })
+    if (!guardian) return res.status(400).json({ message: 'No existing guardian matched the search.' })
+
+    const student = await prisma.student.create({
+      data: {
+        fullName: input.fullName,
+        dateOfBirth: input.dateOfBirth,
+        gender: input.gender,
+        admissionNumber: input.admissionNumber,
+        photoName: input.photoName,
+        academicYear: input.academicYear,
+        gradeLevel: input.gradeLevel,
+        classSection: input.classSection,
+        enrollmentDate: input.enrollmentDate,
+        address: input.address,
+        status: input.status,
+        guardianLinks: { create: { guardianId: guardian.id } },
+      },
+      include: { guardianLinks: { include: { guardian: true } } },
+    })
+    return res.status(201).json({ student })
+  } catch (error) {
+    return next(error)
+  }
+})
 
 router.get('/:section', async (req, res, next) => {
   try {

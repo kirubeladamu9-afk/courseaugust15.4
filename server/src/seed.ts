@@ -22,6 +22,12 @@ for (const user of users) {
   })
 }
 
+await prisma.guardian.upsert({
+  where: { email: 'parent@coursespace.com' },
+  update: { name: 'Parent User' },
+  create: { name: 'Parent User', email: 'parent@coursespace.com' },
+})
+
 const adminRecords = [
   ['roles-permissions', 'Administrator', { Role: 'Administrator', Users: '8', Permissions: 'Full access' }, 'Active'],
   ['roles-permissions', 'Teacher', { Role: 'Teacher', Users: '186', Permissions: 'Academic management' }, 'Active'],

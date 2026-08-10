@@ -178,3 +178,44 @@ model PerformanceAnalytic {
   updatedAt DateTime @updatedAt
   @@map("performance_analytics")
 }
+
+model Guardian {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  studentLinks StudentGuardian[]
+  @@map("guardians")
+}
+
+model Student {
+  id String @id @default(cuid())
+  fullName String
+  dateOfBirth DateTime
+  gender String
+  admissionNumber String @unique
+  photoName String?
+  academicYear String
+  gradeLevel String
+  classSection String
+  enrollmentDate DateTime
+  address String?
+  status String @default("Pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guardianLinks StudentGuardian[]
+  @@index([fullName])
+  @@index([academicYear, gradeLevel, classSection])
+  @@map("students")
+}
+
+model StudentGuardian {
+  studentId String
+  guardianId String
+  relationshipType String @default("Guardian")
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  @@id([studentId, guardianId])
+  @@map("student_guardians")
+}

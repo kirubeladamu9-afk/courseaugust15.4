@@ -13,6 +13,7 @@ import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import SaveOutlined from '@mui/icons-material/SaveOutlined'
 import { useNavigate } from 'react-router-dom'
 import { AdminPanelLayout } from '@/components/admin/admin-dashboard'
+import api from '@/lib/api'
 
 type CreateType = 'student' | 'teacher' | 'lesson' | 'quiz'
 
@@ -86,13 +87,22 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const [saved, setSaved] = useState(false)
   const [validationError, setValidationError] = useState('')
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (type === 'student' && !values.existingGuardian?.trim() && !values.newGuardian?.trim()) {
-      setValidationError('Link at least one existing guardian or add a new guardian before saving.')
+    if (type === 'student' && !values.existingGuardian?.trim()) {
+      setValidationError('Search for an existing guardian before saving.')
       return
     }
     setValidationError('')
+    if (type === 'student') {
+      try {
+        await api.post('/api/admin/students', { ...values, guardianSearch: values.existingGuardian, photoName: values.photo }, { withCredentials: true })
+        setSaved(true)
+      } catch {
+        setValidationError('Unable to save the student. Check the details and guardian search, then try again.')
+      }
+      return
+    }
     setSaved(true)
   }
 
@@ -125,7 +135,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     minRows={field.multiline ? 4 : undefined}
                     InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined}
                     value={field.type === 'file' ? undefined : values[field.name] || ''}
-                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}
+                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: field.type === 'file' ? (event.target as HTMLInputElement).files?.[0]?.name || '' : event.target.value }))}
                   >
                     {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
                   </TextField>

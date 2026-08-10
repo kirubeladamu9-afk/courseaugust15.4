@@ -87,7 +87,7 @@ const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = Boolean(sections[section])
+  const isBackendSection = Boolean(sections[section]) || section === 'students'
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -99,6 +99,13 @@ const AdminManagementPage: FC = () => {
     if (!isBackendSection) {
       setRecords(config.rows.map((row, index) => ({ id: `${section}-${index}`, title: row[0], data: Object.fromEntries(config.columns.slice(0, -1).map((column, columnIndex) => [column, row[columnIndex]])), status: row[row.length - 1] })))
       setIsLoading(false)
+      return
+    }
+    if (section === 'students') {
+      api.get<{ students: { id: string; fullName: string; gradeLevel: string; status: string; guardianLinks: { guardian: { name: string } }[] }[] }>('/api/admin/students', { withCredentials: true })
+        .then(({ data }) => setRecords(data.students.map((student) => ({ id: student.id, title: student.fullName, data: { Student: student.fullName, Grade: student.gradeLevel, Guardians: student.guardianLinks.map(({ guardian }) => guardian.name).join(', ') || '—' }, status: student.status }))))
+        .catch(() => setError('Unable to load records. Please refresh and try again.'))
+        .finally(() => setIsLoading(false))
       return
     }
     api.get<{ records: AdminRecord[] }>(`/api/admin/${section}`, { withCredentials: true })
