@@ -186,6 +186,10 @@ const AdminManagementPage: FC = () => {
       navigate('/admin/students/new')
       return
     }
+    if (section === 'teachers') {
+      navigate('/admin/teachers/new')
+      return
+    }
     if (config.action.includes('Export')) return
     const data = Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, index === 0 ? `New ${config.title} record` : '—']))
     if (!isBackendSection) {
@@ -206,7 +210,7 @@ const AdminManagementPage: FC = () => {
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="primary.main">{config.title}</Typography></Breadcrumbs>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
           <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>{config.title}</Typography><Typography color="text.secondary">{config.description}</Typography></Box>
-          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button><Button variant="contained" onClick={() => config.createFields ? setIsCreateFormOpen((current) => !current) : handleCreate()} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button></Stack>
+          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button><Button variant="contained" onClick={() => section === 'teachers' ? handleCreate() : config.createFields ? setIsCreateFormOpen((current) => !current) : handleCreate()} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button></Stack>
         </Stack>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {config.metrics.map(([label, value, change]) => <Grid item xs={12} sm={4} key={label}><Paper elevation={0} sx={{ p: 2.5, borderRadius: 3 }}><Typography variant="subtitle1" color="text.secondary">{label}</Typography><Stack direction="row" alignItems="baseline" spacing={1} sx={{ mt: 1 }}><Typography variant="h3" sx={{ fontSize: { xs: 26, md: 30 } }}>{value}</Typography><Typography variant="caption" color="primary.main">{change}</Typography></Stack></Paper></Grid>)}

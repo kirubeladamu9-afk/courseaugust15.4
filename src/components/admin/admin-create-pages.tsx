@@ -3,6 +3,9 @@ import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import FormGroup from '@mui/material/FormGroup'
 import Grid from '@mui/material/Grid'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
@@ -24,6 +27,7 @@ interface FieldConfig {
   required?: boolean
   options?: string[]
   multiline?: boolean
+  multiple?: boolean
 }
 
 interface Guardian {
@@ -53,13 +57,17 @@ const pageConfig: Record<CreateType, { title: string; description: string; field
   },
   teacher: {
     title: 'Add Teacher',
-    description: 'Create a teacher profile and define the subjects they can manage.',
+    description: 'Create a teacher profile and assign subjects and classes.',
     fields: [
-      { name: 'firstName', label: 'First name', required: true },
-      { name: 'lastName', label: 'Last name', required: true },
-      { name: 'email', label: 'Email address', type: 'email', required: true },
-      { name: 'subject', label: 'Primary subject', options: ['Mathematics', 'Science', 'English', 'History'], required: true },
-      { name: 'phone', label: 'Phone number', type: 'tel' },
+      { name: 'fullName', label: 'Full Name', required: true },
+      { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true },
+      { name: 'photoName', label: 'Photo', type: 'file' },
+      { name: 'phoneNumber', label: 'Phone Number', type: 'tel' },
+      { name: 'address', label: 'Address' },
+      { name: 'nationalId', label: 'National ID / Passport Number' },
+      { name: 'assignedSubjects', label: 'Assigned Subjects', multiple: true },
+      { name: 'assignedClasses', label: 'Assigned Classes', multiple: true },
+      { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true },
     ],
   },
   lesson: {
@@ -97,6 +105,17 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const [guardianFormOpen, setGuardianFormOpen] = useState(false)
   const [guardianForm, setGuardianForm] = useState({ name: '', email: '', relationshipType: 'Guardian', phone: '', address: '', occupation: '', nationalId: '', photoName: '' })
   const [academicOptions, setAcademicOptions] = useState({ gradeLevel: [] as string[], classSection: [] as { name: string; gradeLevel: string }[] })
+  const [teacherOptions, setTeacherOptions] = useState({ subjects: [] as { id: string; name: string }[], classes: [] as { id: string; name: string }[] })
+
+  useEffect(() => {
+    if (type !== 'teacher') return
+    Promise.all([
+      api.get<{ records: { id: string; title: string }[] }>('/api/admin/subjects', { withCredentials: true }),
+      api.get<{ records: { id: string; title: string }[] }>('/api/admin/classes-sections', { withCredentials: true }),
+    ])
+      .then(([subjectsResponse, classesResponse]) => setTeacherOptions({ subjects: subjectsResponse.data.records.map(({ id, title }) => ({ id, name: title })), classes: classesResponse.data.records.map(({ id, title }) => ({ id, name: title })) }))
+      .catch(() => setValidationError('Unable to load subjects and classes. Please try again.'))
+  }, [type])
 
   useEffect(() => {
     if (type !== 'student') return
@@ -157,6 +176,15 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
       }
       return
     }
+    if (type === 'teacher') {
+      try {
+        await api.post('/api/admin/teachers', values, { withCredentials: true })
+        setSaved(true)
+      } catch {
+        setValidationError('Unable to save the teacher. Check the details and assignments, then try again.')
+      }
+      return
+    }
     setSaved(true)
   }
 
@@ -179,7 +207,15 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
             <Grid container spacing={2.25}>
               {config.fields.map((field) => (
                 <Grid item xs={12} sm={field.multiline || field.name === 'existingGuardian' ? 12 : 6} key={field.name}>
-                  <TextField
+                  {field.multiple ? <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{field.label}</Typography>
+                    <FormGroup row>
+                      {(field.name === 'assignedSubjects' ? teacherOptions.subjects : teacherOptions.classes).map((option) => {
+                        const selected = (values[field.name] || '').split(', ').filter(Boolean).includes(option.name)
+                        return <FormControlLabel key={option.id} control={<Checkbox checked={selected} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.checked ? [...(current[field.name] || '').split(', ').filter(Boolean), option.name].join(', ') : (current[field.name] || '').split(', ').filter((value) => value !== option.name).join(', ') }))} />} label={option.name} />
+                      })}
+                    </FormGroup>
+                  </Box> : <TextField
                     fullWidth
                     required={field.required}
                     label={field.label}
@@ -192,7 +228,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     onChange={(event) => setValues((current) => ({ ...current, [field.name]: field.type === 'file' ? (event.target as HTMLInputElement).files?.[0]?.name || '' : event.target.value, ...(field.name === 'gradeLevel' ? { classSection: '' } : {}) }))}
                   >
                     {(field.name === 'gradeLevel' ? academicOptions.gradeLevel : field.name === 'classSection' ? academicOptions.classSection.filter(({ gradeLevel }) => gradeLevel === values.gradeLevel) : field.options)?.map((option) => <MenuItem key={typeof option === 'string' ? option : option.name} value={typeof option === 'string' ? option : option.name}>{typeof option === 'string' ? option : option.name}</MenuItem>)}
-                  </TextField>
+                  </TextField>}
                   {type === 'student' && field.name === 'existingGuardian' && <Stack spacing={1} sx={{ mt: 1 }}>
                     <Button type="button" variant="outlined" size="small" onClick={searchGuardians}>Search Guardian</Button>
                     {guardianMatches.map((guardian) => <Button key={guardian.id} type="button" onClick={() => setValues((current) => ({ ...current, existingGuardian: guardian.email || guardian.name }))} sx={{ justifyContent: 'flex-start', textTransform: 'none', px: 1 }}>
