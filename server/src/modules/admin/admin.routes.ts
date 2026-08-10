@@ -12,7 +12,7 @@ const recordSchema = z.object({
 })
 const guardianSchema = z.object({
   name: z.string().trim().min(1).max(160),
-  email: z.string().trim().email().max(160).optional(),
+  email: z.preprocess((value) => value === '' ? undefined : value, z.string().trim().email().max(160).optional()),
   relationshipType: z.enum(['Mother', 'Father', 'Guardian', 'Emergency Contact']).default('Guardian'),
   phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(300).optional(),

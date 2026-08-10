@@ -95,7 +95,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const [guardianMatches, setGuardianMatches] = useState<Guardian[]>([])
   const [guardianFormPrompt, setGuardianFormPrompt] = useState(false)
   const [guardianFormOpen, setGuardianFormOpen] = useState(false)
-  const [guardianForm, setGuardianForm] = useState({ name: '', relationshipType: 'Guardian', phone: '', address: '', occupation: '', nationalId: '', photoName: '' })
+  const [guardianForm, setGuardianForm] = useState({ name: '', email: '', relationshipType: 'Guardian', phone: '', address: '', occupation: '', nationalId: '', photoName: '' })
 
   const searchGuardians = async () => {
     const query = values.existingGuardian?.trim()
@@ -189,6 +189,7 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                       <Typography variant="subtitle2" sx={{ mb: 1 }}>Add Guardian</Typography>
                       <Stack spacing={1}>
                         <TextField size="small" label="Full name" required value={guardianForm.name} onChange={(event) => setGuardianForm((current) => ({ ...current, name: event.target.value }))} />
+                        <TextField size="small" label="Email address" type="email" value={guardianForm.email} onChange={(event) => setGuardianForm((current) => ({ ...current, email: event.target.value }))} />
                         <TextField size="small" label="Relationship to student" select required value={guardianForm.relationshipType} onChange={(event) => setGuardianForm((current) => ({ ...current, relationshipType: event.target.value }))}>{['Mother', 'Father', 'Guardian', 'Emergency Contact'].map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField>
                         <TextField size="small" label="Phone number" value={guardianForm.phone} onChange={(event) => setGuardianForm((current) => ({ ...current, phone: event.target.value }))} />
                         <TextField size="small" label="Address" value={guardianForm.address} onChange={(event) => setGuardianForm((current) => ({ ...current, address: event.target.value }))} />
