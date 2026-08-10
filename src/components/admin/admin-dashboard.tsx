@@ -279,7 +279,7 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
             <AccountCircleOutlined color="primary" />
           </IconButton>
           <Menu anchorEl={profileAnchor} open={profileOpen} onClose={() => setProfileAnchor(null)}>
-            {['Profile', 'My Account', 'Change Password', 'Settings', 'Logout'].map((item) => <MenuItem key={item} onClick={() => handleProfileAction(item)}>{item}</MenuItem>)}
+            {['Profile', 'Change Password', 'Settings', 'Logout'].map((item) => <MenuItem key={item} onClick={() => handleProfileAction(item)}>{item}</MenuItem>)}
           </Menu>
         </Stack>
       </Stack>
