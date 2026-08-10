@@ -1,4 +1,4 @@
-import { useMemo, useState, type FC } from 'react'
+import { useEffect, useMemo, useState, type FC } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
@@ -45,6 +45,7 @@ import TranslateOutlined from '@mui/icons-material/TranslateOutlined'
 import { Logo } from '@/components/logo'
 import ThemeToggle from '@/components/theme-toggle'
 import { useAuth } from '@/auth/auth-context'
+import api from '@/lib/api'
 
 const portalItems = [
   { label: 'Dashboard', path: '/teacher', icon: <DashboardOutlined fontSize="small" /> },
@@ -107,13 +108,26 @@ const StatCard: FC<{ label: string; value: string; tone?: 'primary' | 'secondary
 
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   const details = pageDetails[pageKey] || pageDetails.dashboard
+  const [students, setStudents] = useState<{ id: string; fullName: string; gradeLevel: string; status: string }[]>([])
+  const [studentsLoading, setStudentsLoading] = useState(false)
+  const [studentsError, setStudentsError] = useState('')
+
+  useEffect(() => {
+    if (pageKey !== 'students') return
+    setStudentsLoading(true)
+    setStudentsError('')
+    api.get<{ students: { id: string; fullName: string; gradeLevel: string; status: string }[] }>('/api/teacher/students', { withCredentials: true })
+      .then(({ data }) => setStudents(data.students))
+      .catch(() => setStudentsError('Unable to load students. Please try again.'))
+      .finally(() => setStudentsLoading(false))
+  }, [pageKey])
   if (pageKey === 'dashboard') return <>
     <Grid container spacing={2} sx={{ mb: 3 }}><Grid item xs={12} sm={4}><StatCard label="Assigned students" value="124" /></Grid><Grid item xs={12} sm={4}><StatCard label="Active materials" value="32" tone="secondary" /></Grid><Grid item xs={12} sm={4}><StatCard label="Pending grades" value="18" /></Grid></Grid>
     <Grid container spacing={2}><Grid item xs={12} md={7}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Today&apos;s timetable</Typography><Stack spacing={1.5} sx={{ mt: 2 }}>{[['08:00', 'Grade 8 · Mathematics', 'Room 204'], ['10:30', 'Grade 7 · Mathematics', 'Room 108'], ['13:00', 'Grade 9 · Mathematics', 'Room 301']].map(([time, className, room]) => <Stack key={time} direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><Typography fontWeight={700}>{time}</Typography><Typography>{className}</Typography><Typography variant="body2" color="text.secondary">{room}</Typography></Stack>)}</Stack></Paper></Grid><Grid item xs={12} md={5}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assessment progress</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>This week</Typography><Stack spacing={2.5} sx={{ mt: 3 }}>{[['Assignments graded', 72], ['Materials viewed', 84], ['Class participation', 68]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper></Grid></Grid>
   </>
   return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
     <Typography variant="h5">{details.title}</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>{details.description}</Typography>
-    {pageKey === 'students' || pageKey === 'materials' || pageKey === 'assessments' ? <TableContainer><Table><TableHead><TableRow>{(pageKey === 'students' ? ['Student', 'Class', 'Progress', 'Status'] : pageKey === 'materials' ? ['Material', 'Type', 'Assigned class', 'Status'] : ['Assessment', 'Class', 'Due date', 'Status']).map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{(pageKey === 'students' ? [['Ava Johnson', 'Grade 8', '86%', 'On track'], ['Noah Williams', 'Grade 7', '72%', 'On track'], ['Sophia Brown', 'Grade 9', '64%', 'Needs support']] : pageKey === 'materials' ? [['Algebra workbook', 'PDF', 'Grade 8', 'Published'], ['Linear equations video', 'Video', 'Grade 7', 'Published'], ['Practice worksheet', 'Document', 'Grade 9', 'Draft']] : [['Linear equations quiz', 'Grade 8', 'Jul 19, 2024', 'Open'], ['Algebra review', 'Grade 7', 'Jul 22, 2024', 'Draft'], ['Term assessment', 'Grade 9', 'Jul 25, 2024', 'Scheduled']]).map((row) => <TableRow hover key={row[0]}>{row.map((cell, index) => <TableCell key={cell}>{index === row.length - 1 ? <Chip size="small" label={cell} color={cell === 'Published' || cell === 'Open' || cell === 'On track' ? 'success' : 'warning'} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer> : <Grid container spacing={2}><Grid item xs={12} md={7}><TextField fullWidth label={pageKey.includes('password') ? 'New password' : 'Title'} type={pageKey.includes('password') ? 'password' : 'text'} /></Grid><Grid item xs={12} md={5}><Select fullWidth defaultValue="Grade 8" aria-label="Class"><MenuItem value="Grade 7">Grade 7</MenuItem><MenuItem value="Grade 8">Grade 8</MenuItem><MenuItem value="Grade 9">Grade 9</MenuItem></Select></Grid><Grid item xs={12}><Button variant="contained" startIcon={pageKey.includes('upload') ? <UploadFileOutlined /> : undefined}>{pageKey.includes('upload') ? 'Upload Material' : pageKey.includes('password') ? 'Update Password' : 'Save Changes'}</Button></Grid></Grid>}
+    {pageKey === 'students' || pageKey === 'materials' || pageKey === 'assessments' ? <>{studentsLoading && pageKey === 'students' && <LinearProgress sx={{ mb: 2 }} />}{studentsError && pageKey === 'students' && <Typography color="error" sx={{ mb: 2 }}>{studentsError}</Typography>}<TableContainer><Table><TableHead><TableRow>{(pageKey === 'students' ? ['Student', 'Class', 'Progress', 'Status'] : pageKey === 'materials' ? ['Material', 'Type', 'Assigned class', 'Status'] : ['Assessment', 'Class', 'Due date', 'Status']).map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{(pageKey === 'students' ? students.map((student) => [student.fullName, student.gradeLevel, '—', student.status]) : pageKey === 'materials' ? [['Algebra workbook', 'PDF', 'Grade 8', 'Published'], ['Linear equations video', 'Video', 'Grade 7', 'Published'], ['Practice worksheet', 'Document', 'Grade 9', 'Draft']] : [['Linear equations quiz', 'Grade 8', 'Jul 19, 2024', 'Open'], ['Algebra review', 'Grade 7', 'Jul 22, 2024', 'Draft'], ['Term assessment', 'Grade 9', 'Jul 25, 2024', 'Scheduled']]).map((row) => <TableRow hover key={row[0]}>{row.map((cell, index) => <TableCell key={cell}>{index === row.length - 1 ? <Chip size="small" label={cell} color={cell === 'Published' || cell === 'Open' || cell === 'On track' || cell === 'Active' ? 'success' : 'warning'} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer></> : <Grid container spacing={2}><Grid item xs={12} md={7}><TextField fullWidth label={pageKey.includes('password') ? 'New password' : 'Title'} type={pageKey.includes('password') ? 'password' : 'text'} /></Grid><Grid item xs={12} md={5}><Select fullWidth defaultValue="Grade 8" aria-label="Class"><MenuItem value="Grade 7">Grade 7</MenuItem><MenuItem value="Grade 8">Grade 8</MenuItem><MenuItem value="Grade 9">Grade 9</MenuItem></Select></Grid><Grid item xs={12}><Button variant="contained" startIcon={pageKey.includes('upload') ? <UploadFileOutlined /> : undefined}>{pageKey.includes('upload') ? 'Upload Material' : pageKey.includes('password') ? 'Update Password' : 'Save Changes'}</Button></Grid></Grid>}
   </Paper>
 }
 
