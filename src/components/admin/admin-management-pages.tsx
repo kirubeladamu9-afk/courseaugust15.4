@@ -90,7 +90,7 @@ const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = Boolean(sections[section]) || section === 'students'
+  const isBackendSection = Boolean(sections[section]) || section === 'students' || section === 'guardians'
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -111,6 +111,13 @@ const AdminManagementPage: FC = () => {
     if (section === 'students') {
       api.get<{ students: { id: string; fullName: string; gradeLevel: string; status: string; guardianLinks: { guardian: { name: string } }[] }[] }>('/api/admin/students', { withCredentials: true })
         .then(({ data }) => setRecords(data.students.map((student) => ({ id: student.id, title: student.fullName, data: { Student: student.fullName, Grade: student.gradeLevel, Guardians: student.guardianLinks.map(({ guardian }) => guardian.name).join(', ') || '—' }, status: student.status }))))
+        .catch((error) => { if (axios.isAxiosError<{ message?: string }>(error) && error.response?.status === 401) { navigate('/login', { replace: true }); return } setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || `Unable to load records (${error.response?.status || 'network error'}).` : 'Unable to load records. Please refresh and try again.') })
+        .finally(() => setIsLoading(false))
+      return
+    }
+    if (section === 'guardians') {
+      api.get<{ guardians: { id: string; name: string; status?: string; studentLinks: { relationshipType: string; student: { fullName: string } }[] }[] }>('/api/admin/guardians', { withCredentials: true })
+        .then(({ data }) => setRecords(data.guardians.map((guardian) => ({ id: guardian.id, title: guardian.name, data: { Guardian: guardian.name, 'Linked students': guardian.studentLinks.map(({ student }) => student.fullName).join(', ') || '—', Relationship: guardian.studentLinks.map(({ relationshipType }) => relationshipType).join(', ') || '—' }, status: guardian.status || 'Active' }))))
         .catch((error) => { if (axios.isAxiosError<{ message?: string }>(error) && error.response?.status === 401) { navigate('/login', { replace: true }); return } setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || `Unable to load records (${error.response?.status || 'network error'}).` : 'Unable to load records. Please refresh and try again.') })
         .finally(() => setIsLoading(false))
       return
@@ -144,7 +151,7 @@ const AdminManagementPage: FC = () => {
   }
 
   const handleCreate = async () => {
-    if (section === 'students') {
+    if (section === 'students' || section === 'guardians') {
       navigate('/admin/students/new')
       return
     }

@@ -66,6 +66,15 @@ const getModel = (section: string) => {
 
 router.use(requireAdmin)
 
+router.get('/guardians', async (_req, res, next) => {
+  try {
+    const guardians = await prisma.guardian.findMany({ orderBy: { createdAt: 'asc' }, include: { studentLinks: { include: { student: { select: { fullName: true } } } } } })
+    return res.json({ guardians })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/guardians/search', async (req, res, next) => {
   try {
     const query = z.string().trim().min(1).max(160).parse(req.query.q)
