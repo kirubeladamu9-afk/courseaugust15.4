@@ -136,8 +136,15 @@ router.get('/user-accounts', async (_req, res, next) => {
 
 router.post('/user-accounts/:sourceType/:sourceId/reset-password', async (req, res, next) => {
   try {
-    const sourceType = z.enum(['teacher', 'student', 'guardian']).parse(req.params.sourceType)
+    const sourceType = z.enum(['user', 'teacher', 'student', 'guardian']).parse(req.params.sourceType)
     const sourceId = z.string().min(1).parse(req.params.sourceId)
+    if (sourceType === 'user') {
+      const user = await prisma.user.findUnique({ where: { id: sourceId }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true } })
+      if (!user) return res.status(404).json({ message: 'User account not found.' })
+      const password = temporaryPassword()
+      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(password, 12) } })
+      return res.json({ record: toUserAccountRecord(user), temporaryPassword: password, created: false })
+    }
     const source = sourceType === 'teacher'
       ? await prisma.teacher.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true } })
       : sourceType === 'student'
