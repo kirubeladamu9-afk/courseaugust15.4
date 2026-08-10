@@ -53,6 +53,25 @@ const adminRecords = [
   ['performance-analytics', 'Average assessment score', { Metric: 'Average assessment score', 'Current period': '79%', 'Previous period': '75%' }, 'Published'],
 ] as const
 
-await prisma.adminRecord.deleteMany()
-await prisma.adminRecord.createMany({ data: adminRecords.map(([section, title, data, status]) => ({ section, title, data, status })) })
+const adminModels = {
+  'roles-permissions': prisma.rolePermission,
+  'student-progress': prisma.studentProgress,
+  'parent-student-link': prisma.parentStudentLink,
+  'teacher-assignments': prisma.teacherAssignment,
+  subjects: prisma.subject,
+  chapters: prisma.chapter,
+  lessons: prisma.lesson,
+  'learning-materials': prisma.learningMaterial,
+  quizzes: prisma.quiz,
+  exams: prisma.exam,
+  assignments: prisma.assignment,
+  'teacher-reports': prisma.teacherReport,
+  'course-reports': prisma.courseReport,
+  'performance-analytics': prisma.performanceAnalytic,
+}
+
+for (const model of Object.values(adminModels)) await model.deleteMany()
+for (const [section, title, data, status] of adminRecords) {
+  await adminModels[section as keyof typeof adminModels].create({ data: { title, data, status } })
+}
 await prisma.$disconnect()

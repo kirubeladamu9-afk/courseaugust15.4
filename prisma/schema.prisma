@@ -39,15 +39,142 @@ model User {
   @@map("users")
 }
 
-model AdminRecord {
-  id        String   @id @default(cuid())
-  section   String
-  title     String
-  data      Json
-  status    String   @default("Draft")
+model RolePermission {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@map("role_permissions")
+}
 
-  @@index([section])
-  @@map("admin_records")
+model StudentProgress {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("student_progress")
+}
+
+model ParentStudentLink {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("parent_student_links")
+}
+
+model TeacherAssignment {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("teacher_assignments")
+}
+
+model Subject {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("subjects")
+}
+
+model Chapter {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("chapters")
+}
+
+model Lesson {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("lessons")
+}
+
+model LearningMaterial {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("learning_materials")
+}
+
+model Quiz {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("quizzes")
+}
+
+model Exam {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("exams")
+}
+
+model Assignment {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("assignments")
+}
+
+model TeacherReport {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("teacher_reports")
+}
+
+model CourseReport {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("course_reports")
+}
+
+model PerformanceAnalytic {
+  id String @id @default(cuid())
+  title String
+  data Json
+  status String @default("Draft")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("performance_analytics")
 }
