@@ -23,6 +23,7 @@ const CreateLessonPage = lazy(() => import('@/components/admin/admin-create-page
 const CreateQuizPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.CreateQuizPage })))
 const AdminManagementPage = lazy(() => import('@/components/admin/admin-management-pages'))
 const LoginPage = lazy(() => import('@/components/auth/login-page'))
+const TeacherPortal = lazy(() => import('@/components/teacher/teacher-portal'))
 
 interface PageLayoutProps {
   children: ReactNode
@@ -125,7 +126,7 @@ const App: React.FC = () => (
       <Route path="/admin/teachers/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddTeacherPage /></Suspense></RoleRoute>} />
       <Route path="/admin/lessons/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateLessonPage /></Suspense></RoleRoute>} />
       <Route path="/admin/quizzes/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateQuizPage /></Suspense></RoleRoute>} />
-      <Route path="/teacher" element={<RoleRoute role="teacher"><InfoPage title="Teacher Dashboard" description="Your teacher dashboard is ready for your classes and lessons." /></RoleRoute>} />
+      <Route path="/teacher/*" element={<RoleRoute role="teacher"><Suspense fallback={<LoadingState />}><TeacherPortal /></Suspense></RoleRoute>} />
       <Route path="/parent" element={<RoleRoute role="parent"><InfoPage title="Parent Dashboard" description="Your parent dashboard is ready to help you follow student progress." /></RoleRoute>} />
       <Route path="/student" element={<RoleRoute role="student"><InfoPage title="Student Dashboard" description="Your student dashboard is ready for your lessons and assessments." /></RoleRoute>} />
       <Route path="/contact" element={<InfoPage title="Contact Us" description="We would love to hear from you." />} />
