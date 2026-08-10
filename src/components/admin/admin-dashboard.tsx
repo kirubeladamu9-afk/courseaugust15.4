@@ -360,11 +360,10 @@ const AdminDashboard: FC = () => {
             <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
               <Typography variant="h5" sx={{ mb: 1 }}>Quick Actions</Typography>
               <Grid container spacing={1}>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Add Student" icon={<PersonAddAltOutlined fontSize="small" />} onClick={() => navigate('/admin/students/new')} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Add Teacher" icon={<CoPresentOutlined fontSize="small" />} onClick={() => navigate('/admin/teachers/new')} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Create Lesson" icon={<AddTaskOutlined fontSize="small" />} onClick={() => navigate('/admin/lessons/new')} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Create Quiz" icon={<QuizOutlined fontSize="small" />} onClick={() => navigate('/admin/quizzes/new')} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Send Notification" icon={<NotificationsNoneOutlined fontSize="small" />} onClick={() => undefined} /></Grid>
+                <Grid item xs={12} sm={6} md={3}><QuickAction label="Add Student" icon={<PersonAddAltOutlined fontSize="small" />} onClick={() => navigate('/admin/students/new')} /></Grid>
+                <Grid item xs={12} sm={6} md={3}><QuickAction label="Add Teacher" icon={<CoPresentOutlined fontSize="small" />} onClick={() => navigate('/admin/teachers/new')} /></Grid>
+                <Grid item xs={12} sm={6} md={3}><QuickAction label="Create Lesson" icon={<AddTaskOutlined fontSize="small" />} onClick={() => navigate('/admin/lessons/new')} /></Grid>
+                <Grid item xs={12} sm={6} md={3}><QuickAction label="Create Quiz" icon={<QuizOutlined fontSize="small" />} onClick={() => navigate('/admin/quizzes/new')} /></Grid>
               </Grid>
             </Paper>
           </Grid>
