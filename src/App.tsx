@@ -17,6 +17,10 @@ const HomeOurMentors = lazy(() => import('@/components/home/mentors'))
 const HomeNewsLetter = lazy(() => import('@/components/home/newsletter'))
 const AdminDashboard = lazy(() => import('@/components/admin/admin-dashboard'))
 const AdminProfile = lazy(() => import('@/components/admin/admin-profile'))
+const AddStudentPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.AddStudentPage })))
+const AddTeacherPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.AddTeacherPage })))
+const CreateLessonPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.CreateLessonPage })))
+const CreateQuizPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.CreateQuizPage })))
 const LoginPage = lazy(() => import('@/components/auth/login-page'))
 
 interface PageLayoutProps {
@@ -114,6 +118,10 @@ const App: React.FC = () => (
       <Route path="/mentors" element={<PageLayout><HomeOurMentors /></PageLayout>} />
       <Route path="/admin" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminDashboard /></Suspense></RoleRoute>} />
       <Route path="/admin/profile" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminProfile /></Suspense></RoleRoute>} />
+      <Route path="/admin/students/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddStudentPage /></Suspense></RoleRoute>} />
+      <Route path="/admin/teachers/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddTeacherPage /></Suspense></RoleRoute>} />
+      <Route path="/admin/lessons/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateLessonPage /></Suspense></RoleRoute>} />
+      <Route path="/admin/quizzes/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateQuizPage /></Suspense></RoleRoute>} />
       <Route path="/teacher" element={<RoleRoute role="teacher"><InfoPage title="Teacher Dashboard" description="Your teacher dashboard is ready for your classes and lessons." /></RoleRoute>} />
       <Route path="/parent" element={<RoleRoute role="parent"><InfoPage title="Parent Dashboard" description="Your parent dashboard is ready to help you follow student progress." /></RoleRoute>} />
       <Route path="/student" element={<RoleRoute role="student"><InfoPage title="Student Dashboard" description="Your student dashboard is ready for your lessons and assessments." /></RoleRoute>} />

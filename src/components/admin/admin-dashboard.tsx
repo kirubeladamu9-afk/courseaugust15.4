@@ -129,8 +129,8 @@ const FeedItem: FC<FeedItemProps> = ({ title, detail, time, icon }) => (
   </Stack>
 )
 
-const QuickAction: FC<{ label: string; icon: ReactNode }> = ({ label, icon }) => (
-  <ButtonBase sx={{ display: 'flex', justifyContent: 'flex-start', width: '100%', p: 1.25, borderRadius: 2, textAlign: 'left', '&:hover': { backgroundColor: 'background.default' } }}>
+const QuickAction: FC<{ label: string; icon: ReactNode; onClick: () => void }> = ({ label, icon, onClick }) => (
+  <ButtonBase onClick={onClick} sx={{ display: 'flex', justifyContent: 'flex-start', width: '100%', p: 1.25, borderRadius: 2, textAlign: 'left', '&:hover': { backgroundColor: 'background.default' } }}>
     <Box sx={{ width: 34, height: 34, mr: 1.25, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', backgroundColor: 'background.paper' }}>{icon}</Box>
     <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{label}</Typography>
   </ButtonBase>
@@ -143,7 +143,14 @@ interface AdminSidebarProps {
 }
 
 const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
+  const navigate = useNavigate()
   const [expandedMenu, setExpandedMenu] = useState('User Management')
+  const itemRoutes: Record<string, string> = {
+    'Student Enrollment': '/admin/students/new',
+    'Teacher Assignments': '/admin/teachers/new',
+    Lessons: '/admin/lessons/new',
+    Quizzes: '/admin/quizzes/new',
+  }
   const menuGroups = [
     { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions'] },
     { label: 'Students', parent: 'All Students', icon: <PeopleAltOutlined fontSize="small" />, items: ['Student Enrollment', 'Student Progress'] },
@@ -164,7 +171,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
         <Logo />
         {onClose && <IconButton onClick={onClose} aria-label="Close navigation"><CloseRounded /></IconButton>}
       </Stack>
-      <ButtonBase onClick={onClose} sx={{ ...menuButtonSx, color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' }, mb: 2 }}>
+      <ButtonBase onClick={() => { navigate('/admin'); onClose?.() }} sx={{ ...menuButtonSx, color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' }, mb: 2 }}>
         <DashboardOutlined fontSize="small" sx={{ mr: 1.5 }} />
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Dashboard</Typography>
       </ButtonBase>
@@ -182,7 +189,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
               <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                 <Stack spacing={0.25} sx={{ mt: 0.25 }}>
                   {items.map((item) => (
-                    <ButtonBase key={item} onClick={onClose} sx={nestedButtonSx}>
+                    <ButtonBase key={item} onClick={() => { const route = itemRoutes[item]; if (route) navigate(route); onClose?.() }} sx={nestedButtonSx}>
                       <Typography variant="subtitle2" sx={{ fontSize: '0.75rem' }}>{item}</Typography>
                     </ButtonBase>
                   ))}
@@ -295,8 +302,11 @@ export const AdminPanelLayout: FC<{ children: ReactNode; title: string }> = ({ c
   )
 }
 
-const AdminDashboard: FC = () => (
-  <AdminPanelLayout title="Dashboard Overview">
+const AdminDashboard: FC = () => {
+  const navigate = useNavigate()
+
+  return (
+    <AdminPanelLayout title="Dashboard Overview">
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary">Admin</Typography>
@@ -350,17 +360,18 @@ const AdminDashboard: FC = () => (
             <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
               <Typography variant="h5" sx={{ mb: 1 }}>Quick Actions</Typography>
               <Grid container spacing={1}>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Add Student" icon={<PersonAddAltOutlined fontSize="small" />} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Add Teacher" icon={<CoPresentOutlined fontSize="small" />} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Create Lesson" icon={<AddTaskOutlined fontSize="small" />} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Create Quiz" icon={<QuizOutlined fontSize="small" />} /></Grid>
-                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Send Notification" icon={<NotificationsNoneOutlined fontSize="small" />} /></Grid>
+                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Add Student" icon={<PersonAddAltOutlined fontSize="small" />} onClick={() => navigate('/admin/students/new')} /></Grid>
+                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Add Teacher" icon={<CoPresentOutlined fontSize="small" />} onClick={() => navigate('/admin/teachers/new')} /></Grid>
+                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Create Lesson" icon={<AddTaskOutlined fontSize="small" />} onClick={() => navigate('/admin/lessons/new')} /></Grid>
+                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Create Quiz" icon={<QuizOutlined fontSize="small" />} onClick={() => navigate('/admin/quizzes/new')} /></Grid>
+                <Grid item xs={12} sm={6} md={2.4}><QuickAction label="Send Notification" icon={<NotificationsNoneOutlined fontSize="small" />} onClick={() => undefined} /></Grid>
               </Grid>
             </Paper>
           </Grid>
         </Grid>
     </Container>
   </AdminPanelLayout>
-)
+  )
+}
 
 export default AdminDashboard
