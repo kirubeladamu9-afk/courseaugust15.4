@@ -39,7 +39,7 @@ const pageConfig: Record<CreateType, { title: string; description: string; field
       { name: 'gradeLevel', label: 'Grade level', options: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'], required: true },
       { name: 'classSection', label: 'Class & section', options: ['Grade 5 - A', 'Grade 5 - B', 'Grade 6 - A', 'Grade 6 - B'], required: true },
       { name: 'enrollmentDate', label: 'Enrollment date', type: 'date', required: true },
-      { name: 'address', label: 'Address', multiline: true },
+      { name: 'address', label: 'Address' },
       { name: 'existingGuardian', label: 'Search existing guardian' },
       { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'Pending'], required: true },
     ],
