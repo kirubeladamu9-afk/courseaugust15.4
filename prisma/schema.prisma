@@ -233,15 +233,19 @@ model GradeLevel {
   status String @default("Draft")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  classSections ClassSection[]
   @@map("grade_levels")
 }
 
 model ClassSection {
   id String @id @default(cuid())
   name String
+  gradeLevelId String?
   students Int @default(0)
   status String @default("Draft")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  gradeLevel GradeLevel? @relation(fields: [gradeLevelId], references: [id], onDelete: SetNull)
+  @@index([gradeLevelId])
   @@map("class_sections")
 }

@@ -108,10 +108,10 @@ router.get('/students', async (_req, res, next) => {
 })
 
 const gradeLevelSchema = z.object({ grade: z.string().trim().min(1).max(80), classes: z.coerce.number().int().nonnegative(), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
-const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
+const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), gradeLevelId: z.string().trim().min(1), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
-const toClassSectionRecord = (record: { id: string; name: string; students: number; status: string }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, Students: String(record.students) }, status: record.status })
+const toClassSectionRecord = (record: { id: string; name: string; students: number; status: string; gradeLevel: { name: string } | null }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, 'Grade Level': record.gradeLevel?.name || '—', Students: String(record.students) }, status: record.status })
 
 router.get('/grade-levels', async (_req, res, next) => {
   try {
@@ -134,7 +134,7 @@ router.post('/grade-levels', async (req, res, next) => {
 
 router.get('/classes-sections', async (_req, res, next) => {
   try {
-    const records = await prisma.classSection.findMany({ orderBy: { createdAt: 'asc' } })
+    const records = await prisma.classSection.findMany({ orderBy: { createdAt: 'asc' }, include: { gradeLevel: { select: { name: true } } } })
     return res.json({ records: records.map(toClassSectionRecord) })
   } catch (error) {
     return next(error)
@@ -144,7 +144,7 @@ router.get('/classes-sections', async (_req, res, next) => {
 router.post('/classes-sections', async (req, res, next) => {
   try {
     const input = classSectionSchema.parse(req.body)
-    const record = await prisma.classSection.create({ data: { name: input.classSection, students: input.students, status: input.status } })
+    const record = await prisma.classSection.create({ data: { name: input.classSection, gradeLevelId: input.gradeLevelId, students: input.students, status: input.status }, include: { gradeLevel: { select: { name: true } } } })
     return res.status(201).json({ record: toClassSectionRecord(record) })
   } catch (error) {
     return next(error)

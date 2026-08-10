@@ -63,7 +63,7 @@ const additionalSections: Record<string, SectionConfig> = {
   guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status'], 'No guardians yet'),
   'academic-years': makeSection('Academic Years', 'Define the school years that organize every academic record.', 'Add Academic Year', ['Academic year', 'Start date', 'End date', 'Status'], '2025/2026'),
   'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade', required: true }, { name: 'classes', label: 'Classes', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
-  'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Students', 'Status'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / Section', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
+  'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade Level', 'Students', 'Status'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / Section', required: true }, { name: 'gradeLevelId', label: 'Grade Level', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
   timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
   'assessment-types': makeSection('Assessment Types', 'Define categories such as quizzes, midterms, and final exams.', 'Add Assessment Type', ['Type', 'Weight', 'Assessments', 'Status'], 'Quiz'),
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
@@ -97,6 +97,17 @@ const AdminManagementPage: FC = () => {
   const [error, setError] = useState('')
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false)
   const [createValues, setCreateValues] = useState<Record<string, string>>({})
+  const [createOptions, setCreateOptions] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    if (section !== 'classes-sections') {
+      setCreateOptions([])
+      return
+    }
+    api.get<{ records: { id: string; title: string }[] }>('/api/admin/grade-levels', { withCredentials: true })
+      .then(({ data }) => setCreateOptions(data.records.map(({ id, title }) => ({ id, name: title }))))
+      .catch(() => setError('Unable to load grade levels. Please try again.'))
+  }, [section])
 
   useEffect(() => {
     setIsLoading(true)
@@ -184,7 +195,7 @@ const AdminManagementPage: FC = () => {
         <Paper elevation={0} sx={{ p: { xs: 1, md: 2 }, borderRadius: 3 }}>
           {isCreateFormOpen && config.createFields && <Box component="form" onSubmit={handleCreateFormSubmit} sx={{ p: 1, mb: 1 }}>
             <Grid container spacing={1.5}>
-              {config.createFields.map((field) => <Grid item xs={12} sm={6} key={field.name}><TextField fullWidth size="small" label={field.label} type={field.options ? undefined : field.type || 'text'} select={Boolean(field.options)} required={field.required} value={createValues[field.name] || ''} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: event.target.value }))}>{field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField></Grid>)}
+              {config.createFields.map((field) => <Grid item xs={12} sm={6} key={field.name}><TextField fullWidth size="small" label={field.label} type={field.options || field.name === 'gradeLevelId' ? undefined : field.type || 'text'} select={Boolean(field.options || field.name === 'gradeLevelId')} required={field.required} value={createValues[field.name] || ''} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: event.target.value }))}>{(field.name === 'gradeLevelId' ? createOptions : field.options)?.map((option) => <MenuItem key={typeof option === 'string' ? option : option.id} value={typeof option === 'string' ? option : option.id}>{typeof option === 'string' ? option : option.name}</MenuItem>)}</TextField></Grid>)}
               <Grid item xs={12}><Button type="submit" variant="contained">Save</Button></Grid>
             </Grid>
           </Box>}
