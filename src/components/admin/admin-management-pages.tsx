@@ -2,6 +2,9 @@ import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import FormGroup from '@mui/material/FormGroup'
 import Container from '@mui/material/Container'
 import Grid from '@mui/material/Grid'
 import LinearProgress from '@mui/material/LinearProgress'
@@ -33,7 +36,7 @@ type SectionConfig = {
   rows: string[][]
   metrics: [string, string, string][]
   analytics?: boolean
-  createFields?: { name: string; label: string; type?: string; required?: boolean; options?: string[] }[]
+  createFields?: { name: string; label: string; type?: string; required?: boolean; options?: string[]; multiple?: boolean }[]
 }
 
 const sections: Record<string, SectionConfig> = {
@@ -59,7 +62,7 @@ const additionalSections: Record<string, SectionConfig> = {
   students: makeSection('Student List', 'Search students, review profiles, and manage required guardian links.', 'Add Student', ['Student', 'Grade', 'Guardians', 'Status'], 'No students yet'),
   'admissions-enrollment': makeSection('Admissions / Enrollment', 'Move new student applications from intake through approval to enrollment.', 'New Application', ['Applicant', 'Applied on', 'Stage', 'Status'], 'No applications yet'),
   promotions: makeSection('Promotions', 'Move students to their next grade level in bulk at year-end.', 'Start Promotion', ['Academic year', 'From grade', 'To grade', 'Status'], 'No promotion batches yet'),
-  teachers: { ...makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Full Name', 'Gender', 'Photo', 'Phone Number', 'Address', 'National ID / Passport Number', 'Assigned Subjects', 'Assigned Classes', 'Status'], 'No teachers yet'), createFields: [{ name: 'fullName', label: 'Full Name', required: true }, { name: 'gender', label: 'Gender', required: true }, { name: 'photoName', label: 'Photo' }, { name: 'phoneNumber', label: 'Phone Number' }, { name: 'address', label: 'Address' }, { name: 'nationalId', label: 'National ID / Passport Number' }, { name: 'assignedSubjects', label: 'Assigned Subjects' }, { name: 'assignedClasses', label: 'Assigned Classes' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true }] },
+  teachers: { ...makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Full Name', 'Gender', 'Photo', 'Phone Number', 'Address', 'National ID / Passport Number', 'Assigned Subjects', 'Assigned Classes', 'Status'], 'No teachers yet'), createFields: [{ name: 'fullName', label: 'Full Name', required: true }, { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true }, { name: 'photoName', label: 'Photo', type: 'file' }, { name: 'phoneNumber', label: 'Phone Number' }, { name: 'address', label: 'Address' }, { name: 'nationalId', label: 'National ID / Passport Number' }, { name: 'assignedSubjects', label: 'Assigned Subjects', multiple: true }, { name: 'assignedClasses', label: 'Assigned Classes', multiple: true }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true }] },
   guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status'], 'No guardians yet'),
   'academic-years': makeSection('Academic Years', 'Define the school years that organize every academic record.', 'Add Academic Year', ['Academic year', 'Start date', 'End date', 'Status'], '2025/2026'),
   'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade', required: true }, { name: 'classes', label: 'Classes', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
@@ -98,6 +101,23 @@ const AdminManagementPage: FC = () => {
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false)
   const [createValues, setCreateValues] = useState<Record<string, string>>({})
   const [createOptions, setCreateOptions] = useState<{ id: string; name: string }[]>([])
+  const [teacherOptions, setTeacherOptions] = useState({ subjects: [] as { id: string; name: string }[], classes: [] as { id: string; name: string }[] })
+
+  useEffect(() => {
+    if (section !== 'teachers') {
+      setTeacherOptions({ subjects: [], classes: [] })
+      return
+    }
+    Promise.all([
+      api.get<{ records: { id: string; title: string }[] }>('/api/admin/subjects', { withCredentials: true }),
+      api.get<{ records: { id: string; title: string }[] }>('/api/admin/classes-sections', { withCredentials: true }),
+    ])
+      .then(([subjectsResponse, classesResponse]) => setTeacherOptions({
+        subjects: subjectsResponse.data.records.map(({ id, title }) => ({ id, name: title })),
+        classes: classesResponse.data.records.map(({ id, title }) => ({ id, name: title })),
+      }))
+      .catch(() => setError('Unable to load subjects and classes. Please try again.'))
+  }, [section])
 
   useEffect(() => {
     if (section !== 'classes-sections') {
@@ -195,7 +215,19 @@ const AdminManagementPage: FC = () => {
         <Paper elevation={0} sx={{ p: { xs: 1, md: 2 }, borderRadius: 3 }}>
           {isCreateFormOpen && config.createFields && <Box component="form" onSubmit={handleCreateFormSubmit} sx={{ p: 1, mb: 1 }}>
             <Grid container spacing={1.5}>
-              {config.createFields.map((field) => <Grid item xs={12} sm={6} key={field.name}><TextField fullWidth size="small" label={field.label} type={field.options || field.name === 'gradeLevelId' ? undefined : field.type || 'text'} select={Boolean(field.options || field.name === 'gradeLevelId')} required={field.required} value={createValues[field.name] || ''} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: event.target.value }))}>{(field.name === 'gradeLevelId' ? createOptions : field.options)?.map((option) => <MenuItem key={typeof option === 'string' ? option : option.id} value={typeof option === 'string' ? option : option.id}>{typeof option === 'string' ? option : option.name}</MenuItem>)}</TextField></Grid>)}
+              {config.createFields.map((field) => (
+                <Grid item xs={12} sm={field.multiple ? 12 : 6} key={field.name}>
+                  {field.multiple ? <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{field.label}</Typography>
+                    <FormGroup row>
+                      {(field.name === 'assignedSubjects' ? teacherOptions.subjects : teacherOptions.classes).map((option) => {
+                        const selected = (createValues[field.name] || '').split(', ').filter(Boolean).includes(option.name)
+                        return <FormControlLabel key={option.id} control={<Checkbox checked={selected} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: event.target.checked ? [...(current[field.name] || '').split(', ').filter(Boolean), option.name].join(', ') : (current[field.name] || '').split(', ').filter((value) => value !== option.name).join(', ') }))} />} label={option.name} />
+                      })}
+                    </FormGroup>
+                  </Box> : <TextField fullWidth size="small" label={field.label} type={field.options || field.name === 'gradeLevelId' ? undefined : field.type || 'text'} select={Boolean(field.options || field.name === 'gradeLevelId')} required={field.required} value={field.type === 'file' ? undefined : createValues[field.name] || ''} onChange={(event) => setCreateValues((current) => ({ ...current, [field.name]: field.type === 'file' ? (event.target as HTMLInputElement).files?.[0]?.name || '' : event.target.value }))}>{(field.name === 'gradeLevelId' ? createOptions : field.options)?.map((option) => <MenuItem key={typeof option === 'string' ? option : option.id} value={typeof option === 'string' ? option : option.id}>{typeof option === 'string' ? option : option.name}</MenuItem>)}</TextField>}
+                </Grid>
+              ))}
               <Grid item xs={12}><Button type="submit" variant="contained">Save</Button></Grid>
             </Grid>
           </Box>}
