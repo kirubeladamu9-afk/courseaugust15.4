@@ -96,17 +96,17 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   const [guardianFormPrompt, setGuardianFormPrompt] = useState(false)
   const [guardianFormOpen, setGuardianFormOpen] = useState(false)
   const [guardianForm, setGuardianForm] = useState({ name: '', email: '', relationshipType: 'Guardian', phone: '', address: '', occupation: '', nationalId: '', photoName: '' })
-  const [academicOptions, setAcademicOptions] = useState({ gradeLevel: [] as string[], classSection: [] as string[] })
+  const [academicOptions, setAcademicOptions] = useState({ gradeLevel: [] as string[], classSection: [] as { name: string; gradeLevel: string }[] })
 
   useEffect(() => {
     if (type !== 'student') return
     Promise.all([
       api.get<{ records: { data: { Grade: string } }[] }>('/api/admin/grade-levels', { withCredentials: true }),
-      api.get<{ records: { data: { 'Class / Section': string } }[] }>('/api/admin/classes-sections', { withCredentials: true }),
+      api.get<{ records: { data: { 'Class / Section': string; 'Grade Level': string } }[] }>('/api/admin/classes-sections', { withCredentials: true }),
     ])
       .then(([gradeResponse, classResponse]) => setAcademicOptions({
         gradeLevel: gradeResponse.data.records.map(({ data }) => data.Grade),
-        classSection: classResponse.data.records.map(({ data }) => data['Class / Section']),
+        classSection: classResponse.data.records.map(({ data }) => ({ name: data['Class / Section'], gradeLevel: data['Grade Level'] })),
       }))
       .catch(() => setValidationError('Unable to load grade levels and classes. Please try again.'))
   }, [type])
@@ -189,9 +189,9 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     minRows={field.multiline ? 4 : undefined}
                     InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined}
                     value={field.type === 'file' ? undefined : values[field.name] || ''}
-                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: field.type === 'file' ? (event.target as HTMLInputElement).files?.[0]?.name || '' : event.target.value }))}
+                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: field.type === 'file' ? (event.target as HTMLInputElement).files?.[0]?.name || '' : event.target.value, ...(field.name === 'gradeLevel' ? { classSection: '' } : {}) }))}
                   >
-                    {(field.name === 'gradeLevel' ? academicOptions.gradeLevel : field.name === 'classSection' ? academicOptions.classSection : field.options)?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+                    {(field.name === 'gradeLevel' ? academicOptions.gradeLevel : field.name === 'classSection' ? academicOptions.classSection.filter(({ gradeLevel }) => gradeLevel === values.gradeLevel) : field.options)?.map((option) => <MenuItem key={typeof option === 'string' ? option : option.name} value={typeof option === 'string' ? option : option.name}>{typeof option === 'string' ? option : option.name}</MenuItem>)}
                   </TextField>
                   {type === 'student' && field.name === 'existingGuardian' && <Stack spacing={1} sx={{ mt: 1 }}>
                     <Button type="button" variant="outlined" size="small" onClick={searchGuardians}>Search Guardian</Button>
