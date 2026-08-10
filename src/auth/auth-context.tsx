@@ -12,6 +12,7 @@ export interface AuthUser {
   email: string
   role: UserRole
   status: AccountStatus
+  lastLoginAt?: string | null
 }
 
 interface LoginResult {

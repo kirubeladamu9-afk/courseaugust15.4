@@ -217,6 +217,9 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
 
   const handleProfileAction = async (item: string) => {
     setProfileAnchor(null)
+    if (item === 'Profile') {
+      navigate('/admin/profile')
+    }
     if (item === 'Logout') {
       await logout()
       navigate('/login', { replace: true })
