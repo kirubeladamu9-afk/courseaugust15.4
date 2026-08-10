@@ -55,8 +55,7 @@ const LoginPage: FC = () => {
       return
     }
 
-    const storedUser = JSON.parse(localStorage.getItem('coursespace-auth-user') || sessionStorage.getItem('coursespace-auth-user') || '{}') as { role?: keyof typeof roleDestinations }
-    navigate(roleDestinations[storedUser.role || 'admin'], { replace: true })
+    navigate(roleDestinations[result.user?.role || 'admin'], { replace: true })
   }
 
   return (

@@ -95,7 +95,8 @@ interface RoleRouteProps {
 }
 
 const RoleRoute: React.FC<RoleRouteProps> = ({ role, children }) => {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
+  if (isLoading) return <LoadingState />
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />
   if (user.role !== role) return <Navigate to={roleDestinations[user.role]} replace />
   return <>{children}</>

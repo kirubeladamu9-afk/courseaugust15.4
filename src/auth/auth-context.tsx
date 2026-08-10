@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, type FC, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type FC, type ReactNode } from 'react'
+import axios from 'axios'
+import api from '@/lib/api'
 
 export type UserRole = 'admin' | 'teacher' | 'parent' | 'student'
 export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'disabled'
@@ -8,7 +10,6 @@ export interface AuthUser {
   name: string
   username: string
   email: string
-  password: string
   role: UserRole
   status: AccountStatus
 }
@@ -16,84 +17,47 @@ export interface AuthUser {
 interface LoginResult {
   success: boolean
   error?: string
+  user?: AuthUser
 }
 
 interface AuthContextValue {
-  user: Omit<AuthUser, 'password'> | null
+  user: AuthUser | null
   isAuthenticated: boolean
+  isLoading: boolean
   login: (identifier: string, password: string, remember: boolean) => Promise<LoginResult>
-  logout: () => void
-}
-
-const mockUsers: AuthUser[] = [
-  { id: 'admin-1', name: 'Admin User', username: 'admin', email: 'admin@coursespace.com', password: 'Admin123!', role: 'admin', status: 'active' },
-  { id: 'teacher-1', name: 'Teacher User', username: 'teacher', email: 'teacher@coursespace.com', password: 'Teacher123!', role: 'teacher', status: 'active' },
-  { id: 'parent-1', name: 'Parent User', username: 'parent', email: 'parent@coursespace.com', password: 'Parent123!', role: 'parent', status: 'active' },
-  { id: 'student-1', name: 'Student User', username: 'student', email: 'student@coursespace.com', password: 'Student123!', role: 'student', status: 'active' },
-  { id: 'suspended-1', name: 'Suspended User', username: 'suspended', email: 'suspended@coursespace.com', password: 'Suspended123!', role: 'student', status: 'suspended' },
-]
-
-const authStorageKey = 'coursespace-auth-user'
-const attemptsStorageKey = 'coursespace-login-attempts'
-const maxAttempts = 5
-const lockoutDuration = 15 * 60 * 1000
-
-const getStoredUser = (): Omit<AuthUser, 'password'> | null => {
-  const rawUser = localStorage.getItem(authStorageKey) || sessionStorage.getItem(authStorageKey)
-  if (!rawUser) return null
-  try {
-    return JSON.parse(rawUser) as Omit<AuthUser, 'password'>
-  } catch {
-    localStorage.removeItem(authStorageKey)
-    sessionStorage.removeItem(authStorageKey)
-    return null
-  }
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<Omit<AuthUser, 'password'> | null>(getStoredUser)
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    api.get<{ user: AuthUser }>('/api/auth/me', { withCredentials: true })
+      .then(({ data }) => setUser(data.user))
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false))
+  }, [])
 
   const login = async (identifier: string, password: string, remember: boolean): Promise<LoginResult> => {
-    const normalizedIdentifier = identifier.trim().toLowerCase()
-    const attempts = JSON.parse(sessionStorage.getItem(attemptsStorageKey) || '{}') as Record<string, { count: number; lockedUntil?: number }>
-    const currentAttempt = attempts[normalizedIdentifier]
-
-    if (currentAttempt?.lockedUntil && currentAttempt.lockedUntil > Date.now()) {
-      return { success: false, error: 'Too many failed attempts. Please try again later.' }
+    try {
+      const { data } = await api.post<{ user: AuthUser }>('/api/auth/login', { identifier, password, remember }, { withCredentials: true })
+      setUser(data.user)
+      return { success: true, user: data.user }
+    } catch (error) {
+      if (axios.isAxiosError<{ message?: string }>(error)) return { success: false, error: error.response?.data.message || 'Unable to sign in. Please try again.' }
+      return { success: false, error: 'Unable to sign in. Please try again.' }
     }
-
-    const matchedUser = mockUsers.find((candidate) => candidate.email === normalizedIdentifier || candidate.username === normalizedIdentifier)
-    if (!matchedUser || matchedUser.password !== password) {
-      const nextCount = (currentAttempt?.count || 0) + 1
-      attempts[normalizedIdentifier] = { count: nextCount, ...(nextCount >= maxAttempts ? { lockedUntil: Date.now() + lockoutDuration } : {}) }
-      sessionStorage.setItem(attemptsStorageKey, JSON.stringify(attempts))
-      return { success: false, error: nextCount >= maxAttempts ? 'Too many failed attempts. Please try again later.' : 'Invalid username/email or password.' }
-    }
-
-    if (matchedUser.status !== 'active') {
-      return { success: false, error: `This account is ${matchedUser.status}. Please contact your system administrator.` }
-    }
-
-    delete attempts[normalizedIdentifier]
-    sessionStorage.setItem(attemptsStorageKey, JSON.stringify(attempts))
-    const sessionUser = { id: matchedUser.id, name: matchedUser.name, username: matchedUser.username, email: matchedUser.email, role: matchedUser.role, status: matchedUser.status }
-    const storage = remember ? localStorage : sessionStorage
-    storage.setItem(authStorageKey, JSON.stringify(sessionUser))
-    if (remember) sessionStorage.removeItem(authStorageKey)
-    else localStorage.removeItem(authStorageKey)
-    setUser(sessionUser)
-    return { success: true }
   }
 
-  const logout = () => {
-    localStorage.removeItem(authStorageKey)
-    sessionStorage.removeItem(authStorageKey)
+  const logout = async () => {
+    await api.post('/api/auth/logout', undefined, { withCredentials: true })
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, isAuthenticated: Boolean(user), login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, isAuthenticated: Boolean(user), isLoading, login, logout }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = (): AuthContextValue => {
