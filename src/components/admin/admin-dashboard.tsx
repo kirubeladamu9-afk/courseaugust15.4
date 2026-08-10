@@ -149,8 +149,6 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     'Roles & Permissions': '/admin/roles-permissions',
     'User Accounts': '/admin/user-accounts',
     Students: '/admin/students',
-    'Admissions / Enrollment': '/admin/admissions-enrollment',
-    Promotions: '/admin/promotions',
     Teachers: '/admin/teachers',
     'Class & Teacher Assignments': '/admin/teacher-assignments',
     'Guardian List': '/admin/guardians',
@@ -175,7 +173,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   }
   const menuGroups = [
     { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['Roles & Permissions', 'User Accounts'] },
-    { label: 'Students', parent: 'Students', icon: <PeopleAltOutlined fontSize="small" />, items: ['Admissions / Enrollment', 'Promotions'] },
+    { label: 'Students', parent: 'Students', icon: <PeopleAltOutlined fontSize="small" />, items: [] },
     { label: 'Teachers', parent: 'Teachers', icon: <SchoolOutlined fontSize="small" />, items: [] },
     { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
     { label: 'Academic Structure', parent: 'Grade Levels', icon: <MenuBookOutlined fontSize="small" />, items: ['Classes & Sections', 'Subjects'] },
