@@ -21,6 +21,9 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import AddRounded from '@mui/icons-material/AddRounded'
 import DownloadRounded from '@mui/icons-material/DownloadRounded'
+import LockResetRounded from '@mui/icons-material/LockResetRounded'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
 import axios from 'axios'
 import { useEffect, useMemo, useState, type FC, type FormEvent } from 'react'
@@ -78,7 +81,7 @@ const additionalSections: Record<string, SectionConfig> = {
   'enrollment-reports': makeSection('Enrollment Reports', 'Review admissions and enrollment trends over time.', 'Export Report', ['Period', 'Applications', 'Enrolled', 'Status'], 'No enrollment data'),
   'performance-trends': makeSection('Performance Trends', 'Analyze academic performance patterns across classes and terms.', 'Export Trends', ['Term', 'Class', 'Average score', 'Status'], 'No trend data'),
   'custom-export-reports': makeSection('Custom / Export Reports', 'Build and export custom data reports for school leadership.', 'Create Report', ['Report', 'Filters', 'Created by', 'Status'], 'No custom reports'),
-  'user-accounts': { ...makeSection('User Accounts', 'Create and manage login accounts for teachers, admins, students, and parents.', 'Create Account', ['User', 'Role', 'Email', 'Last login', 'Status'], 'No accounts yet'), createFields: [{ name: 'name', label: 'Full name', required: true }, { name: 'username', label: 'Username', required: true }, { name: 'email', label: 'Email', type: 'email', required: true }, { name: 'password', label: 'Temporary password', type: 'password', required: true }, { name: 'role', label: 'Role', options: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT'], required: true }, { name: 'status', label: 'Status', options: ['ACTIVE', 'INACTIVE'], required: true }] },
+  'user-accounts': { ...makeSection('User Accounts', 'Create and manage login accounts for teachers, admins, students, and parents.', 'Create Account', ['User', 'Role', 'Email', 'Last login', 'Status', 'Actions'], 'No accounts yet'), createFields: [{ name: 'name', label: 'Full name', required: true }, { name: 'username', label: 'Username', required: true }, { name: 'email', label: 'Email', type: 'email', required: true }, { name: 'password', label: 'Temporary password', type: 'password', required: true }, { name: 'role', label: 'Role', options: ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT'], required: true }, { name: 'status', label: 'Status', options: ['ACTIVE', 'INACTIVE'], required: true }] },
   'general-settings': makeSection('General Settings', 'Manage school name, logo, and contact information.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'School information'),
   'academic-settings': makeSection('Academic Settings', 'Configure default rules for the academic structure.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'Default academic year'),
   'system-settings': makeSection('System Settings', 'Manage backups, notifications, and technical configuration.', 'Save Settings', ['Setting', 'Value', 'Updated by', 'Status'], 'Backup schedule'),
@@ -86,7 +89,7 @@ const additionalSections: Record<string, SectionConfig> = {
 
 const statusColor = (status: string): 'success' | 'warning' | 'info' => status === 'Published' || status === 'Active' || status === 'Assigned' || status === 'Completed' ? 'success' : status === 'Draft' || status === 'Pending' || status === 'Review' ? 'warning' : 'info'
 
-type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string }
+type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string; sourceType?: 'teacher' | 'student' | 'guardian' | 'user'; sourceId?: string; userId?: string }
 
 const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
@@ -97,6 +100,7 @@ const AdminManagementPage: FC = () => {
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false)
   const [createValues, setCreateValues] = useState<Record<string, string>>({})
   const [createOptions, setCreateOptions] = useState<{ id: string; name: string }[]>([])
@@ -131,6 +135,7 @@ const AdminManagementPage: FC = () => {
   useEffect(() => {
     setIsLoading(true)
     setError('')
+    setNotice('')
     setIsCreateFormOpen(false)
     setCreateValues({})
     if (!isBackendSection) {
@@ -158,8 +163,19 @@ const AdminManagementPage: FC = () => {
       .finally(() => setIsLoading(false))
   }, [section, config, isBackendSection, navigate])
 
-  const rows = records.map((record) => config.columns.map((column, index) => index === config.columns.length - 1 ? record.status : record.data[column] ?? (index === 0 ? record.title : '—')))
-  const filteredRows = useMemo(() => rows.filter((row) => row.join(' ').toLowerCase().includes(query.toLowerCase())), [rows, query])
+  const filteredRecords = useMemo(() => records.filter((record) => config.columns.some((column) => column !== 'Actions' && (record.data[column] ?? record.title).toLowerCase().includes(query.toLowerCase()))), [records, config.columns, query])
+  const handleResetPassword = async (record: AdminRecord) => {
+    if (!record.sourceType || record.sourceType === 'user' || !record.sourceId) return
+    try {
+      const { data: response } = await api.post<{ record: AdminRecord; temporaryPassword: string; created: boolean }>(`/api/admin/user-accounts/${record.sourceType}/${record.sourceId}/reset-password`, {}, { withCredentials: true })
+      setRecords((current) => current.map((currentRecord) => currentRecord.id === record.id || currentRecord.userId === response.record.userId ? response.record : currentRecord))
+      setNotice(`${response.created ? 'Account created' : 'Password reset'} for ${response.record.title}. Temporary password: ${response.temporaryPassword}`)
+      setError('')
+    } catch (error) {
+      setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || 'Unable to reset the password.' : 'Unable to reset the password.')
+      setNotice('')
+    }
+  }
   const handleCreateFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const fields = config.createFields
@@ -235,10 +251,11 @@ const AdminManagementPage: FC = () => {
             </Grid>
           </Box>}
           {error && <Typography color="error" sx={{ px: 1, pt: 1 }}>{error}</Typography>}
+          {notice && <Typography color="success.main" sx={{ px: 1, pt: 1 }}>{notice}</Typography>}
           {isLoading && <LinearProgress sx={{ mx: 1, mb: 1 }} />}
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
-          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRows.map((row, rowIndex) => <TableRow hover key={`${row.join('-')}-${rowIndex}`}>{row.map((cell, index) => <TableCell key={`${cell}-${index}`} sx={{ whiteSpace: 'nowrap' }}>{index === row.length - 1 && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>
-          {!filteredRows.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
+          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && record.sourceType && record.sourceType !== 'user' ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
+          {!filteredRecords.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
         </Paper>
       </Container>
     </AdminPanelLayout>

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
 import { AccountStatus, UserRole } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../config/prisma'
@@ -21,12 +22,34 @@ const userAccountSchema = z.object({
   status: z.enum(['ACTIVE', 'INACTIVE']),
 })
 
-const toUserAccountRecord = (user: { id: string; name: string; username: string; email: string; role: UserRole; lastLoginAt: Date | null; status: AccountStatus }) => ({
+type UserAccountSource = 'teacher' | 'student' | 'guardian'
+type UserAccountRecord = { id: string; title: string; data: Record<string, string>; status: string; sourceType: UserAccountSource | 'user'; sourceId: string; userId?: string }
+
+const toUserAccountRecord = (user: { id: string; name: string; username: string; email: string; role: UserRole; lastLoginAt: Date | null; status: AccountStatus }): UserAccountRecord => ({
   id: user.id,
   title: user.name,
   data: { User: user.name, Role: user.role.charAt(0) + user.role.slice(1).toLowerCase(), Email: user.email, 'Last login': user.lastLoginAt?.toISOString() || 'Never' },
   status: user.status.charAt(0) + user.status.slice(1).toLowerCase(),
+  sourceType: 'user',
+  sourceId: user.id,
+  userId: user.id,
 })
+
+const sourceRole: Record<UserAccountSource, UserRole> = { teacher: UserRole.TEACHER, student: UserRole.STUDENT, guardian: UserRole.PARENT }
+const sourceName = (source: { fullName?: string; name?: string }) => source.fullName || source.name || ''
+const sourceUsername = (name: string, sourceId: string) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '') || 'user'}.${sourceId.slice(-6).toLowerCase()}`
+const temporaryPassword = () => randomBytes(12).toString('base64url')
+
+const toSourceRecord = (sourceType: UserAccountSource, source: { id: string; fullName?: string; name?: string; email?: string | null }, user?: { id: string; name: string; username: string; email: string; role: UserRole; lastLoginAt: Date | null; status: AccountStatus }): UserAccountRecord => user
+  ? toUserAccountRecord(user)
+  : {
+      id: `${sourceType}-${source.id}`,
+      title: sourceName(source),
+      data: { User: sourceName(source), Role: sourceRole[sourceType].charAt(0) + sourceRole[sourceType].slice(1).toLowerCase(), Email: source.email || '—', 'Last login': 'Never' },
+      status: 'Active',
+      sourceType,
+      sourceId: source.id,
+    }
 
 const guardianSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -86,8 +109,57 @@ router.use(requireAdmin)
 
 router.get('/user-accounts', async (_req, res, next) => {
   try {
-    const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true } })
-    return res.json({ records: users.map(toUserAccountRecord) })
+    const [users, teachers, students, guardians] = await Promise.all([
+      prisma.user.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true } }),
+      prisma.teacher.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, fullName: true } }),
+      prisma.student.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, fullName: true } }),
+      prisma.guardian.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, email: true } }),
+    ])
+    const records = users.map(toUserAccountRecord)
+    const sources: { type: UserAccountSource; records: { id: string; fullName?: string; name?: string; email?: string | null }[] }[] = [
+      { type: 'teacher', records: teachers },
+      { type: 'student', records: students },
+      { type: 'guardian', records: guardians },
+    ]
+    for (const { type, records: sourceRecords } of sources) {
+      for (const source of sourceRecords) {
+        const role = sourceRole[type]
+        const matchingUser = users.find((user) => user.role === role && (user.name.toLowerCase() === sourceName(source).toLowerCase() || (source.email && user.email.toLowerCase() === source.email.toLowerCase())))
+        if (!matchingUser) records.push(toSourceRecord(type, source))
+      }
+    }
+    return res.json({ records })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/user-accounts/:sourceType/:sourceId/reset-password', async (req, res, next) => {
+  try {
+    const sourceType = z.enum(['teacher', 'student', 'guardian']).parse(req.params.sourceType)
+    const sourceId = z.string().min(1).parse(req.params.sourceId)
+    const source = sourceType === 'teacher'
+      ? await prisma.teacher.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true } })
+      : sourceType === 'student'
+        ? await prisma.student.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true } })
+        : await prisma.guardian.findUnique({ where: { id: sourceId }, select: { id: true, name: true, email: true } })
+    if (!source) return res.status(404).json({ message: 'Source record not found.' })
+
+    const role = sourceRole[sourceType]
+    const name = sourceName(source)
+    const email = 'email' in source && source.email ? source.email.toLowerCase() : `${sourceUsername(name, sourceId)}@coursespace.local`
+    const matchingUser = await prisma.user.findFirst({ where: { role, OR: [{ name: { equals: name, mode: 'insensitive' } }, { email }] } })
+    const password = temporaryPassword()
+    if (matchingUser) {
+      await prisma.user.update({ where: { id: matchingUser.id }, data: { passwordHash: await bcrypt.hash(password, 12) } })
+      return res.json({ record: toUserAccountRecord(matchingUser), temporaryPassword: password, created: false })
+    }
+
+    const user = await prisma.user.create({
+      data: { name, username: sourceUsername(name, sourceId), email, passwordHash: await bcrypt.hash(password, 12), role, status: AccountStatus.ACTIVE },
+      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+    })
+    return res.status(201).json({ record: toUserAccountRecord(user), temporaryPassword: password, created: true })
   } catch (error) {
     return next(error)
   }
