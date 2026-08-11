@@ -337,7 +337,7 @@ export const AdminPanelLayout: FC<{ children: ReactNode; title: string }> = ({ c
 
 type DashboardActivity = { type: string; title: string; detail: string; date: string }
 type DashboardNotification = { title: string; detail: string; date: string }
-type DashboardData = { stats: { students: number; teachers: number; guardians: number; lessons: number }; trends: { studentGrowth: number[]; learningActivity: number[] }; activities: DashboardActivity[]; notifications: DashboardNotification[] }
+type DashboardData = { stats: { students: number; teachers: number; guardians: number; lessons: number; assessments: number }; trends: { studentGrowth: number[]; learningActivity: number[] }; activities: DashboardActivity[]; notifications: DashboardNotification[] }
 
 const formatRelativeTime = (date: string) => {
   const minutes = Math.max(1, Math.floor((Date.now() - new Date(date).getTime()) / 60000))
@@ -377,7 +377,7 @@ const AdminDashboard: FC = () => {
           <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Students" value={stats ? stats.students.toLocaleString() : '—'} change="Live" tone="primary" icon={<PeopleAltOutlined />} /></Grid>
           <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Teachers" value={stats ? stats.teachers.toLocaleString() : '—'} change="Live" tone="secondary" icon={<SchoolOutlined />} /></Grid>
           <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Parents" value={stats ? stats.guardians.toLocaleString() : '—'} change="Live" tone="success" icon={<FamilyRestroomOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Lessons" value={stats ? stats.lessons.toLocaleString() : '—'} change="Live" tone="secondary" icon={<PlayLessonOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Assessments" value={stats ? stats.assessments.toLocaleString() : '—'} change="Live" tone="secondary" icon={<QuizOutlined />} /></Grid>
         </Grid>
 
         <Grid container spacing={2}>

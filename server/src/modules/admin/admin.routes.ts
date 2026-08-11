@@ -110,11 +110,12 @@ router.use(requireAdmin)
 
 router.get('/dashboard', async (_req, res, next) => {
   try {
-    const [studentCount, teacherCount, guardianCount, lessonCount, students, teachers, lessons, quizzes, studentDates, lessonDates] = await Promise.all([
+    const [studentCount, teacherCount, guardianCount, lessonCount, assessmentCount, students, teachers, lessons, quizzes, studentDates, lessonDates] = await Promise.all([
       prisma.student.count(),
       prisma.teacher.count(),
       prisma.guardian.count(),
       prisma.lesson.count(),
+      prisma.quiz.count(),
       prisma.student.findMany({ orderBy: { createdAt: 'desc' }, take: 3, select: { fullName: true, gradeLevel: true, createdAt: true } }),
       prisma.teacher.findMany({ orderBy: { updatedAt: 'desc' }, take: 3, select: { fullName: true, updatedAt: true } }),
       prisma.lesson.findMany({ orderBy: { createdAt: 'desc' }, take: 3, select: { title: true, createdAt: true } }),
@@ -142,7 +143,7 @@ router.get('/dashboard', async (_req, res, next) => {
       return lessonDates.filter(({ createdAt }) => createdAt >= start && createdAt < end).length
     })
     const notifications = quizzes.map((quiz) => ({ title: quiz.status === 'Published' ? 'Quiz published' : 'Quiz needs review', detail: `${quiz.title} · ${quiz.status}`, date: quiz.updatedAt }))
-    return res.json({ stats: { students: studentCount, teachers: teacherCount, guardians: guardianCount, lessons: lessonCount }, trends: { studentGrowth, learningActivity }, activities, notifications })
+    return res.json({ stats: { students: studentCount, teachers: teacherCount, guardians: guardianCount, lessons: lessonCount, assessments: assessmentCount }, trends: { studentGrowth, learningActivity }, activities, notifications })
   } catch (error) {
     return next(error)
   }
