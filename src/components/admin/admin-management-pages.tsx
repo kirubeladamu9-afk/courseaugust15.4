@@ -74,6 +74,7 @@ const additionalSections: Record<string, SectionConfig> = {
   guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', '', ['Guardian', 'Linked students', 'Relationship', 'Status', 'Actions'], 'No guardians yet'),
   'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status', 'Actions'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade', required: true }, { name: 'classes', label: 'Classes', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
   'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade Level', 'Students', 'Status', 'Actions'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / Section', required: true }, { name: 'gradeLevelId', label: 'Grade Level', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
+  'learning-materials': makeSection('Learning Materials', 'Review documents uploaded by teachers and shared with classes or selected students.', '', ['Material', 'File', 'Subject', 'Class', 'Uploaded date', 'Status'], 'No materials yet'),
   timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
   'assessment-policy': makeSection('Assessment Policy', 'Set grading rules and weights for each assessment type.', 'Add Policy Rule', ['Assessment type', 'Weight', 'Term', 'Status'], 'Quiz'),
@@ -93,7 +94,7 @@ const additionalSections: Record<string, SectionConfig> = {
 
 const statusColor = (status: string): 'success' | 'warning' | 'info' => status === 'Published' || status === 'Active' || status === 'Assigned' || status === 'Completed' ? 'success' : status === 'Draft' || status === 'Pending' || status === 'Review' ? 'warning' : 'info'
 
-const liveMetricSections = new Set(['user-accounts', 'students', 'teachers', 'guardians', 'grade-levels', 'classes-sections', 'subjects', 'all-assessments'])
+const liveMetricSections = new Set(['user-accounts', 'students', 'teachers', 'guardians', 'grade-levels', 'classes-sections', 'subjects', 'learning-materials', 'all-assessments'])
 
 const formatLastLogin = (value: string) => {
   if (!value || value === 'Never' || value === '—') return value
@@ -115,19 +116,20 @@ const getLiveMetrics = (section: string, records: AdminRecord[], isLoading: bool
     'grade-levels': [['Total grade levels', value(records.length), 'Live DB'], ['Active grade levels', value(count('Active')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
     'classes-sections': [['Total classes', value(records.length), 'Live DB'], ['Active classes', value(count('Active')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
     subjects: [['Total subjects', value(records.length), 'Live DB'], ['Published subjects', value(count('Published')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
+    'learning-materials': [['Total materials', value(records.length), 'Live DB'], ['Published materials', value(count('Published')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
     'all-assessments': [['Total assessments', value(records.length), 'Live DB'], ['Published assessments', value(count('Published')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
   }
   return definitions[section]
 }
 
 type AdminQuestion = { type: string; prompt: string; options?: string[]; correctAnswer?: string | string[]; points?: number }
-type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string; questions?: AdminQuestion[]; sourceType?: 'teacher' | 'student' | 'guardian' | 'user'; sourceId?: string; userId?: string }
+type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string; createdAt?: string; questions?: AdminQuestion[]; sourceType?: 'teacher' | 'student' | 'guardian' | 'user'; sourceId?: string; userId?: string }
 
 const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections', 'teachers', 'user-accounts', 'all-assessments'].includes(section)
+  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections', 'teachers', 'user-accounts', 'learning-materials', 'all-assessments'].includes(section)
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -201,7 +203,10 @@ const AdminManagementPage: FC = () => {
       return
     }
     api.get<{ records: AdminRecord[] }>(`/api/admin/${section}`, { withCredentials: true })
-      .then(({ data }) => setRecords(data.records))
+      .then(({ data }) => setRecords(section === 'learning-materials' ? data.records.map((record) => {
+        const materialData = record.data as Record<string, string>
+        return { ...record, data: { Material: record.title, File: materialData.fileName || '—', Subject: materialData.subjectName || '—', Class: materialData.className || '—', 'Uploaded date': record.createdAt || '—' } }
+      }) : data.records))
       .catch(() => setError('Unable to load records. Please refresh and try again.'))
       .finally(() => setIsLoading(false))
   }, [section, config, isBackendSection, navigate])
@@ -384,7 +389,7 @@ const AdminManagementPage: FC = () => {
         <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="primary.main">{config.title}</Typography></Breadcrumbs>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
           <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>{config.title}</Typography><Typography color="text.secondary">{config.description}</Typography></Box>
-          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button>{section !== 'user-accounts' && section !== 'guardians' && <Button variant="contained" onClick={() => section === 'teachers' ? handleCreate() : config.createFields ? setIsCreateFormOpen((current) => !current) : handleCreate()} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button>}</Stack>
+          <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button>{section !== 'user-accounts' && section !== 'guardians' && section !== 'learning-materials' && <Button variant="contained" onClick={() => section === 'teachers' ? handleCreate() : config.createFields ? setIsCreateFormOpen((current) => !current) : handleCreate()} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button>}</Stack>
         </Stack>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           {metrics.map(([label, value, change]) => <Grid item xs={12} sm={4} key={label}><Paper elevation={0} sx={{ p: 2.5, borderRadius: 3 }}><Typography variant="subtitle1" color="text.secondary">{label}</Typography><Stack direction="row" alignItems="baseline" spacing={1} sx={{ mt: 1 }}><Typography variant="h3" sx={{ fontSize: { xs: 26, md: 30 } }}>{value}</Typography><Typography variant="caption" color="primary.main">{change}</Typography></Stack></Paper></Grid>)}
