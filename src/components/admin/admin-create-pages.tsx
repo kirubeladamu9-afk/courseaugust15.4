@@ -308,8 +308,8 @@ const profileFields: Record<EditableProfileType, FieldConfig[]> = {
     { name: 'phoneNumber', label: 'Phone number', type: 'tel' },
     { name: 'address', label: 'Address' },
     { name: 'nationalId', label: 'National ID / Passport Number' },
-    { name: 'assignedSubjects', label: 'Assigned subjects' },
-    { name: 'assignedClasses', label: 'Assigned classes' },
+    { name: 'assignedSubjects', label: 'Assigned subjects', multiple: true },
+    { name: 'assignedClasses', label: 'Assigned classes', multiple: true },
     { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true },
   ],
   guardian: [
@@ -330,9 +330,20 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [teacherOptions, setTeacherOptions] = useState({ subjects: [] as { id: string; name: string }[], classes: [] as { id: string; name: string }[] })
   const listRoute = `/admin/${type === 'guardian' ? 'guardians' : `${type}s`}`
   const imageSource = typeof values.photoName === 'string' && (values.photoName.startsWith('data:image/') || values.photoName.startsWith('https://')) ? values.photoName : ''
   const title = `Edit ${type.charAt(0).toUpperCase()}${type.slice(1)}`
+
+  useEffect(() => {
+    if (type !== 'teacher') return
+    Promise.all([
+      api.get<{ records: { id: string; title: string }[] }>('/api/admin/subjects', { withCredentials: true }),
+      api.get<{ records: { id: string; title: string }[] }>('/api/admin/classes-sections', { withCredentials: true }),
+    ])
+      .then(([subjectsResponse, classesResponse]) => setTeacherOptions({ subjects: subjectsResponse.data.records.map(({ id, title }) => ({ id, name: title })), classes: classesResponse.data.records.map(({ id, title }) => ({ id, name: title })) }))
+      .catch(() => setError('Unable to load subjects and classes. Please try again.'))
+  }, [type])
 
   useEffect(() => {
     api.get<{ student?: Record<string, unknown>; teacher?: Record<string, unknown>; guardian?: Record<string, unknown> }>(`/api/admin/${type === 'guardian' ? 'guardians' : `${type}s`}/${id}`, { withCredentials: true })
@@ -376,8 +387,16 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
           <Typography color="text.secondary" sx={{ mb: 3 }}>Review and update the complete profile information.</Typography>
           {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 3 }}>{error}</Alert>}
           <Grid container spacing={2.25}>
-            {profileFields[type].map((field) => <Grid item xs={12} sm={field.name === 'address' || field.name === 'assignedSubjects' || field.name === 'assignedClasses' || field.name === 'guardianSearch' ? 12 : 6} key={field.name}>
-              <TextField fullWidth required={field.required} disabled={loading || saving} label={field.label} type={field.options ? undefined : field.type || 'text'} select={Boolean(field.options)} InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined} value={field.type === 'file' ? undefined : values[field.name] || ''} inputProps={field.type === 'file' ? { accept: 'image/*' } : undefined} onChange={(event) => {
+            {profileFields[type].map((field) => <Grid item xs={12} sm={field.name === 'assignedSubjects' || field.name === 'assignedClasses' || field.name === 'guardianSearch' ? 12 : 6} key={field.name}>
+              {field.multiple ? <Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{field.label}</Typography>
+                <FormGroup row>
+                  {(field.name === 'assignedSubjects' ? teacherOptions.subjects : teacherOptions.classes).map((option) => {
+                    const selected = (values[field.name] || '').split(', ').filter(Boolean).includes(option.name)
+                    return <FormControlLabel key={option.id} control={<Checkbox checked={selected} disabled={loading || saving} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.checked ? [...(current[field.name] || '').split(', ').filter(Boolean), option.name].join(', ') : (current[field.name] || '').split(', ').filter((value) => value !== option.name).join(', ') }))} />} label={option.name} />
+                  })}
+                </FormGroup>
+              </Box> : <TextField fullWidth required={field.required} disabled={loading || saving} label={field.label} type={field.options ? undefined : field.type || 'text'} select={Boolean(field.options)} InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined} value={field.type === 'file' ? undefined : values[field.name] || ''} inputProps={field.type === 'file' ? { accept: 'image/*' } : undefined} onChange={(event) => {
                 const input = event.target as HTMLInputElement
                 const file = input.files?.[0]
                 if (field.type === 'file' && file) {
@@ -389,7 +408,7 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
                 setValues((current) => ({ ...current, [field.name]: event.target.value }))
               }}>
                 {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
-              </TextField>
+              </TextField>}
               {(type === 'teacher' || type === 'student') && field.name === 'photoName' && <Box sx={{ mt: 1, width: 128, height: 128, borderRadius: 2, overflow: 'hidden', border: 1, borderColor: 'divider', backgroundColor: 'background.default' }}>{imageSource ? <Box component="img" src={imageSource} alt={`${type} profile`} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', px: 1 }}>No image available</Typography>}</Box>}
             </Grid>)}
           </Grid>
