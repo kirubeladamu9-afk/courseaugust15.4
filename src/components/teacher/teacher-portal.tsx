@@ -333,11 +333,13 @@ const TeacherProfilePage: FC = () => {
   const { user } = useAuth()
   const [subjects, setSubjects] = useState<string[]>([])
   const [classes, setClasses] = useState<string[]>([])
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const initials = user?.name.split(' ').map((name) => name[0]).join('').slice(0, 2).toUpperCase() || 'TR'
   const lastLogin = user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Not available'
 
   useEffect(() => {
+    api.get<{ photoName: string | null }>('/api/teacher/profile', { withCredentials: true }).then(({ data }) => setProfilePhoto(data.photoName)).catch(() => setProfilePhoto(null))
     Promise.all([
       api.get<{ subjects: string[] }>('/api/teacher/assigned-subjects', { withCredentials: true }),
       api.get<{ classes: string[] }>('/api/teacher/assigned-classes', { withCredentials: true }),
@@ -347,9 +349,11 @@ const TeacherProfilePage: FC = () => {
     }).finally(() => setLoading(false))
   }, [])
 
+  const photoSource = profilePhoto?.startsWith('data:image/') || profilePhoto?.startsWith('https://') ? profilePhoto : undefined
+
   return <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, borderRadius: 3 }}>
     <ButtonBase onClick={() => navigate('/teacher')} sx={{ mb: 3, color: 'text.secondary', borderRadius: 1, p: 0.5, '&:hover': { color: 'primary.main' } }}><ArrowBackRounded sx={{ fontSize: 18, mr: 0.5 }} /><Typography variant="subtitle2">Back to dashboard</Typography></ButtonBase>
-    <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'center', sm: 'flex-start' }} spacing={2.5}><Avatar sx={{ width: 88, height: 88, backgroundColor: 'primary.main', fontSize: 30, fontWeight: 700 }}>{initials}</Avatar><Box sx={{ textAlign: { xs: 'center', sm: 'left' }, flex: 1 }}><Typography component="h1" variant="h2" sx={{ fontSize: { xs: 26, md: 30 }, mb: 0.5 }}>{user?.name || 'Teacher'}</Typography><Stack direction="row" justifyContent={{ xs: 'center', sm: 'flex-start' }} flexWrap="wrap" spacing={1} sx={{ mb: 1 }}><Chip label="Teacher" size="small" color="primary" /><Chip label={user?.status === 'active' ? 'Active account' : user?.status || 'Unknown status'} size="small" sx={{ backgroundColor: 'rgba(50, 220, 136, 0.16)', color: '#32dc88' }} /></Stack><Stack direction="row" alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} spacing={0.75}><EmailOutlined sx={{ fontSize: 17, color: 'text.secondary' }} /><Typography variant="body2" color="text.secondary">{user?.email || 'No email available'}</Typography></Stack></Box></Stack>
+    <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'center', sm: 'flex-start' }} spacing={2.5}><Avatar src={photoSource} alt={`${user?.name || 'Teacher'} profile photo`} sx={{ width: 88, height: 88, backgroundColor: 'primary.main', fontSize: 30, fontWeight: 700 }}>{initials}</Avatar><Box sx={{ textAlign: { xs: 'center', sm: 'left' }, flex: 1 }}><Typography component="h1" variant="h2" sx={{ fontSize: { xs: 26, md: 30 }, mb: 0.5 }}>{user?.name || 'Teacher'}</Typography><Stack direction="row" justifyContent={{ xs: 'center', sm: 'flex-start' }} flexWrap="wrap" spacing={1} sx={{ mb: 1 }}><Chip label="Teacher" size="small" color="primary" /><Chip label={user?.status === 'active' ? 'Active account' : user?.status || 'Unknown status'} size="small" sx={{ backgroundColor: 'rgba(50, 220, 136, 0.16)', color: '#32dc88' }} /></Stack><Stack direction="row" alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} spacing={0.75}><EmailOutlined sx={{ fontSize: 17, color: 'text.secondary' }} /><Typography variant="body2" color="text.secondary">{user?.email || 'No email available'}</Typography></Stack></Box></Stack>
     <Divider sx={{ my: 3 }} />
     <Grid container spacing={2}><Grid item xs={12} sm={4}><Stack direction="row" spacing={1.25} alignItems="center"><ScheduleOutlined color="primary" /><Box><Typography variant="caption" color="text.secondary">Last login</Typography><Typography variant="subtitle2">{lastLogin}</Typography></Box></Stack></Grid><Grid item xs={12} sm={4}><Stack direction="row" spacing={1.25} alignItems="center"><ShieldOutlined color="primary" /><Box><Typography variant="caption" color="text.secondary">Access level</Typography><Typography variant="subtitle2">Teacher portal access</Typography></Box></Stack></Grid><Grid item xs={12} sm={4}><Stack direction="row" spacing={1.25} alignItems="center"><PeopleAltOutlined color="primary" /><Box><Typography variant="caption" color="text.secondary">Assigned classes</Typography><Typography variant="subtitle2">{loading ? 'Loading...' : classes.length || 'None assigned'}</Typography></Box></Stack></Grid></Grid>
     <Divider sx={{ my: 3 }} />
