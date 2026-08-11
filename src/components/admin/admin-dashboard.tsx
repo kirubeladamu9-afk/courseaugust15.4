@@ -44,6 +44,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/logo'
 import { useAuth } from '@/auth/auth-context'
 import ThemeToggle from '@/components/theme-toggle'
+import api from '@/lib/api'
 
 interface StatCardProps {
   label: string
@@ -95,10 +96,15 @@ const ChartGrid: FC = () => (
   </>
 )
 
-const StudentGrowthChart: FC = () => (
+const chartPoints = (values: number[]) => {
+  const max = Math.max(...values, 1)
+  return values.map((value, index) => `${index * (600 / Math.max(values.length - 1, 1))},${205 - (value / max) * 170}`).join(' ')
+}
+
+const StudentGrowthChart: FC<{ values: number[] }> = ({ values }) => (
   <Box sx={{ height: 220, mt: 2 }}>
     <svg width="100%" height="100%" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label="Student growth chart">
-      <g color="#127c71"><line x1="0" x2="600" y1="55" y2="55" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="110" y2="110" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="165" y2="165" stroke="currentColor" strokeOpacity="0.12" /><path d="M0 178 C55 164, 75 145, 125 153 S195 130, 250 140 S315 94, 365 115 S430 70, 485 88 S550 44, 600 56 L600 220 L0 220 Z" fill="currentColor" fillOpacity="0.1" /><path d="M0 178 C55 164, 75 145, 125 153 S195 130, 250 140 S315 94, 365 115 S430 70, 485 88 S550 44, 600 56" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></g>
+      <g color="#127c71"><line x1="0" x2="600" y1="55" y2="55" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="110" y2="110" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="165" y2="165" stroke="currentColor" strokeOpacity="0.12" /><polyline points={chartPoints(values)} fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></g>
     </svg>
     <Stack direction="row" justifyContent="space-between" sx={{ color: 'text.disabled', mt: -1, px: 0.5 }}>
       {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((month) => <Typography key={month} variant="caption">{month}</Typography>)}
@@ -106,10 +112,10 @@ const StudentGrowthChart: FC = () => (
   </Box>
 )
 
-const LearningActivityChart: FC = () => (
+const LearningActivityChart: FC<{ values: number[] }> = ({ values }) => (
   <Box sx={{ height: 220, mt: 2 }}>
     <svg width="100%" height="100%" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label="Learning activity chart">
-      <g color="#f5b82e"><line x1="0" x2="600" y1="55" y2="55" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="110" y2="110" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="165" y2="165" stroke="currentColor" strokeOpacity="0.12" /><path d="M0 158 C62 145, 78 95, 130 116 S200 162, 255 108 S320 130, 370 78 S430 112, 480 90 S550 145, 600 62" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></g>
+      <g color="#f5b82e"><line x1="0" x2="600" y1="55" y2="55" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="110" y2="110" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="165" y2="165" stroke="currentColor" strokeOpacity="0.12" /><polyline points={chartPoints(values)} fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></g>
     </svg>
     <Stack direction="row" justifyContent="space-between" sx={{ color: 'text.disabled', mt: -1, px: 0.5 }}>
       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <Typography key={day} variant="caption">{day}</Typography>)}
@@ -329,8 +335,28 @@ export const AdminPanelLayout: FC<{ children: ReactNode; title: string }> = ({ c
   )
 }
 
+type DashboardActivity = { type: string; title: string; detail: string; date: string }
+type DashboardNotification = { title: string; detail: string; date: string }
+type DashboardData = { stats: { students: number; teachers: number; guardians: number; lessons: number }; trends: { studentGrowth: number[]; learningActivity: number[] }; activities: DashboardActivity[]; notifications: DashboardNotification[] }
+
+const formatRelativeTime = (date: string) => {
+  const minutes = Math.max(1, Math.floor((Date.now() - new Date(date).getTime()) / 60000))
+  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
+  return `${Math.floor(minutes / 1440)}d ago`
+}
+
 const AdminDashboard: FC = () => {
   const navigate = useNavigate()
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+
+  useEffect(() => {
+    api.get<DashboardData>('/api/admin/dashboard', { withCredentials: true }).then(({ data }) => setDashboard(data)).catch(() => setDashboard(null))
+  }, [])
+
+  const stats = dashboard?.stats
+  const activities = dashboard?.activities || []
+  const notifications = dashboard?.notifications || []
 
   return (
     <AdminPanelLayout title="Dashboard Overview">
@@ -344,43 +370,39 @@ const AdminDashboard: FC = () => {
             <Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>Admin Dashboard</Typography>
             <Typography color="text.secondary">Welcome back, Admin. Here&apos;s what&apos;s happening today.</Typography>
           </Box>
-          <Typography variant="subtitle2" color="text.secondary">Tuesday, July 16, 2024</Typography>
+          <Typography variant="subtitle2" color="text.secondary">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</Typography>
         </Stack>
 
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Students" value="2,480" change="12.5%" tone="primary" icon={<PeopleAltOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Teachers" value="186" change="8.2%" tone="secondary" icon={<SchoolOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Parents" value="1,920" change="6.4%" tone="success" icon={<FamilyRestroomOutlined />} /></Grid>
-          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Lessons" value="864" change="10.8%" tone="secondary" icon={<PlayLessonOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Students" value={stats ? stats.students.toLocaleString() : '—'} change="Live" tone="primary" icon={<PeopleAltOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Teachers" value={stats ? stats.teachers.toLocaleString() : '—'} change="Live" tone="secondary" icon={<SchoolOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Parents" value={stats ? stats.guardians.toLocaleString() : '—'} change="Live" tone="success" icon={<FamilyRestroomOutlined />} /></Grid>
+          <Grid item xs={12} sm={6} md={6} lg={3}><StatCard label="Total Lessons" value={stats ? stats.lessons.toLocaleString() : '—'} change="Live" tone="secondary" icon={<PlayLessonOutlined />} /></Grid>
         </Grid>
 
         <Grid container spacing={2}>
           <Grid item xs={12} lg={8}>
             <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, height: '100%' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography variant="h5">Student Growth</Typography><Typography variant="subtitle2" color="text.secondary">New student registrations</Typography></Box><Typography variant="h5" color="primary.main">+18.6%</Typography></Stack>
-              <StudentGrowthChart />
+              <StudentGrowthChart values={dashboard?.trends.studentGrowth || [0]} />
             </Paper>
           </Grid>
           <Grid item xs={12} lg={4}>
             <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, height: '100%' }}>
               <Typography variant="h5">Learning Activity</Typography><Typography variant="subtitle2" color="text.secondary">Lessons completed this week</Typography>
-              <LearningActivityChart />
+              <LearningActivityChart values={dashboard?.trends.learningActivity || [0]} />
             </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
             <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
               <Typography variant="h5" sx={{ mb: 1 }}>Recent Activities</Typography>
-              <FeedItem title="New student registered" detail="Ava Johnson joined Grade 8" time="8m ago" icon={<PersonAddAltOutlined fontSize="small" />} />
-              <Divider /><FeedItem title="Lesson published" detail="Introduction to Algebra" time="34m ago" icon={<AddTaskOutlined fontSize="small" />} />
-              <Divider /><FeedItem title="Teacher profile updated" detail="Maria Garcia updated her bio" time="1h ago" icon={<CoPresentOutlined fontSize="small" />} />
+              {activities.length ? activities.slice(0, 3).map((activity, index) => <Box key={`${activity.title}-${activity.date}`}>{index > 0 && <Divider />}<FeedItem title={activity.title} detail={activity.detail} time={formatRelativeTime(activity.date)} icon={activity.type === 'student' ? <PersonAddAltOutlined fontSize="small" /> : activity.type === 'teacher' ? <CoPresentOutlined fontSize="small" /> : <AddTaskOutlined fontSize="small" />} /></Box>) : <Typography color="text.secondary" sx={{ py: 2 }}>No recent activity.</Typography>}
             </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
             <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
               <Typography variant="h5" sx={{ mb: 1 }}>Recent Notifications</Typography>
-              <FeedItem title="Quiz results are ready" detail="Science quiz results need review" time="12m ago" icon={<QuizOutlined fontSize="small" />} />
-              <Divider /><FeedItem title="Parent meeting reminder" detail="8 meetings scheduled tomorrow" time="2h ago" icon={<NotificationsNoneOutlined fontSize="small" />} />
-              <Divider /><FeedItem title="Monthly report available" detail="Your June performance report" time="Yesterday" icon={<InsightsOutlined fontSize="small" />} />
+              {notifications.length ? notifications.slice(0, 3).map((notification, index) => <Box key={`${notification.title}-${notification.date}`}>{index > 0 && <Divider />}<FeedItem title={notification.title} detail={notification.detail} time={formatRelativeTime(notification.date)} icon={<QuizOutlined fontSize="small" />} /></Box>) : <Typography color="text.secondary" sx={{ py: 2 }}>No recent notifications.</Typography>}
             </Paper>
           </Grid>
           <Grid item xs={12}>

@@ -108,6 +108,46 @@ const getModel = (section: string) => {
 
 router.use(requireAdmin)
 
+router.get('/dashboard', async (_req, res, next) => {
+  try {
+    const [studentCount, teacherCount, guardianCount, lessonCount, students, teachers, lessons, quizzes, studentDates, lessonDates] = await Promise.all([
+      prisma.student.count(),
+      prisma.teacher.count(),
+      prisma.guardian.count(),
+      prisma.lesson.count(),
+      prisma.student.findMany({ orderBy: { createdAt: 'desc' }, take: 3, select: { fullName: true, gradeLevel: true, createdAt: true } }),
+      prisma.teacher.findMany({ orderBy: { updatedAt: 'desc' }, take: 3, select: { fullName: true, updatedAt: true } }),
+      prisma.lesson.findMany({ orderBy: { createdAt: 'desc' }, take: 3, select: { title: true, createdAt: true } }),
+      prisma.quiz.findMany({ orderBy: { updatedAt: 'desc' }, take: 3, select: { title: true, status: true, updatedAt: true } }),
+      prisma.student.findMany({ select: { createdAt: true } }),
+      prisma.lesson.findMany({ select: { createdAt: true } }),
+    ])
+    const activities = [
+      ...students.map((student) => ({ type: 'student', title: 'New student registered', detail: `${student.fullName} joined ${student.gradeLevel}`, date: student.createdAt })),
+      ...teachers.map((teacher) => ({ type: 'teacher', title: 'Teacher profile updated', detail: teacher.fullName, date: teacher.updatedAt })),
+      ...lessons.map((lesson) => ({ type: 'lesson', title: 'Lesson created', detail: lesson.title, date: lesson.createdAt })),
+    ].sort((first, second) => second.date.getTime() - first.date.getTime()).slice(0, 6)
+    const now = new Date()
+    const studentGrowth = Array.from({ length: 7 }, (_, index) => {
+      const start = new Date(now.getFullYear(), now.getMonth() - 6 + index, 1)
+      const end = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1)
+      return studentDates.filter(({ createdAt }) => createdAt >= start && createdAt < end).length
+    })
+    const learningActivity = Array.from({ length: 7 }, (_, index) => {
+      const start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+      start.setDate(start.getDate() - 6 + index)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+      return lessonDates.filter(({ createdAt }) => createdAt >= start && createdAt < end).length
+    })
+    const notifications = quizzes.map((quiz) => ({ title: quiz.status === 'Published' ? 'Quiz published' : 'Quiz needs review', detail: `${quiz.title} · ${quiz.status}`, date: quiz.updatedAt }))
+    return res.json({ stats: { students: studentCount, teachers: teacherCount, guardians: guardianCount, lessons: lessonCount }, trends: { studentGrowth, learningActivity }, activities, notifications })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/user-accounts', async (_req, res, next) => {
   try {
     const [users, teachers, students, guardians] = await Promise.all([
