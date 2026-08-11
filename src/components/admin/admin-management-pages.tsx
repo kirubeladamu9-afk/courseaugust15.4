@@ -92,6 +92,25 @@ const additionalSections: Record<string, SectionConfig> = {
 
 const statusColor = (status: string): 'success' | 'warning' | 'info' => status === 'Published' || status === 'Active' || status === 'Assigned' || status === 'Completed' ? 'success' : status === 'Draft' || status === 'Pending' || status === 'Review' ? 'warning' : 'info'
 
+const liveMetricSections = new Set(['user-accounts', 'students', 'teachers', 'guardians', 'grade-levels', 'classes-sections', 'subjects', 'all-assessments'])
+
+const getLiveMetrics = (section: string, records: AdminRecord[], isLoading: boolean): [string, string, string][] | null => {
+  if (!liveMetricSections.has(section)) return null
+  const count = (status: string) => records.filter((record) => record.status.toLowerCase() === status.toLowerCase()).length
+  const value = (amount: number) => isLoading ? '—' : amount.toLocaleString()
+  const definitions: Record<string, [string, string, string][]> = {
+    'user-accounts': [['Total accounts', value(records.length), 'Live DB'], ['Active accounts', value(count('Active')), 'Live DB'], ['Inactive accounts', value(count('Inactive')), 'Live DB']],
+    students: [['Total students', value(records.length), 'Live DB'], ['Active students', value(count('Active')), 'Live DB'], ['Pending review', value(count('Pending')), 'Live DB']],
+    teachers: [['Total teachers', value(records.length), 'Live DB'], ['Active teachers', value(count('Active')), 'Live DB'], ['On leave', value(count('On Leave')), 'Live DB']],
+    guardians: [['Total guardians', value(records.length), 'Live DB'], ['Active guardians', value(count('Active')), 'Live DB'], ['Linked guardians', value(records.filter((record) => record.data['Linked students'] && record.data['Linked students'] !== '—').length), 'Live DB']],
+    'grade-levels': [['Total grade levels', value(records.length), 'Live DB'], ['Active grade levels', value(count('Active')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
+    'classes-sections': [['Total classes', value(records.length), 'Live DB'], ['Active classes', value(count('Active')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
+    subjects: [['Total subjects', value(records.length), 'Live DB'], ['Published subjects', value(count('Published')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
+    'all-assessments': [['Total assessments', value(records.length), 'Live DB'], ['Published assessments', value(count('Published')), 'Live DB'], ['Drafts', value(count('Draft')), 'Live DB']],
+  }
+  return definitions[section]
+}
+
 type AdminQuestion = { type: string; prompt: string; options?: string[]; correctAnswer?: string | string[]; points?: number }
 type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string; questions?: AdminQuestion[]; sourceType?: 'teacher' | 'student' | 'guardian' | 'user'; sourceId?: string; userId?: string }
 
@@ -181,6 +200,7 @@ const AdminManagementPage: FC = () => {
   const filteredRecords = useMemo(() => records.filter((record) => config.columns.some((column) => column !== 'Actions' && (record.data[column] ?? record.title).toLowerCase().includes(query.toLowerCase()))), [records, config.columns, query])
   const isPaginatedSection = section === 'students' || section === 'teachers' || section === 'guardians' || section === 'user-accounts'
   const visibleRecords = isPaginatedSection ? filteredRecords.slice(listPage * listRowsPerPage, listPage * listRowsPerPage + listRowsPerPage) : filteredRecords
+  const metrics = getLiveMetrics(section, records, isLoading) ?? config.metrics
 
   useEffect(() => {
     if (!isPaginatedSection) return
@@ -356,7 +376,7 @@ const AdminManagementPage: FC = () => {
           <Stack direction="row" spacing={1}><Button variant="outlined" startIcon={<DownloadRounded />} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>Export</Button>{section !== 'user-accounts' && section !== 'guardians' && <Button variant="contained" onClick={() => section === 'teachers' ? handleCreate() : config.createFields ? setIsCreateFormOpen((current) => !current) : handleCreate()} startIcon={config.action.includes('Export') ? <DownloadRounded /> : <AddRounded />}>{config.action}</Button>}</Stack>
         </Stack>
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          {config.metrics.map(([label, value, change]) => <Grid item xs={12} sm={4} key={label}><Paper elevation={0} sx={{ p: 2.5, borderRadius: 3 }}><Typography variant="subtitle1" color="text.secondary">{label}</Typography><Stack direction="row" alignItems="baseline" spacing={1} sx={{ mt: 1 }}><Typography variant="h3" sx={{ fontSize: { xs: 26, md: 30 } }}>{value}</Typography><Typography variant="caption" color="primary.main">{change}</Typography></Stack></Paper></Grid>)}
+          {metrics.map(([label, value, change]) => <Grid item xs={12} sm={4} key={label}><Paper elevation={0} sx={{ p: 2.5, borderRadius: 3 }}><Typography variant="subtitle1" color="text.secondary">{label}</Typography><Stack direction="row" alignItems="baseline" spacing={1} sx={{ mt: 1 }}><Typography variant="h3" sx={{ fontSize: { xs: 26, md: 30 } }}>{value}</Typography><Typography variant="caption" color="primary.main">{change}</Typography></Stack></Paper></Grid>)}
         </Grid>
         {config.analytics && <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 2 }}><Stack direction="row" spacing={1} alignItems="center"><InsightsOutlined color="primary" /><Box><Typography variant="h5">Performance trends</Typography><Typography variant="subtitle2" color="text.secondary">Key indicators over the current reporting period</Typography></Box></Stack><Stack spacing={1.5} sx={{ mt: 3 }}>{[['Engagement', 82], ['Completion', 78], ['Assessment scores', 79]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper>}
         <Paper elevation={0} sx={{ p: { xs: 1, md: 2 }, borderRadius: 3 }}>
