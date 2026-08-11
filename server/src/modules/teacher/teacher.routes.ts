@@ -37,6 +37,8 @@ const assessmentSchema = z.object({
   questions: z.array(assessmentQuestionSchema).min(1).max(100),
 })
 
+const assessmentStatusSchema = z.object({ status: z.enum(['Draft', 'Published', 'Archived']) })
+
 router.get('/students', async (_req, res, next) => {
   try {
     const students = await prisma.student.findMany({ orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, gradeLevel: true, status: true } })
@@ -113,6 +115,19 @@ router.delete('/assessments/assignments/:id', async (req, res, next) => {
     const [assignment] = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`DELETE FROM assessment_assignments WHERE id = ${assignmentId} AND teacher_id = ${res.locals.auth.sub} RETURNING id`)
     if (!assignment) return res.status(404).json({ message: 'Assigned assessment not found.' })
     return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/assessments/:id/status', async (req, res, next) => {
+  try {
+    const assessmentId = z.string().min(1).parse(req.params.id)
+    const { status } = assessmentStatusSchema.parse(req.body)
+    const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
+    if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
+    const updated = await prisma.quiz.update({ where: { id: assessmentId }, data: { status } })
+    return res.json({ assessment: { id: updated.id, status: updated.status } })
   } catch (error) {
     return next(error)
   }
