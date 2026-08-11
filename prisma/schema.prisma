@@ -130,6 +130,7 @@ model Quiz {
 }
 
 
+
 model Exam {
   id String @id @default(cuid())
   title String
