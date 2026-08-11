@@ -411,8 +411,6 @@ const AdminDashboard: FC = () => {
               <Grid container spacing={1}>
                 <Grid item xs={12} sm={6} md={3}><QuickAction label="Add Student" icon={<PersonAddAltOutlined fontSize="small" />} onClick={() => navigate('/admin/students/new')} /></Grid>
                 <Grid item xs={12} sm={6} md={3}><QuickAction label="Add Teacher" icon={<CoPresentOutlined fontSize="small" />} onClick={() => navigate('/admin/teachers/new')} /></Grid>
-                <Grid item xs={12} sm={6} md={3}><QuickAction label="Create Lesson" icon={<AddTaskOutlined fontSize="small" />} onClick={() => navigate('/admin/lessons/new')} /></Grid>
-                <Grid item xs={12} sm={6} md={3}><QuickAction label="Create Quiz" icon={<QuizOutlined fontSize="small" />} onClick={() => navigate('/admin/quizzes/new')} /></Grid>
               </Grid>
             </Paper>
           </Grid>
