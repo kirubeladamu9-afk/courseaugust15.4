@@ -409,6 +409,34 @@ router.get('/all-assessments', async (_req, res, next) => {
   }
 })
 
+const assessmentAdminUpdateSchema = z.object({ title: z.string().trim().min(1).max(160), className: z.string().trim().min(1).max(80), status: z.enum(['Draft', 'Published', 'Archived']) })
+
+router.patch('/all-assessments/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const input = assessmentAdminUpdateSchema.parse(req.body)
+    const assessment = await prisma.quiz.findUnique({ where: { id } })
+    if (!assessment) return res.status(404).json({ message: 'Assessment not found.' })
+    const currentData = assessment.data as Record<string, unknown>
+    const updated = await prisma.quiz.update({ where: { id }, data: { title: input.title, status: input.status, data: { ...currentData, className: input.className } } })
+    const data = updated.data as { teacherId?: string; className?: string }
+    const teacher = data.teacherId ? await prisma.user.findUnique({ where: { id: data.teacherId }, select: { name: true } }) : null
+    return res.json({ record: { id: updated.id, title: updated.title, data: { Assessment: updated.title, Teacher: teacher?.name || '—', Class: data.className || '—' }, status: updated.status } })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/all-assessments/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    await prisma.quiz.delete({ where: { id } })
+    return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/:section', async (req, res, next) => {
   try {
     const section = sectionSchema.parse(req.params.section)

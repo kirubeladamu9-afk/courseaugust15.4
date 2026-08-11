@@ -24,6 +24,10 @@ import DownloadRounded from '@mui/icons-material/DownloadRounded'
 import LockResetRounded from '@mui/icons-material/LockResetRounded'
 import EditOutlined from '@mui/icons-material/EditOutlined'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
+import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
@@ -74,7 +78,7 @@ const additionalSections: Record<string, SectionConfig> = {
   'assessment-types': makeSection('Assessment Types', 'Define categories such as quizzes, midterms, and final exams.', 'Add Assessment Type', ['Type', 'Weight', 'Assessments', 'Status'], 'Quiz'),
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
   'assessment-policy': makeSection('Assessment Policy', 'Set grading rules and weights for each assessment type.', 'Add Policy Rule', ['Assessment type', 'Weight', 'Term', 'Status'], 'Quiz'),
-  'all-assessments': makeSection('All Assessments', 'Read-only overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Teacher', 'Class', 'Status'], 'No assessments yet'),
+  'all-assessments': makeSection('All Assessments', 'Overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Teacher', 'Class', 'Status', 'Actions'], 'No assessments yet'),
   'result-approval': makeSection('Result Approval', 'Review and approve results before they are finalized.', 'Review Results', ['Assessment', 'Submissions', 'Submitted on', 'Status'], 'No pending results'),
   'report-cards': makeSection('Report Cards', 'Generate and publish final report cards for students and guardians.', 'Generate Report Cards', ['Term', 'Students', 'Published', 'Status'], 'No report cards yet'),
   announcements: makeSection('Announcements', 'Publish school-wide notices to the community.', 'Create Announcement', ['Announcement', 'Audience', 'Published on', 'Status'], 'No announcements yet'),
@@ -109,6 +113,7 @@ const AdminManagementPage: FC = () => {
   const [editingRecordId, setEditingRecordId] = useState('')
   const [editValues, setEditValues] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
+  const [viewingRecord, setViewingRecord] = useState<AdminRecord | null>(null)
 
   useEffect(() => {
     if (section !== 'teachers') {
@@ -190,8 +195,10 @@ const AdminManagementPage: FC = () => {
       setNotice('')
     }
   }
-  const editableSections = section === 'students' || section === 'teachers' || section === 'guardians'
-  const editFields: { name: string; label: string; type?: string; options?: string[] }[] = section === 'students'
+  const editableSections = section === 'students' || section === 'teachers' || section === 'guardians' || section === 'all-assessments'
+  const editFields: { name: string; label: string; type?: string; options?: string[] }[] = section === 'all-assessments'
+    ? [{ name: 'title', label: 'Assessment' }, { name: 'className', label: 'Class' }, { name: 'status', label: 'Status', options: ['Draft', 'Published', 'Archived'] }]
+    : section === 'students'
     ? [{ name: 'fullName', label: 'Full name' }, { name: 'gradeLevel', label: 'Grade' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'Pending'] }]
     : section === 'teachers'
       ? [{ name: 'fullName', label: 'Full name' }, { name: 'gender', label: 'Gender' }, { name: 'phoneNumber', label: 'Phone number' }, { name: 'address', label: 'Address' }, { name: 'nationalId', label: 'National ID / Passport Number' }, { name: 'assignedSubjects', label: 'Assigned subjects' }, { name: 'assignedClasses', label: 'Assigned classes' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'] }]
@@ -200,7 +207,9 @@ const AdminManagementPage: FC = () => {
   const startEditing = (record: AdminRecord) => {
     if (!editableSections) return
     setEditingRecordId(record.id)
-    setEditValues(section === 'students'
+    setEditValues(section === 'all-assessments'
+      ? { title: record.title, className: record.data.Class || '', status: record.status }
+      : section === 'students'
       ? { fullName: record.data.Student || record.title, gradeLevel: record.data.Grade || '', status: record.status }
       : section === 'teachers'
         ? { fullName: record.data['Full Name'] || record.title, gender: record.data.Gender === '—' ? '' : record.data.Gender || '', phoneNumber: record.data['Phone Number'] === '—' ? '' : record.data['Phone Number'] || '', address: record.data.Address === '—' ? '' : record.data.Address || '', nationalId: record.data['National ID / Passport Number'] === '—' ? '' : record.data['National ID / Passport Number'] || '', assignedSubjects: record.data['Assigned Subjects'] === '—' ? '' : record.data['Assigned Subjects'] || '', assignedClasses: record.data['Assigned Classes'] === '—' ? '' : record.data['Assigned Classes'] || '', status: record.status }
@@ -319,10 +328,14 @@ const AdminManagementPage: FC = () => {
           {notice && <Typography color="success.main" sx={{ px: 1, pt: 1 }}>{notice}</Typography>}
           {isLoading && <LinearProgress sx={{ mx: 1, mb: 1 }} />}
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
-          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && editableSections ? <Stack direction="row" spacing={0.5}><Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${record.title}`} onClick={() => startEditing(record)}><EditOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Delete"><IconButton size="small" color="error" aria-label={`Delete ${record.title}`} onClick={() => handleDelete(record)}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip></Stack> : column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
+          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && editableSections ? <Stack direction="row" spacing={0.5}>{section === 'all-assessments' && <Tooltip title="View"><IconButton size="small" aria-label={`View ${record.title}`} onClick={() => setViewingRecord(record)}><VisibilityOutlined fontSize="small" /></IconButton></Tooltip>}<Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${record.title}`} onClick={() => startEditing(record)}><EditOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Delete"><IconButton size="small" color="error" aria-label={`Delete ${record.title}`} onClick={() => handleDelete(record)}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip></Stack> : column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
           {!filteredRecords.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
         </Paper>
       </Container>
+      <Dialog open={Boolean(viewingRecord)} onClose={() => setViewingRecord(null)} fullWidth maxWidth="sm">
+        <DialogTitle>{viewingRecord?.title}</DialogTitle>
+        <DialogContent dividers><Stack spacing={1.5}>{viewingRecord && Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Stack key={label} direction="row" justifyContent="space-between" spacing={2}><Typography color="text.secondary">{label}</Typography><Typography fontWeight={600} textAlign="right">{value}</Typography></Stack>)}</Stack></DialogContent>
+      </Dialog>
     </AdminPanelLayout>
   )
 }
