@@ -710,6 +710,22 @@ router.delete('/all-assessments/:id', async (req, res, next) => {
   }
 })
 
+const adminMaterialMimeTypes: Record<string, string> = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+
+router.get('/learning-materials/:id/file', async (req, res, next) => {
+  try {
+    const materialId = z.string().min(1).parse(req.params.id)
+    const material = await prisma.learningMaterial.findUnique({ where: { id: materialId } })
+    const data = material?.data as { fileName?: string; fileExtension?: string; fileData?: string } | undefined
+    const fileExtension = data?.fileExtension?.toLowerCase() || ''
+    const base64 = data?.fileData?.split(',')[1]
+    if (!material || !data || !data.fileName || !base64 || !adminMaterialMimeTypes[fileExtension]) return res.status(404).json({ message: 'Material file not found.' })
+    return res.type(adminMaterialMimeTypes[fileExtension]).setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(data.fileName)}"`).send(Buffer.from(base64, 'base64'))
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/:section', async (req, res, next) => {
   try {
     const section = sectionSchema.parse(req.params.section)
