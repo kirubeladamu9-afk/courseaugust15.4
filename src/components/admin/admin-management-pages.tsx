@@ -74,7 +74,6 @@ const additionalSections: Record<string, SectionConfig> = {
   'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status', 'Actions'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade', required: true }, { name: 'classes', label: 'Classes', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
   'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade Level', 'Students', 'Status', 'Actions'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / Section', required: true }, { name: 'gradeLevelId', label: 'Grade Level', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
   timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
-  'assessment-types': { ...makeSection('Assessment Types', 'Define categories such as quizzes, midterms, and final exams.', 'Add Assessment Type', ['Assessment Type', 'Purpose', 'Allowed question types', 'Typical', 'Status', 'Actions'], 'Quiz'), createFields: [{ name: 'title', label: 'Assessment type', required: true }, { name: 'description', label: 'Purpose', required: true }, { name: 'allowedQuestionTypes', label: 'Allowed question types', required: true }, { name: 'typical', label: 'Typical guidance', required: true }, { name: 'status', label: 'Status', options: ['Active', 'Inactive'], required: true }] },
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
   'assessment-policy': makeSection('Assessment Policy', 'Set grading rules and weights for each assessment type.', 'Add Policy Rule', ['Assessment type', 'Weight', 'Term', 'Status'], 'Quiz'),
   'all-assessments': makeSection('All Assessments', 'Overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Assessment Type', 'Teacher', 'Class', 'Status', 'Actions'], 'No assessments yet'),
@@ -100,7 +99,7 @@ const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
   const { section = 'student-progress' } = useParams()
   const config = sections[section] ?? additionalSections[section] ?? sections['student-progress']
-  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections', 'assessment-types', 'teachers', 'user-accounts', 'all-assessments'].includes(section)
+  const isBackendSection = Boolean(sections[section]) || ['students', 'guardians', 'grade-levels', 'classes-sections', 'teachers', 'user-accounts', 'all-assessments'].includes(section)
   const [records, setRecords] = useState<AdminRecord[]>([])
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -222,7 +221,7 @@ const AdminManagementPage: FC = () => {
       setNotice('')
     }
   }
-  const editableSections = section === 'students' || section === 'teachers' || section === 'guardians' || section === 'grade-levels' || section === 'classes-sections' || section === 'subjects' || section === 'assessment-types' || section === 'all-assessments'
+  const editableSections = section === 'students' || section === 'teachers' || section === 'guardians' || section === 'grade-levels' || section === 'classes-sections' || section === 'subjects' || section === 'all-assessments'
   const editFields: { name: string; label: string; type?: string; options?: string[] }[] = section === 'all-assessments'
     ? [{ name: 'title', label: 'Assessment' }, { name: 'assessmentType', label: 'Assessment type', options: ['Quiz', 'Assignment', 'Midterm Exam', 'Final Exam', 'Project'] }, { name: 'className', label: 'Class' }, { name: 'status', label: 'Status', options: ['Draft', 'Published', 'Archived'] }]
     : section === 'students'
@@ -235,9 +234,7 @@ const AdminManagementPage: FC = () => {
           ? [{ name: 'classSection', label: 'Class / Section' }, { name: 'gradeLevelId', label: 'Grade Level' }, { name: 'students', label: 'Students' }, { name: 'status', label: 'Status', options: ['Draft', 'Active'] }]
           : section === 'subjects'
             ? [{ name: 'title', label: 'Subject' }, { name: 'gradeLevels', label: 'Grade levels' }, { name: 'chapters', label: 'Chapters' }, { name: 'teachers', label: 'Teachers' }, { name: 'status', label: 'Status', options: ['Draft', 'Published'] }]
-            : section === 'assessment-types'
-              ? [{ name: 'title', label: 'Assessment type' }, { name: 'description', label: 'Purpose' }, { name: 'allowedQuestionTypes', label: 'Allowed question types' }, { name: 'typical', label: 'Typical guidance' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive'] }]
-              : [{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email', type: 'email' }, { name: 'phone', label: 'Phone' }, { name: 'address', label: 'Address' }, { name: 'occupation', label: 'Occupation' }, { name: 'nationalId', label: 'National ID / Passport Number' }]
+            : [{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email', type: 'email' }, { name: 'phone', label: 'Phone' }, { name: 'address', label: 'Address' }, { name: 'occupation', label: 'Occupation' }, { name: 'nationalId', label: 'National ID / Passport Number' }]
 
   const startEditing = (record: AdminRecord) => {
     if (!editableSections) return
@@ -254,9 +251,7 @@ const AdminManagementPage: FC = () => {
             ? { classSection: record.data['Class / Section'] || record.title, gradeLevelId: record.data.gradeLevelId || '', students: record.data.Students || '0', status: record.status }
             : section === 'subjects'
               ? { title: record.title, gradeLevels: record.data['Grade levels'] || '', chapters: record.data.Chapters || '', teachers: record.data.Teachers || '', status: record.status }
-              : section === 'assessment-types'
-                ? { title: record.title, description: record.data.Purpose || '', allowedQuestionTypes: record.data['Allowed question types'] || '', typical: record.data.Typical || '', status: record.status }
-                : { name: record.data.Guardian || record.title, email: '', phone: '', address: '', occupation: '', nationalId: '' })
+              : { name: record.data.Guardian || record.title, email: '', phone: '', address: '', occupation: '', nationalId: '' })
     setError('')
     setNotice('')
   }
@@ -269,9 +264,7 @@ const AdminManagementPage: FC = () => {
     try {
       const payload = section === 'subjects'
         ? { title: editValues.title, data: { 'Grade levels': editValues.gradeLevels || '—', Chapters: editValues.chapters || '—', Teachers: editValues.teachers || '—' }, status: editValues.status }
-        : section === 'assessment-types'
-          ? { title: editValues.title, data: { Purpose: editValues.description || '—', 'Allowed question types': editValues.allowedQuestionTypes || '—', Typical: editValues.typical || '—' }, status: editValues.status }
-          : editValues
+        : editValues
       const { data: response } = await api.patch<{ record: AdminRecord }>(`/api/admin/${section}/${editingRecordId}`, payload, { withCredentials: true })
       setRecords((current) => current.map((record) => record.id === editingRecordId ? response.record : record))
       setEditingRecordId('')
@@ -307,9 +300,7 @@ const AdminManagementPage: FC = () => {
     try {
       const payload = section === 'subjects'
         ? { title, data: Object.fromEntries(config.columns.slice(0, -1).map((column, index) => [column, createValues[fields[index].name] || '—'])), status }
-        : section === 'assessment-types'
-          ? { title, data: { Purpose: createValues.description || '—', 'Allowed question types': createValues.allowedQuestionTypes || '—', Typical: createValues.typical || '—' }, status }
-          : Object.fromEntries(fields.map((field) => [field.name, createValues[field.name] || '']))
+        : Object.fromEntries(fields.map((field) => [field.name, createValues[field.name] || '']))
       const { data: response } = await api.post<{ record: AdminRecord }>(`/api/admin/${section}`, payload, { withCredentials: true })
       setRecords((current) => [...current, response.record])
       setCreateValues({})

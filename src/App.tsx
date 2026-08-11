@@ -121,6 +121,7 @@ const App: React.FC = () => (
       <Route path="/admin" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminDashboard /></Suspense></RoleRoute>} />
       <Route path="/admin/profile" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminProfile /></Suspense></RoleRoute>} />
       <Route path="/admin/roles-permissions" element={<Navigate to="/admin/user-accounts" replace />} />
+      <Route path="/admin/assessment-types" element={<Navigate to="/admin/all-assessments" replace />} />
       <Route path="/admin/:section" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminManagementPage /></Suspense></RoleRoute>} />
       <Route path="/admin/students/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddStudentPage /></Suspense></RoleRoute>} />
       <Route path="/admin/teachers/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddTeacherPage /></Suspense></RoleRoute>} />
