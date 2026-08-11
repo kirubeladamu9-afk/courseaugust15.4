@@ -132,6 +132,7 @@ model LearningMaterial {
 model Quiz {
   id String @id @default(cuid())
   title String
+  assessmentType String @default("Quiz")
   data Json
   status String @default("Draft")
   createdAt DateTime @default(now())
