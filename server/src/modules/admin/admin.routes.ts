@@ -400,8 +400,8 @@ router.get('/all-assessments', async (_req, res, next) => {
     const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
     const records = quizzes.map((quiz) => {
-      const data = quiz.data as { teacherId?: string; className?: string }
-      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—' }, status: quiz.status }
+      const data = quiz.data as { teacherId?: string; className?: string; questions?: unknown[] }
+      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—' }, questions: data.questions || [], status: quiz.status }
     })
     return res.json({ records })
   } catch (error) {
@@ -421,7 +421,7 @@ router.patch('/all-assessments/:id', async (req, res, next) => {
     const updated = await prisma.quiz.update({ where: { id }, data: { title: input.title, status: input.status, data: { ...currentData, className: input.className } } })
     const data = updated.data as { teacherId?: string; className?: string }
     const teacher = data.teacherId ? await prisma.user.findUnique({ where: { id: data.teacherId }, select: { name: true } }) : null
-    return res.json({ record: { id: updated.id, title: updated.title, data: { Assessment: updated.title, Teacher: teacher?.name || '—', Class: data.className || '—' }, status: updated.status } })
+    return res.json({ record: { id: updated.id, title: updated.title, data: { Assessment: updated.title, Teacher: teacher?.name || '—', Class: data.className || '—' }, questions: (updated.data as { questions?: unknown[] }).questions || [], status: updated.status } })
   } catch (error) {
     return next(error)
   }

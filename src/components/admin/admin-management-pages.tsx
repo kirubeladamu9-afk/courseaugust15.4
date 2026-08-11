@@ -94,7 +94,8 @@ const additionalSections: Record<string, SectionConfig> = {
 
 const statusColor = (status: string): 'success' | 'warning' | 'info' => status === 'Published' || status === 'Active' || status === 'Assigned' || status === 'Completed' ? 'success' : status === 'Draft' || status === 'Pending' || status === 'Review' ? 'warning' : 'info'
 
-type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string; sourceType?: 'teacher' | 'student' | 'guardian' | 'user'; sourceId?: string; userId?: string }
+type AdminQuestion = { type: string; prompt: string; options?: string[]; correctAnswer?: string | string[]; points?: number }
+type AdminRecord = { id: string; title: string; data: Record<string, string>; status: string; questions?: AdminQuestion[]; sourceType?: 'teacher' | 'student' | 'guardian' | 'user'; sourceId?: string; userId?: string }
 
 const AdminManagementPage: FC = () => {
   const navigate = useNavigate()
@@ -334,7 +335,7 @@ const AdminManagementPage: FC = () => {
       </Container>
       <Dialog open={Boolean(viewingRecord)} onClose={() => setViewingRecord(null)} fullWidth maxWidth="sm">
         <DialogTitle>{viewingRecord?.title}</DialogTitle>
-        <DialogContent dividers><Stack spacing={1.5}>{viewingRecord && Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Stack key={label} direction="row" justifyContent="space-between" spacing={2}><Typography color="text.secondary">{label}</Typography><Typography fontWeight={600} textAlign="right">{value}</Typography></Stack>)}</Stack></DialogContent>
+        <DialogContent dividers><Stack spacing={1.5}>{viewingRecord && Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Stack key={label} direction="row" justifyContent="space-between" spacing={2}><Typography color="text.secondary">{label}</Typography><Typography fontWeight={600} textAlign="right">{value}</Typography></Stack>)}{viewingRecord?.questions?.length ? <Box><Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Questions ({viewingRecord.questions.length})</Typography><Stack spacing={1.5}>{viewingRecord.questions.map((question, index) => <Paper key={`${viewingRecord.id}-question-${index}`} variant="outlined" sx={{ p: 1.5 }}><Typography fontWeight={600}>Question {index + 1}</Typography><Typography sx={{ mt: 0.5 }}>{question.prompt}</Typography>{question.options?.length ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>Options: {question.options.join(' · ')}</Typography> : null}<Typography variant="body2" color="text.secondary">Correct answer: {Array.isArray(question.correctAnswer) ? question.correctAnswer.join(', ') : question.correctAnswer || '—'} · {question.points || 0} points</Typography></Paper>)}</Stack></Box> : null}</Stack></DialogContent>
       </Dialog>
     </AdminPanelLayout>
   )
