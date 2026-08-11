@@ -261,7 +261,10 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     minRows={field.multiline ? 4 : undefined}
                     InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined}
                     value={field.type === 'file' ? undefined : values[field.name] || ''}
-                    inputProps={field.type === 'file' ? { accept: 'image/*' } : undefined}
+                    inputProps={field.type === 'file' ? { accept: 'image/*' } : field.type === 'date' ? { max: todayDateValue() } : undefined}
+                    onClick={(event) => {
+                      if (field.type === 'date') (event.target as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
+                    }}
                     onChange={(event) => {
                       const input = event.target as HTMLInputElement
                       const file = input.files?.[0]
