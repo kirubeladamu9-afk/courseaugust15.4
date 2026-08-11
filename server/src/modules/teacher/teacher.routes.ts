@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../config/prisma'
 import { requireAuth, requireRole } from '../../middleware/auth'
@@ -84,8 +85,8 @@ router.get('/assessments', async (_req, res, next) => {
 
 router.get('/assessments/assignments', async (_req, res, next) => {
   try {
-    const assignments = await prisma.assessmentAssignment.findMany({ where: { teacherId: res.locals.auth.sub }, orderBy: { createdAt: 'desc' }, include: { quiz: { select: { title: true } } } })
-    const records = assignments.map((assignment) => ({ id: assignment.id, assessment: assignment.quiz.title, className: assignment.className, dueDate: assignment.dueDate.toISOString(), status: assignment.status }))
+    const assignments = await prisma.$queryRaw<{ id: string; assessment: string; className: string; dueDate: Date; status: string }[]>(Prisma.sql`SELECT aa.id, q.title AS assessment, aa.class_name AS "className", aa.due_date AS "dueDate", aa.status FROM assessment_assignments aa JOIN quizzes q ON q.id = aa.quiz_id WHERE aa.teacher_id = ${res.locals.auth.sub} ORDER BY aa.created_at DESC`)
+    const records = assignments.map((assignment) => ({ ...assignment, dueDate: assignment.dueDate.toISOString() }))
     return res.json({ assignments: records })
   } catch (error) {
     return next(error)
@@ -98,7 +99,7 @@ router.post('/assessments/:id/assign', async (req, res, next) => {
     const input = assignmentSchema.parse(req.body)
     const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
     if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
-    const assignment = await prisma.assessmentAssignment.create({ data: { quizId: assessment.id, teacherId: res.locals.auth.sub, className: input.className, dueDate: input.dueDate } })
+    const [assignment] = await prisma.$queryRaw<{ id: string; className: string; dueDate: Date; status: string }[]>(Prisma.sql`INSERT INTO assessment_assignments (quiz_id, teacher_id, class_name, due_date) VALUES (${assessment.id}, ${res.locals.auth.sub}, ${input.className}, ${input.dueDate}) RETURNING id, class_name AS "className", due_date AS "dueDate", status`)
     return res.status(201).json({ assignment: { id: assignment.id, className: assignment.className, dueDate: assignment.dueDate.toISOString(), status: assignment.status } })
   } catch (error) {
     return next(error)

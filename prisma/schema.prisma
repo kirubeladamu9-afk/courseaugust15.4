@@ -134,13 +134,13 @@ model Quiz {
 
 model AssessmentAssignment {
   id String @id @default(cuid())
-  quizId String
-  teacherId String
-  className String
-  dueDate DateTime
+  quizId String @map("quiz_id")
+  teacherId String @map("teacher_id")
+  className String @map("class_name")
+  dueDate DateTime @map("due_date")
   status String @default("Assigned")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
   @@index([quizId])
   @@index([teacherId])
