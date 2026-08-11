@@ -61,7 +61,7 @@ const pageConfig: Record<CreateType, { title: string; description: string; field
     fields: [
       { name: 'fullName', label: 'Full Name', required: true },
       { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true },
-      { name: 'photoName', label: 'Photo', type: 'file' },
+      { name: 'photoName', label: 'Teacher photo', type: 'file' },
       { name: 'phoneNumber', label: 'Phone Number', type: 'tel' },
       { name: 'address', label: 'Address' },
       { name: 'nationalId', label: 'National ID / Passport Number' },
@@ -232,7 +232,18 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
                     minRows={field.multiline ? 4 : undefined}
                     InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined}
                     value={field.type === 'file' ? undefined : values[field.name] || ''}
-                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: field.type === 'file' ? (event.target as HTMLInputElement).files?.[0]?.name || '' : event.target.value, ...(field.name === 'gradeLevel' ? { classSection: '' } : {}) }))}
+                    inputProps={field.type === 'file' ? { accept: 'image/*' } : undefined}
+                    onChange={(event) => {
+                      const input = event.target as HTMLInputElement
+                      const file = input.files?.[0]
+                      if (field.type === 'file' && file) {
+                        const reader = new FileReader()
+                        reader.onload = () => setValues((current) => ({ ...current, [field.name]: String(reader.result || '') }))
+                        reader.readAsDataURL(file)
+                        return
+                      }
+                      setValues((current) => ({ ...current, [field.name]: event.target.value, ...(field.name === 'gradeLevel' ? { classSection: '' } : {}) }))
+                    }}
                   >
                     {(field.name === 'gradeLevel' ? academicOptions.gradeLevel : field.name === 'classSection' ? academicOptions.classSection.filter(({ gradeLevel }) => gradeLevel === values.gradeLevel) : field.options)?.map((option) => <MenuItem key={typeof option === 'string' ? option : option.name} value={typeof option === 'string' ? option : option.name}>{typeof option === 'string' ? option : option.name}</MenuItem>)}
                   </TextField>}
@@ -292,7 +303,7 @@ const profileFields: Record<EditableProfileType, FieldConfig[]> = {
   teacher: [
     { name: 'fullName', label: 'Full name', required: true },
     { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true },
-    { name: 'photoName', label: 'Photo filename' },
+    { name: 'photoName', label: 'Teacher photo', type: 'file' },
     { name: 'phoneNumber', label: 'Phone number', type: 'tel' },
     { name: 'address', label: 'Address' },
     { name: 'nationalId', label: 'National ID / Passport Number' },
@@ -319,6 +330,7 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const listRoute = `/admin/${type === 'guardian' ? 'guardians' : `${type}s`}`
+  const imageSource = typeof values.photoName === 'string' && (values.photoName.startsWith('data:image/') || values.photoName.startsWith('https://')) ? values.photoName : ''
   const title = `Edit ${type.charAt(0).toUpperCase()}${type.slice(1)}`
 
   useEffect(() => {
@@ -363,9 +375,20 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
           {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 3 }}>{error}</Alert>}
           <Grid container spacing={2.25}>
             {profileFields[type].map((field) => <Grid item xs={12} sm={field.name === 'address' || field.name === 'assignedSubjects' || field.name === 'assignedClasses' || field.name === 'guardianSearch' ? 12 : 6} key={field.name}>
-              <TextField fullWidth required={field.required} disabled={loading || saving} label={field.label} type={field.options ? undefined : field.type || 'text'} select={Boolean(field.options)} InputLabelProps={field.type === 'date' ? { shrink: true } : undefined} value={values[field.name] || ''} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}>
+              <TextField fullWidth required={field.required} disabled={loading || saving} label={field.label} type={field.options ? undefined : field.type || 'text'} select={Boolean(field.options)} InputLabelProps={field.type === 'date' || field.type === 'file' ? { shrink: true } : undefined} value={field.type === 'file' ? undefined : values[field.name] || ''} inputProps={field.type === 'file' ? { accept: 'image/*' } : undefined} onChange={(event) => {
+                const input = event.target as HTMLInputElement
+                const file = input.files?.[0]
+                if (field.type === 'file' && file) {
+                  const reader = new FileReader()
+                  reader.onload = () => setValues((current) => ({ ...current, [field.name]: String(reader.result || '') }))
+                  reader.readAsDataURL(file)
+                  return
+                }
+                setValues((current) => ({ ...current, [field.name]: event.target.value }))
+              }}>
                 {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
               </TextField>
+              {type === 'teacher' && field.name === 'photoName' && <Box sx={{ mt: 1, width: 128, height: 128, borderRadius: 2, overflow: 'hidden', border: 1, borderColor: 'divider', backgroundColor: 'background.default' }}>{imageSource ? <Box component="img" src={imageSource} alt="Teacher profile" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', px: 1 }}>No image available</Typography>}</Box>}
             </Grid>)}
           </Grid>
           <Stack direction={{ xs: 'column-reverse', sm: 'row' }} justifyContent="flex-end" spacing={1.5} sx={{ mt: 4 }}>

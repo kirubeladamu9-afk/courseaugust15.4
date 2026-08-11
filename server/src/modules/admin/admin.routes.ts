@@ -59,14 +59,14 @@ const guardianSchema = z.object({
   address: z.string().trim().max(300).optional(),
   occupation: z.string().trim().max(120).optional(),
   nationalId: z.string().trim().max(120).optional(),
-  photoName: z.string().trim().max(255).optional(),
+  photoName: z.string().trim().max(5000000).optional(),
 })
 const studentSchema = z.object({
   fullName: z.string().trim().min(1).max(160),
   dateOfBirth: z.coerce.date(),
   gender: z.string().trim().min(1).max(40),
   admissionNumber: z.string().trim().min(1).max(80),
-  photoName: z.string().trim().max(255).optional(),
+  photoName: z.string().trim().max(5000000).optional(),
   academicYear: z.string().trim().min(1).max(20),
   gradeLevel: z.string().trim().min(1).max(40),
   classSection: z.string().trim().min(1).max(80),
@@ -263,14 +263,14 @@ router.get('/students/:id', async (req, res, next) => {
 const gradeLevelSchema = z.object({ grade: z.string().trim().min(1).max(80), classes: z.coerce.number().int().nonnegative(), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), gradeLevelId: z.string().trim().min(1), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const subjectUpdateSchema = recordSchema
-const teacherSchema = z.object({ fullName: z.string().trim().min(1).max(160), gender: z.string().trim().min(1).max(40), photoName: z.string().trim().max(255).optional(), phoneNumber: z.string().trim().max(40).optional(), address: z.string().trim().max(300).optional(), nationalId: z.string().trim().max(120).optional(), assignedSubjects: z.string().trim().max(300).optional(), assignedClasses: z.string().trim().max(300).optional(), status: z.enum(['Active', 'Inactive', 'On Leave']) })
+const teacherSchema = z.object({ fullName: z.string().trim().min(1).max(160), gender: z.string().trim().min(1).max(40), photoName: z.string().trim().max(5000000).optional(), phoneNumber: z.string().trim().max(40).optional(), address: z.string().trim().max(300).optional(), nationalId: z.string().trim().max(120).optional(), assignedSubjects: z.string().trim().max(300).optional(), assignedClasses: z.string().trim().max(300).optional(), status: z.enum(['Active', 'Inactive', 'On Leave']) })
 const teacherUpdateSchema = teacherSchema.partial()
 const studentUpdateSchema = studentSchema.partial()
 const guardianUpdateSchema = guardianSchema.partial()
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
 const toClassSectionRecord = (record: { id: string; name: string; gradeLevelId: string | null; students: number; status: string; gradeLevel: { name: string } | null }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, 'Grade Level': record.gradeLevel?.name || '—', gradeLevelId: record.gradeLevelId || '', Students: String(record.students) }, status: record.status })
-const toTeacherRecord = (record: { id: string; fullName: string; gender: string; photoName: string | null; phoneNumber: string | null; address: string | null; nationalId: string | null; assignedSubjects: string | null; assignedClasses: string | null; status: string }) => ({ id: record.id, title: record.fullName, data: { 'Full Name': record.fullName, Gender: record.gender, Photo: record.photoName || '—', 'Phone Number': record.phoneNumber || '—', Address: record.address || '—', 'National ID / Passport Number': record.nationalId || '—', 'Assigned Subjects': record.assignedSubjects || '—', 'Assigned Classes': record.assignedClasses || '—' }, status: record.status })
+const toTeacherRecord = (record: { id: string; fullName: string; gender: string; photoName: string | null; phoneNumber: string | null; address: string | null; nationalId: string | null; assignedSubjects: string | null; assignedClasses: string | null; status: string }) => ({ id: record.id, title: record.fullName, data: { 'Full Name': record.fullName, Gender: record.gender, Photo: record.photoName ? 'Available' : '—', 'Phone Number': record.phoneNumber || '—', Address: record.address || '—', 'National ID / Passport Number': record.nationalId || '—', 'Assigned Subjects': record.assignedSubjects || '—', 'Assigned Classes': record.assignedClasses || '—' }, status: record.status })
 
 router.get('/teachers', async (_req, res, next) => {
   try {
