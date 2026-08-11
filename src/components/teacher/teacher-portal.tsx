@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FC } from 'react'
 import axios from 'axios'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Button from '@mui/material/Button'
@@ -127,6 +127,8 @@ const isQuestionComplete = (question: AssessmentQuestion) => {
 }
 
 const AssessmentBuilder: FC = () => {
+  const [searchParams] = useSearchParams()
+  const editId = searchParams.get('edit')
   const [title, setTitle] = useState('')
   const [className, setClassName] = useState('')
   const [subjectName, setSubjectName] = useState('')
@@ -152,6 +154,19 @@ const AssessmentBuilder: FC = () => {
       .catch(() => setError('Unable to load your assigned classes. Please try again.'))
       .finally(() => setClassesLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!editId) return
+    api.get<{ assessment: { title: string; className: string; subjectName: string; questions: AssessmentQuestion[] } }>(`/api/teacher/assessments/${editId}`, { withCredentials: true })
+      .then(({ data }) => {
+        setTitle(data.assessment.title)
+        setClassName(data.assessment.className)
+        setSubjectName(data.assessment.subjectName)
+        setQuestions(data.assessment.questions)
+      })
+      .catch(() => setError('Unable to load the assessment for editing. Please try again.'))
+  }, [editId])
+
   const updateQuestion = (index: number, update: Partial<AssessmentQuestion>) => setQuestions((current) => current.map((question, questionIndex) => questionIndex === index ? { ...question, ...update } : question))
   const addQuestion = () => { setQuestions((current) => [...current, newQuestion(questionType)]); setNotice('Question added. Complete it and click Save Assessment to insert it into the database.') }
   const addOption = (index: number) => setQuestions((current) => current.map((question, questionIndex) => questionIndex === index ? { ...question, options: [...question.options, ''] } : question))
@@ -164,8 +179,14 @@ const AssessmentBuilder: FC = () => {
     setSaving(true)
     setError('')
     try {
-      await api.post('/api/teacher/assessments', { title, subjectName, className, questions }, { withCredentials: true })
-      setNotice('Assessment saved as a draft.')
+      const payload = { title, subjectName, className, questions }
+      if (editId) {
+        await api.patch(`/api/teacher/assessments/${editId}`, payload, { withCredentials: true })
+        setNotice('Assessment updated successfully.')
+      } else {
+        await api.post('/api/teacher/assessments', payload, { withCredentials: true })
+        setNotice('Assessment saved as a draft.')
+      }
     } catch {
       setError('Unable to save the assessment. Please try again.')
     } finally {
@@ -174,9 +195,9 @@ const AssessmentBuilder: FC = () => {
   }
   return <Stack spacing={2}>
     <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Grid container spacing={2}><Grid item xs={12} md={5}><TextField fullWidth label="Title" value={title} onChange={(event) => setTitle(event.target.value)} /></Grid><Grid item xs={12} md={3}><Select fullWidth value={subjectName} disabled={subjectsLoading || !assignedSubjects.length} onChange={(event) => setSubjectName(event.target.value)} displayEmpty aria-label="Assigned subject"><MenuItem value="" disabled>{subjectsLoading ? 'Loading assigned subjects...' : assignedSubjects.length ? 'Select an assigned subject' : 'No assigned subjects'}</MenuItem>{assignedSubjects.map((subject) => <MenuItem key={subject} value={subject}>{subject}</MenuItem>)}</Select></Grid><Grid item xs={12} md={4}><Select fullWidth value={className} disabled={classesLoading || !assignedClasses.length} onChange={(event) => setClassName(event.target.value)} displayEmpty aria-label="Assigned class"><MenuItem value="" disabled>{classesLoading ? 'Loading assigned classes...' : assignedClasses.length ? 'Select an assigned class' : 'No assigned classes'}</MenuItem>{assignedClasses.map((assignedClass) => <MenuItem key={assignedClass} value={assignedClass}>{assignedClass}</MenuItem>)}</Select></Grid></Grid></Paper>
-    <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between"><Box><Typography variant="h5">Questions</Typography><Typography variant="body2" color="text.secondary">Choose a type before adding each question.</Typography></Box><Stack direction="row" spacing={1}><Select size="small" value={questionType} onChange={(event) => setQuestionType(event.target.value as QuestionType)} aria-label="Question Type">{Object.entries(questionTypeLabels).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}</Select><Button variant="contained" startIcon={<AddRounded />} onClick={addQuestion} disabled={!assignedClasses.length || !assignedSubjects.length}>Add Question</Button><Button variant="outlined" onClick={saveAssessment} disabled={saving || !questions.length}>{saving ? 'Saving...' : 'Save Assessment'}</Button></Stack></Stack>
+    <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between"><Box><Typography variant="h5">Questions</Typography><Typography variant="body2" color="text.secondary">Choose a type before adding each question.</Typography></Box><Stack direction="row" spacing={1}><Select size="small" value={questionType} onChange={(event) => setQuestionType(event.target.value as QuestionType)} aria-label="Question Type">{Object.entries(questionTypeLabels).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}</Select><Button variant="contained" startIcon={<AddRounded />} onClick={addQuestion} disabled={!assignedClasses.length || !assignedSubjects.length}>Add Question</Button><Button variant="outlined" onClick={saveAssessment} disabled={saving || !questions.length}>{saving ? 'Saving...' : editId ? 'Update Assessment' : 'Save Assessment'}</Button></Stack></Stack>
       <Stack spacing={2} sx={{ mt: 3 }}>{questions.map((question, index) => <Paper key={`${index}-${question.type}`} variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2 }}><Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Typography variant="subtitle1" fontWeight={700}>Question {index + 1} · {questionTypeLabels[question.type]}</Typography><IconButton aria-label={`Remove question ${index + 1}`} onClick={() => removeQuestion(index)}><DeleteOutlineRounded /></IconButton></Stack><Stack spacing={2}><TextField fullWidth multiline minRows={2} label="Question text" value={question.prompt} onChange={(event) => updateQuestion(index, { prompt: event.target.value })} />{question.type === 'fill-blank' ? <TextField fullWidth label="Correct answer" helperText="Answers are graded case-insensitively after trimming whitespace." value={question.correctAnswer as string} onChange={(event) => updateQuestion(index, { correctAnswer: event.target.value })} /> : <Box><Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Answer choices</Typography><Stack spacing={1}>{question.options.map((option, optionIndex) => <Stack direction="row" spacing={1} alignItems="center" key={`${index}-${optionIndex}`}><FormControlLabel label="" control={question.type === 'multiple' ? <Checkbox checked={(question.correctAnswer as string[]).includes(String(optionIndex))} onChange={(event) => { const current = question.correctAnswer as string[]; updateQuestion(index, { correctAnswer: event.target.checked ? [...current, String(optionIndex)] : current.filter((value) => value !== String(optionIndex)) }) }} /> : <Radio checked={question.correctAnswer === String(optionIndex)} onChange={() => updateQuestion(index, { correctAnswer: String(optionIndex) })} />} /><TextField fullWidth size="small" label={`Option ${String.fromCharCode(65 + optionIndex)}`} value={option} disabled={question.type === 'true-false'} onChange={(event) => updateQuestion(index, { options: question.options.map((value, valueIndex) => valueIndex === optionIndex ? event.target.value : value) })} /></Stack>)}</Stack>{question.type !== 'true-false' && <Button size="small" startIcon={<AddRounded />} onClick={() => addOption(index)} sx={{ mt: 1 }}>Add Option</Button>}</Box>}<TextField label="Points" type="number" inputProps={{ min: 1 }} value={question.points} onChange={(event) => updateQuestion(index, { points: Number(event.target.value) })} sx={{ width: 140 }} /></Stack></Paper>)}</Stack>
-      {notice && <Typography color="success.main" sx={{ mt: 2 }}>{notice}</Typography>}{error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}<Button variant="contained" disabled={saving || !questions.length} onClick={saveAssessment} sx={{ mt: 3 }}>{saving ? 'Saving...' : 'Save Assessment'}</Button>
+      {notice && <Typography color="success.main" sx={{ mt: 2 }}>{notice}</Typography>}{error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}<Button variant="contained" disabled={saving || !questions.length} onClick={saveAssessment} sx={{ mt: 3 }}>{saving ? 'Saving...' : editId ? 'Update Assessment' : 'Save Assessment'}</Button>
     </Paper>
   </Stack>
 }

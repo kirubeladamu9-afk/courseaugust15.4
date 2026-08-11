@@ -93,6 +93,18 @@ router.get('/assessments/assignments', async (_req, res, next) => {
   }
 })
 
+router.get('/assessments/:id', async (req, res, next) => {
+  try {
+    const assessmentId = z.string().min(1).parse(req.params.id)
+    const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
+    if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
+    const data = assessment.data as { className?: string; subjectName?: string; questions?: unknown[] }
+    return res.json({ assessment: { id: assessment.id, title: assessment.title, className: data.className || '', subjectName: data.subjectName || '', questions: data.questions || [], status: assessment.status } })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.post('/assessments/:id/assign', async (req, res, next) => {
   try {
     const assessmentId = z.string().min(1).parse(req.params.id)
@@ -101,6 +113,19 @@ router.post('/assessments/:id/assign', async (req, res, next) => {
     if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
     const [assignment] = await prisma.$queryRaw<{ id: string; className: string; dueDate: Date; status: string }[]>(Prisma.sql`INSERT INTO assessment_assignments (quiz_id, teacher_id, class_name, due_date) VALUES (${assessment.id}, ${res.locals.auth.sub}, ${input.className}, ${input.dueDate}) RETURNING id, class_name AS "className", due_date AS "dueDate", status`)
     return res.status(201).json({ assignment: { id: assignment.id, className: assignment.className, dueDate: assignment.dueDate.toISOString(), status: assignment.status } })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/assessments/:id', async (req, res, next) => {
+  try {
+    const assessmentId = z.string().min(1).parse(req.params.id)
+    const input = assessmentSchema.parse(req.body)
+    const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
+    if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
+    const updated = await prisma.quiz.update({ where: { id: assessmentId }, data: { title: input.title, data: { teacherId: res.locals.auth.sub, className: input.className, subjectName: input.subjectName, questions: input.questions } } })
+    return res.json({ assessment: { id: updated.id, title: updated.title, status: updated.status } })
   } catch (error) {
     return next(error)
   }
