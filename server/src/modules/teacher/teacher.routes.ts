@@ -68,6 +68,21 @@ router.post('/change-password', async (req, res, next) => {
   }
 })
 
+router.get('/dashboard', async (_req, res, next) => {
+  try {
+    const teacherId = res.locals.auth.sub
+    const [assignedStudents, activeMaterials, pendingGrades, upcomingAssignments] = await Promise.all([
+      prisma.student.count({ where: { status: 'Active' } }),
+      prisma.learningMaterial.count({ where: { status: 'Published' } }),
+      prisma.assessmentAssignment.count({ where: { teacherId, status: { not: 'Completed' } } }),
+      prisma.assessmentAssignment.findMany({ where: { teacherId, dueDate: { gte: new Date() } }, orderBy: { dueDate: 'asc' }, take: 4, select: { id: true, className: true, dueDate: true, status: true, quiz: { select: { title: true } } } }),
+    ])
+    return res.json({ assignedStudents, activeMaterials, pendingGrades, upcomingAssignments: upcomingAssignments.map(({ quiz, ...assignment }) => ({ ...assignment, assessment: quiz.title, dueDate: assignment.dueDate.toISOString() })) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/students', async (_req, res, next) => {
   try {
     const students = await prisma.student.findMany({ orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, gradeLevel: true, classSection: true, academicYear: true, status: true } })

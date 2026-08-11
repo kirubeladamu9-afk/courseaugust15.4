@@ -404,6 +404,26 @@ const ChangePasswordPage: FC = () => {
   </Paper>
 }
 
+const TeacherDashboard: FC = () => {
+  const [dashboard, setDashboard] = useState<{ assignedStudents: number; activeMaterials: number; pendingGrades: number; upcomingAssignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[] } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get<{ assignedStudents: number; activeMaterials: number; pendingGrades: number; upcomingAssignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[] }>('/api/teacher/dashboard', { withCredentials: true })
+      .then(({ data }) => setDashboard(data))
+      .catch(() => setError('Unable to load your dashboard data. Please try again.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const stats = dashboard || { assignedStudents: 0, activeMaterials: 0, pendingGrades: 0, upcomingAssignments: [] }
+  return <>
+    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    <Grid container spacing={2} sx={{ mb: 3 }}><Grid item xs={12} sm={4}><StatCard label="Assigned students" value={loading ? '—' : stats.assignedStudents.toLocaleString()} /></Grid><Grid item xs={12} sm={4}><StatCard label="Active materials" value={loading ? '—' : stats.activeMaterials.toLocaleString()} tone="secondary" /></Grid><Grid item xs={12} sm={4}><StatCard label="Pending grades" value={loading ? '—' : stats.pendingGrades.toLocaleString()} /></Grid></Grid>
+    <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Upcoming assignments</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Assignments scheduled for your classes.</Typography>{loading ? <LinearProgress sx={{ mt: 3 }} /> : stats.upcomingAssignments.length ? <Stack spacing={1.5} sx={{ mt: 2 }}>{stats.upcomingAssignments.map((assignment) => <Stack key={assignment.id} direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 2 }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><Typography fontWeight={700}>{assignment.assessment}</Typography><Typography>{assignment.className}</Typography><Typography variant="body2" color="text.secondary">Due {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(assignment.dueDate))}</Typography><Chip label={assignment.status} size="small" /></Stack>)}</Stack> : <Typography color="text.secondary" sx={{ mt: 3 }}>No upcoming assignments.</Typography>}</Paper>
+  </>
+}
+
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   const details = pageDetails[pageKey] || pageDetails.dashboard
   const navigate = useNavigate()
@@ -469,10 +489,7 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   if (pageKey === 'gradebook') return <Navigate to="/teacher" replace />
   if (pageKey === 'profile') return <TeacherProfilePage />
   if (pageKey === 'change-password') return <ChangePasswordPage />
-  if (pageKey === 'dashboard') return <>
-    <Grid container spacing={2} sx={{ mb: 3 }}><Grid item xs={12} sm={4}><StatCard label="Assigned students" value="124" /></Grid><Grid item xs={12} sm={4}><StatCard label="Active materials" value="32" tone="secondary" /></Grid><Grid item xs={12} sm={4}><StatCard label="Pending grades" value="18" /></Grid></Grid>
-    <Grid container spacing={2}><Grid item xs={12} md={7}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Today&apos;s timetable</Typography><Stack spacing={1.5} sx={{ mt: 2 }}>{[['08:00', 'Grade 8 · Mathematics', 'Room 204'], ['10:30', 'Grade 7 · Mathematics', 'Room 108'], ['13:00', 'Grade 9 · Mathematics', 'Room 301']].map(([time, className, room]) => <Stack key={time} direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><Typography fontWeight={700}>{time}</Typography><Typography>{className}</Typography><Typography variant="body2" color="text.secondary">{room}</Typography></Stack>)}</Stack></Paper></Grid><Grid item xs={12} md={5}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assessment progress</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>This week</Typography><Stack spacing={2.5} sx={{ mt: 3 }}>{[['Assignments graded', 72], ['Materials viewed', 84], ['Class participation', 68]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper></Grid></Grid>
-  </>
+  if (pageKey === 'dashboard') return <TeacherDashboard />
   if (pageKey === 'assessments/create') return <AssessmentBuilder />
   if (pageKey === 'assessments/assign') return <AssignmentBuilder />
   if (pageKey === 'students') return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
