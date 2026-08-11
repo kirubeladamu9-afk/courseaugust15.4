@@ -86,7 +86,7 @@ const dateInputSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid d
   const date = new Date(Date.UTC(year, month - 1, day))
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }, 'Enter a valid date.').transform((value) => new Date(`${value}T00:00:00Z`))
-const studentSchema = z.object({
+const studentBaseSchema = z.object({
   fullName: z.string().trim().min(1).max(160),
   dateOfBirth: dateInputSchema,
   gender: z.string().trim().min(1).max(40),
@@ -100,7 +100,8 @@ const studentSchema = z.object({
   guardianSearch: z.string().trim().min(1).max(160),
   relationshipType: z.enum(['Mother', 'Father', 'Guardian', 'Emergency Contact']).default('Guardian'),
   status: z.enum(['Active', 'Inactive', 'Pending']),
-}).superRefine(({ dateOfBirth, enrollmentDate }, context) => {
+})
+const studentSchema = studentBaseSchema.superRefine(({ dateOfBirth, enrollmentDate }, context) => {
   const today = new Date()
   today.setUTCHours(23, 59, 59, 999)
   if (dateOfBirth > today) context.addIssue({ code: 'custom', path: ['dateOfBirth'], message: 'Date of birth cannot be in the future.' })
@@ -398,7 +399,7 @@ const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max
 const subjectUpdateSchema = recordSchema
 const teacherSchema = z.object({ fullName: z.string().trim().min(1).max(160), gender: z.string().trim().min(1).max(40), photoName: z.string().trim().max(5000000).optional(), phoneNumber: z.string().trim().max(40).optional(), address: z.string().trim().max(300).optional(), nationalId: z.string().trim().max(120).optional(), assignedSubjects: z.string().trim().max(300).optional(), assignedClasses: z.string().trim().max(300).optional(), status: z.enum(['Active', 'Inactive', 'On Leave']) })
 const teacherUpdateSchema = teacherSchema.partial()
-const studentUpdateSchema = studentSchema.partial()
+const studentUpdateSchema = studentBaseSchema.partial()
 const guardianUpdateSchema = guardianSchema.partial()
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
