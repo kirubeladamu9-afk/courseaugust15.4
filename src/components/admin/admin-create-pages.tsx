@@ -291,7 +291,7 @@ const profileFields: Record<EditableProfileType, FieldConfig[]> = {
     { name: 'dateOfBirth', label: 'Date of birth', type: 'date', required: true },
     { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true },
     { name: 'admissionNumber', label: 'Student ID / Admission number', required: true },
-    { name: 'photoName', label: 'Student photo filename' },
+    { name: 'photoName', label: 'Student photo', type: 'file' },
     { name: 'academicYear', label: 'Academic year', required: true },
     { name: 'gradeLevel', label: 'Grade level', required: true },
     { name: 'classSection', label: 'Class & section', required: true },
@@ -390,7 +390,7 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
               }}>
                 {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
               </TextField>
-              {type === 'teacher' && field.name === 'photoName' && <Box sx={{ mt: 1, width: 128, height: 128, borderRadius: 2, overflow: 'hidden', border: 1, borderColor: 'divider', backgroundColor: 'background.default' }}>{imageSource ? <Box component="img" src={imageSource} alt="Teacher profile" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', px: 1 }}>No image available</Typography>}</Box>}
+              {(type === 'teacher' || type === 'student') && field.name === 'photoName' && <Box sx={{ mt: 1, width: 128, height: 128, borderRadius: 2, overflow: 'hidden', border: 1, borderColor: 'divider', backgroundColor: 'background.default' }}>{imageSource ? <Box component="img" src={imageSource} alt={`${type} profile`} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', textAlign: 'center', px: 1 }}>No image available</Typography>}</Box>}
             </Grid>)}
           </Grid>
           <Stack direction={{ xs: 'column-reverse', sm: 'row' }} justifyContent="flex-end" spacing={1.5} sx={{ mt: 4 }}>
