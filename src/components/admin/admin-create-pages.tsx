@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useEffect, useState, type FC, type FormEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -358,7 +359,8 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
       await api.patch(`/api/admin/${type === 'guardian' ? 'guardians' : `${type}s`}/${id}`, values, { withCredentials: true })
       navigate(listRoute)
     } catch (requestError) {
-      setError(`Unable to update this ${type}. Check the details and try again.`)
+      const message = axios.isAxiosError<{ message?: string }>(requestError) ? requestError.response?.data.message : ''
+      setError(message || `Unable to update this ${type}. Check the details and try again.`)
     } finally {
       setSaving(false)
     }
