@@ -63,8 +63,8 @@ router.get('/students', async (_req, res, next) => {
 router.get('/profile', async (_req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: res.locals.auth.sub }, select: { name: true } })
-    const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { photoName: true } }) : null
-    return res.json({ photoName: teacher?.photoName || null })
+    const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { photoName: true, status: true } }) : null
+    return res.json({ photoName: teacher?.photoName || null, status: teacher?.status || null })
   } catch (error) {
     return next(error)
   }
