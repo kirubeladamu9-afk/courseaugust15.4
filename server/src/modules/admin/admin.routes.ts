@@ -236,6 +236,9 @@ router.get('/students', async (_req, res, next) => {
 const gradeLevelSchema = z.object({ grade: z.string().trim().min(1).max(80), classes: z.coerce.number().int().nonnegative(), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), gradeLevelId: z.string().trim().min(1), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const teacherSchema = z.object({ fullName: z.string().trim().min(1).max(160), gender: z.string().trim().min(1).max(40), photoName: z.string().trim().max(255).optional(), phoneNumber: z.string().trim().max(40).optional(), address: z.string().trim().max(300).optional(), nationalId: z.string().trim().max(120).optional(), assignedSubjects: z.string().trim().max(300).optional(), assignedClasses: z.string().trim().max(300).optional(), status: z.enum(['Active', 'Inactive', 'On Leave']) })
+const teacherUpdateSchema = teacherSchema.partial()
+const studentUpdateSchema = z.object({ fullName: z.string().trim().min(1).max(160).optional(), gradeLevel: z.string().trim().min(1).max(40).optional(), status: z.enum(['Active', 'Inactive', 'Pending']).optional() })
+const guardianUpdateSchema = guardianSchema.partial()
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
 const toClassSectionRecord = (record: { id: string; name: string; students: number; status: string; gradeLevel: { name: string } | null }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, 'Grade Level': record.gradeLevel?.name || '—', Students: String(record.students) }, status: record.status })
@@ -322,6 +325,69 @@ router.post('/students', async (req, res, next) => {
       include: { guardianLinks: { include: { guardian: true } } },
     })
     return res.status(201).json({ student })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/students/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const input = studentUpdateSchema.parse(req.body)
+    const student = await prisma.student.update({ where: { id }, data: input, include: { guardianLinks: { include: { guardian: true } } } })
+    return res.json({ record: { id: student.id, title: student.fullName, data: { Student: student.fullName, Grade: student.gradeLevel, Guardians: student.guardianLinks.map(({ guardian }) => guardian.name).join(', ') || '—' }, status: student.status } })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/students/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    await prisma.student.delete({ where: { id } })
+    return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/teachers/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const input = teacherUpdateSchema.parse(req.body)
+    const teacher = await prisma.teacher.update({ where: { id }, data: input })
+    return res.json({ record: toTeacherRecord(teacher) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/teachers/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    await prisma.teacher.delete({ where: { id } })
+    return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/guardians/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const input = guardianUpdateSchema.parse(req.body)
+    const guardian = await prisma.guardian.update({ where: { id }, data: input, include: { studentLinks: { include: { student: { select: { fullName: true } } } } } })
+    return res.json({ record: { id: guardian.id, title: guardian.name, data: { Guardian: guardian.name, 'Linked students': guardian.studentLinks.map(({ student }) => student.fullName).join(', ') || '—', Relationship: guardian.studentLinks.map(({ relationshipType }) => relationshipType).join(', ') || '—' }, status: 'Active' } })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/guardians/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    await prisma.guardian.delete({ where: { id } })
+    return res.status(204).send()
   } catch (error) {
     return next(error)
   }

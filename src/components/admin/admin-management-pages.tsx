@@ -22,6 +22,8 @@ import Typography from '@mui/material/Typography'
 import AddRounded from '@mui/icons-material/AddRounded'
 import DownloadRounded from '@mui/icons-material/DownloadRounded'
 import LockResetRounded from '@mui/icons-material/LockResetRounded'
+import EditOutlined from '@mui/icons-material/EditOutlined'
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
@@ -61,11 +63,11 @@ const sections: Record<string, SectionConfig> = {
 const makeSection = (title: string, description: string, action: string, columns: string[], firstRecord: string): SectionConfig => ({ title, description, action, columns, rows: [[firstRecord, ...Array(Math.max(columns.length - 2, 0)).fill('—'), 'Draft']], metrics: [['Total records', '0', '—'], ['Active', '0', '—'], ['Pending review', '0', '—']] })
 
 const additionalSections: Record<string, SectionConfig> = {
-  students: makeSection('Student List', 'Search students, review profiles, and manage required guardian links.', 'Add Student', ['Student', 'Grade', 'Guardians', 'Status'], 'No students yet'),
+  students: makeSection('Student List', 'Search students, review profiles, and manage required guardian links.', 'Add Student', ['Student', 'Grade', 'Guardians', 'Status', 'Actions'], 'No students yet'),
   'admissions-enrollment': makeSection('Admissions / Enrollment', 'Move new student applications from intake through approval to enrollment.', 'New Application', ['Applicant', 'Applied on', 'Stage', 'Status'], 'No applications yet'),
   promotions: makeSection('Promotions', 'Move students to their next grade level in bulk at year-end.', 'Start Promotion', ['Academic year', 'From grade', 'To grade', 'Status'], 'No promotion batches yet'),
-  teachers: { ...makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Full Name', 'Gender', 'Photo', 'Phone Number', 'Address', 'National ID / Passport Number', 'Assigned Subjects', 'Assigned Classes', 'Status'], 'No teachers yet'), createFields: [{ name: 'fullName', label: 'Full Name', required: true }, { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true }, { name: 'photoName', label: 'Photo', type: 'file' }, { name: 'phoneNumber', label: 'Phone Number' }, { name: 'address', label: 'Address' }, { name: 'nationalId', label: 'National ID / Passport Number' }, { name: 'assignedSubjects', label: 'Assigned Subjects', multiple: true }, { name: 'assignedClasses', label: 'Assigned Classes', multiple: true }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true }] },
-  guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status'], 'No guardians yet'),
+  teachers: { ...makeSection('Teacher List', 'Search and manage teacher profiles and staff registrations.', 'Add Teacher', ['Full Name', 'Gender', 'Photo', 'Phone Number', 'Address', 'National ID / Passport Number', 'Assigned Subjects', 'Assigned Classes', 'Status', 'Actions'], 'No teachers yet'), createFields: [{ name: 'fullName', label: 'Full Name', required: true }, { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true }, { name: 'photoName', label: 'Photo', type: 'file' }, { name: 'phoneNumber', label: 'Phone Number' }, { name: 'address', label: 'Address' }, { name: 'nationalId', label: 'National ID / Passport Number' }, { name: 'assignedSubjects', label: 'Assigned Subjects', multiple: true }, { name: 'assignedClasses', label: 'Assigned Classes', multiple: true }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true }] },
+  guardians: makeSection('Guardian List', 'Manage guardians and their linked students. Students require at least one guardian.', 'Add Guardian', ['Guardian', 'Linked students', 'Relationship', 'Status', 'Actions'], 'No guardians yet'),
   'grade-levels': { ...makeSection('Grade Levels', 'Define the grades offered by the school.', 'Add Grade Level', ['Grade', 'Classes', 'Students', 'Status'], 'Grade 1'), createFields: [{ name: 'grade', label: 'Grade', required: true }, { name: 'classes', label: 'Classes', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
   'classes-sections': { ...makeSection('Classes & Sections', 'Create sections such as Grade 5 - A and assign students to them.', 'Add Section', ['Class / Section', 'Grade Level', 'Students', 'Status'], 'Grade 5 - A'), createFields: [{ name: 'classSection', label: 'Class / Section', required: true }, { name: 'gradeLevelId', label: 'Grade Level', required: true }, { name: 'students', label: 'Students', required: true }, { name: 'status', label: 'Status', options: ['Draft', 'Active'], required: true }] },
   timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
@@ -104,6 +106,9 @@ const AdminManagementPage: FC = () => {
   const [createValues, setCreateValues] = useState<Record<string, string>>({})
   const [createOptions, setCreateOptions] = useState<{ id: string; name: string }[]>([])
   const [teacherOptions, setTeacherOptions] = useState({ subjects: [] as { id: string; name: string }[], classes: [] as { id: string; name: string }[] })
+  const [editingRecordId, setEditingRecordId] = useState('')
+  const [editValues, setEditValues] = useState<Record<string, string>>({})
+  const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
     if (section !== 'teachers') {
@@ -137,6 +142,8 @@ const AdminManagementPage: FC = () => {
     setNotice('')
     setIsCreateFormOpen(false)
     setCreateValues({})
+    setEditingRecordId('')
+    setEditValues({})
     if (!isBackendSection) {
       setRecords(config.rows.map((row, index) => ({ id: `${section}-${index}`, title: row[0], data: Object.fromEntries(config.columns.slice(0, -1).map((column, columnIndex) => [column, row[columnIndex]])), status: row[row.length - 1] })))
       setIsLoading(false)
@@ -183,6 +190,56 @@ const AdminManagementPage: FC = () => {
       setNotice('')
     }
   }
+  const editableSections = section === 'students' || section === 'teachers' || section === 'guardians'
+  const editFields: { name: string; label: string; type?: string; options?: string[] }[] = section === 'students'
+    ? [{ name: 'fullName', label: 'Full name' }, { name: 'gradeLevel', label: 'Grade' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'Pending'] }]
+    : section === 'teachers'
+      ? [{ name: 'fullName', label: 'Full name' }, { name: 'gender', label: 'Gender' }, { name: 'phoneNumber', label: 'Phone number' }, { name: 'address', label: 'Address' }, { name: 'nationalId', label: 'National ID / Passport Number' }, { name: 'assignedSubjects', label: 'Assigned subjects' }, { name: 'assignedClasses', label: 'Assigned classes' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'] }]
+      : [{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email', type: 'email' }, { name: 'phone', label: 'Phone' }, { name: 'address', label: 'Address' }, { name: 'occupation', label: 'Occupation' }, { name: 'nationalId', label: 'National ID / Passport Number' }]
+
+  const startEditing = (record: AdminRecord) => {
+    if (!editableSections) return
+    setEditingRecordId(record.id)
+    setEditValues(section === 'students'
+      ? { fullName: record.data.Student || record.title, gradeLevel: record.data.Grade || '', status: record.status }
+      : section === 'teachers'
+        ? { fullName: record.data['Full Name'] || record.title, gender: record.data.Gender === '—' ? '' : record.data.Gender || '', phoneNumber: record.data['Phone Number'] === '—' ? '' : record.data['Phone Number'] || '', address: record.data.Address === '—' ? '' : record.data.Address || '', nationalId: record.data['National ID / Passport Number'] === '—' ? '' : record.data['National ID / Passport Number'] || '', assignedSubjects: record.data['Assigned Subjects'] === '—' ? '' : record.data['Assigned Subjects'] || '', assignedClasses: record.data['Assigned Classes'] === '—' ? '' : record.data['Assigned Classes'] || '', status: record.status }
+        : { name: record.data.Guardian || record.title, email: '', phone: '', address: '', occupation: '', nationalId: '' })
+    setError('')
+    setNotice('')
+  }
+
+  const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editingRecordId || !editableSections) return
+    setEditSaving(true)
+    setError('')
+    try {
+      const { data: response } = await api.patch<{ record: AdminRecord }>(`/api/admin/${section}/${editingRecordId}`, editValues, { withCredentials: true })
+      setRecords((current) => current.map((record) => record.id === editingRecordId ? response.record : record))
+      setEditingRecordId('')
+      setEditValues({})
+      setNotice(`${config.title.slice(0, -5)} updated successfully.`)
+    } catch (error) {
+      setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || 'Unable to update the record.' : 'Unable to update the record.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const handleDelete = async (record: AdminRecord) => {
+    if (!editableSections || !window.confirm(`Delete ${record.title}? This action cannot be undone.`)) return
+    try {
+      await api.delete(`/api/admin/${section}/${record.id}`, { withCredentials: true })
+      setRecords((current) => current.filter((currentRecord) => currentRecord.id !== record.id))
+      if (editingRecordId === record.id) setEditingRecordId('')
+      setNotice(`${record.title} deleted successfully.`)
+      setError('')
+    } catch (error) {
+      setError(axios.isAxiosError<{ message?: string }>(error) ? error.response?.data.message || 'Unable to delete the record.' : 'Unable to delete the record.')
+    }
+  }
+
   const handleCreateFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const fields = config.createFields
@@ -257,11 +314,12 @@ const AdminManagementPage: FC = () => {
               <Grid item xs={12}><Button type="submit" variant="contained">Save</Button></Grid>
             </Grid>
           </Box>}
+          {editingRecordId && editableSections && <Box component="form" onSubmit={handleEditSubmit} sx={{ p: 1, mb: 1 }}><Typography variant="subtitle1" sx={{ mb: 1 }}>Edit {config.title.slice(0, -5)}</Typography><Grid container spacing={1.5}>{editFields.map((field) => <Grid item xs={12} sm={field.name === 'address' || field.name === 'assignedSubjects' || field.name === 'assignedClasses' ? 12 : 6} key={field.name}><TextField fullWidth size="small" label={field.label} type={field.type || 'text'} select={Boolean(field.options)} value={editValues[field.name] || ''} onChange={(event) => setEditValues((current) => ({ ...current, [field.name]: event.target.value }))}>{field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</TextField></Grid>)}<Grid item xs={12}><Stack direction="row" spacing={1}><Button type="submit" variant="contained" disabled={editSaving}>{editSaving ? 'Saving...' : 'Save changes'}</Button><Button type="button" onClick={() => { setEditingRecordId(''); setEditValues({}) }}>Cancel</Button></Stack></Grid></Grid></Box>}
           {error && <Typography color="error" sx={{ px: 1, pt: 1 }}>{error}</Typography>}
           {notice && <Typography color="success.main" sx={{ px: 1, pt: 1 }}>{notice}</Typography>}
           {isLoading && <LinearProgress sx={{ mx: 1, mb: 1 }} />}
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
-          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
+          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && editableSections ? <Stack direction="row" spacing={0.5}><Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${record.title}`} onClick={() => startEditing(record)}><EditOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Delete"><IconButton size="small" color="error" aria-label={`Delete ${record.title}`} onClick={() => handleDelete(record)}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip></Stack> : column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
           {!filteredRecords.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
         </Paper>
       </Container>
