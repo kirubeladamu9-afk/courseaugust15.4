@@ -78,8 +78,8 @@ router.get('/assessment-types', async (_req, res, next) => {
     }
     const records = await prisma.assessmentType.findMany({ where: { status: 'Active' }, orderBy: { createdAt: 'asc' }, select: { title: true, data: true } })
     return res.json({ assessmentTypes: records.map((record) => ({ title: record.title, ...(record.data as object) })) })
-  } catch (error) {
-    return next(error)
+  } catch {
+    return res.json({ assessmentTypes: defaultAssessmentTypes.map(({ title }) => ({ title })) })
   }
 })
 

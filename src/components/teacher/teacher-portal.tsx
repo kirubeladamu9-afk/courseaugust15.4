@@ -170,7 +170,7 @@ const AssessmentBuilder: FC = () => {
           setAssessmentType((current) => types.includes(current) ? current : types[0])
         }
       })
-      .catch(() => setError('Unable to load assessment types. Please try again.'))
+      .catch(() => setAvailableAssessmentTypes(assessmentTypes))
   }, [])
 
   useEffect(() => {
