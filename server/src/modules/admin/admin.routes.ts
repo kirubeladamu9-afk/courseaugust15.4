@@ -497,8 +497,8 @@ router.get('/all-assessments', async (_req, res, next) => {
     const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
     const records = quizzes.map((quiz) => {
-      const data = quiz.data as { teacherId?: string; className?: string; questions?: unknown[] }
-      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—' }, questions: data.questions || [], status: quiz.status }
+      const data = quiz.data as { teacherId?: string; assessmentType?: string; className?: string; questions?: unknown[] }
+      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, 'Assessment Type': data.assessmentType || 'Quiz', Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—' }, questions: data.questions || [], status: quiz.status }
     })
     return res.json({ records })
   } catch (error) {
@@ -506,7 +506,7 @@ router.get('/all-assessments', async (_req, res, next) => {
   }
 })
 
-const assessmentAdminUpdateSchema = z.object({ title: z.string().trim().min(1).max(160), className: z.string().trim().min(1).max(80), status: z.enum(['Draft', 'Published', 'Archived']) })
+const assessmentAdminUpdateSchema = z.object({ title: z.string().trim().min(1).max(160), assessmentType: z.enum(['Quiz', 'Assignment', 'Midterm Exam', 'Final Exam', 'Project']).default('Quiz'), className: z.string().trim().min(1).max(80), status: z.enum(['Draft', 'Published', 'Archived']) })
 
 router.patch('/all-assessments/:id', async (req, res, next) => {
   try {
@@ -515,10 +515,10 @@ router.patch('/all-assessments/:id', async (req, res, next) => {
     const assessment = await prisma.quiz.findUnique({ where: { id } })
     if (!assessment) return res.status(404).json({ message: 'Assessment not found.' })
     const currentData = assessment.data as Record<string, unknown>
-    const updated = await prisma.quiz.update({ where: { id }, data: { title: input.title, status: input.status, data: { ...currentData, className: input.className } } })
-    const data = updated.data as { teacherId?: string; className?: string }
+    const updated = await prisma.quiz.update({ where: { id }, data: { title: input.title, status: input.status, data: { ...currentData, assessmentType: input.assessmentType, className: input.className } } })
+    const data = updated.data as { teacherId?: string; assessmentType?: string; className?: string }
     const teacher = data.teacherId ? await prisma.user.findUnique({ where: { id: data.teacherId }, select: { name: true } }) : null
-    return res.json({ record: { id: updated.id, title: updated.title, data: { Assessment: updated.title, Teacher: teacher?.name || '—', Class: data.className || '—' }, questions: (updated.data as { questions?: unknown[] }).questions || [], status: updated.status } })
+    return res.json({ record: { id: updated.id, title: updated.title, data: { Assessment: updated.title, 'Assessment Type': data.assessmentType || 'Quiz', Teacher: teacher?.name || '—', Class: data.className || '—' }, questions: (updated.data as { questions?: unknown[] }).questions || [], status: updated.status } })
   } catch (error) {
     return next(error)
   }

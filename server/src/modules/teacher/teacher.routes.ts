@@ -100,8 +100,8 @@ router.get('/assessments', async (_req, res, next) => {
     const records = assessments
       .filter((assessment) => (assessment.data as { teacherId?: string }).teacherId === res.locals.auth.sub)
       .map((assessment) => {
-        const data = assessment.data as { className?: string; questions?: unknown[] }
-        return { id: assessment.id, title: assessment.title, className: data.className || '—', questionCount: data.questions?.length || 0, status: assessment.status }
+        const data = assessment.data as { assessmentType?: string; className?: string; questions?: unknown[] }
+        return { id: assessment.id, title: assessment.title, assessmentType: data.assessmentType || 'Quiz', className: data.className || '—', questionCount: data.questions?.length || 0, status: assessment.status }
       })
     return res.json({ assessments: records })
   } catch (error) {

@@ -77,7 +77,7 @@ const additionalSections: Record<string, SectionConfig> = {
   'assessment-types': { ...makeSection('Assessment Types', 'Define categories such as quizzes, midterms, and final exams.', 'Add Assessment Type', ['Assessment Type', 'Purpose', 'Allowed question types', 'Typical', 'Status', 'Actions'], 'Quiz'), createFields: [{ name: 'title', label: 'Assessment type', required: true }, { name: 'description', label: 'Purpose', required: true }, { name: 'allowedQuestionTypes', label: 'Allowed question types', required: true }, { name: 'typical', label: 'Typical guidance', required: true }, { name: 'status', label: 'Status', options: ['Active', 'Inactive'], required: true }] },
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
   'assessment-policy': makeSection('Assessment Policy', 'Set grading rules and weights for each assessment type.', 'Add Policy Rule', ['Assessment type', 'Weight', 'Term', 'Status'], 'Quiz'),
-  'all-assessments': makeSection('All Assessments', 'Overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Teacher', 'Class', 'Status', 'Actions'], 'No assessments yet'),
+  'all-assessments': makeSection('All Assessments', 'Overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Assessment Type', 'Teacher', 'Class', 'Status', 'Actions'], 'No assessments yet'),
   'result-approval': makeSection('Result Approval', 'Review and approve results before they are finalized.', 'Review Results', ['Assessment', 'Submissions', 'Submitted on', 'Status'], 'No pending results'),
   'report-cards': makeSection('Report Cards', 'Generate and publish final report cards for students and guardians.', 'Generate Report Cards', ['Term', 'Students', 'Published', 'Status'], 'No report cards yet'),
   announcements: makeSection('Announcements', 'Publish school-wide notices to the community.', 'Create Announcement', ['Announcement', 'Audience', 'Published on', 'Status'], 'No announcements yet'),
@@ -224,7 +224,7 @@ const AdminManagementPage: FC = () => {
   }
   const editableSections = section === 'students' || section === 'teachers' || section === 'guardians' || section === 'grade-levels' || section === 'classes-sections' || section === 'subjects' || section === 'assessment-types' || section === 'all-assessments'
   const editFields: { name: string; label: string; type?: string; options?: string[] }[] = section === 'all-assessments'
-    ? [{ name: 'title', label: 'Assessment' }, { name: 'className', label: 'Class' }, { name: 'status', label: 'Status', options: ['Draft', 'Published', 'Archived'] }]
+    ? [{ name: 'title', label: 'Assessment' }, { name: 'assessmentType', label: 'Assessment type', options: ['Quiz', 'Assignment', 'Midterm Exam', 'Final Exam', 'Project'] }, { name: 'className', label: 'Class' }, { name: 'status', label: 'Status', options: ['Draft', 'Published', 'Archived'] }]
     : section === 'students'
     ? [{ name: 'fullName', label: 'Full name' }, { name: 'gradeLevel', label: 'Grade' }, { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'Pending'] }]
     : section === 'teachers'
@@ -243,7 +243,7 @@ const AdminManagementPage: FC = () => {
     if (!editableSections) return
     setEditingRecordId(record.id)
     setEditValues(section === 'all-assessments'
-      ? { title: record.title, className: record.data.Class || '', status: record.status }
+      ? { title: record.title, assessmentType: record.data['Assessment Type'] || 'Quiz', className: record.data.Class || '', status: record.status }
       : section === 'students'
       ? { fullName: record.data.Student || record.title, gradeLevel: record.data.Grade || '', status: record.status }
       : section === 'teachers'
