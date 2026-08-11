@@ -28,9 +28,14 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   return res.status(500).json({ message: 'Internal server error.' })
 })
 
-const server = app.listen(env.PORT, () => {
-  console.log(`API server listening on port ${env.PORT}`)
-})
+const startServer = async () => {
+  await prisma.$executeRawUnsafe(`ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "assessmentType" TEXT NOT NULL DEFAULT 'Quiz'`)
+  return app.listen(env.PORT, () => {
+    console.log(`API server listening on port ${env.PORT}`)
+  })
+}
+
+const server = await startServer()
 
 const shutdown = async () => {
   server.close()
