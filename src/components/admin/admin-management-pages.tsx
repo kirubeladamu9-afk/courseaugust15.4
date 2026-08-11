@@ -114,6 +114,8 @@ const AdminManagementPage: FC = () => {
   const [editSaving, setEditSaving] = useState(false)
   const [viewingRecord, setViewingRecord] = useState<AdminRecord | null>(null)
   const [questionPage, setQuestionPage] = useState(0)
+  const [listPage, setListPage] = useState(0)
+  const [listRowsPerPage, setListRowsPerPage] = useState(10)
   const questionRowsPerPage = 5
 
   useEffect(() => {
@@ -150,6 +152,7 @@ const AdminManagementPage: FC = () => {
     setCreateValues({})
     setEditingRecordId('')
     setEditValues({})
+    setListPage(0)
     if (!isBackendSection) {
       setRecords(config.rows.map((row, index) => ({ id: `${section}-${index}`, title: row[0], data: Object.fromEntries(config.columns.slice(0, -1).map((column, columnIndex) => [column, row[columnIndex]])), status: row[row.length - 1] })))
       setIsLoading(false)
@@ -176,6 +179,14 @@ const AdminManagementPage: FC = () => {
   }, [section, config, isBackendSection, navigate])
 
   const filteredRecords = useMemo(() => records.filter((record) => config.columns.some((column) => column !== 'Actions' && (record.data[column] ?? record.title).toLowerCase().includes(query.toLowerCase()))), [records, config.columns, query])
+  const isPaginatedSection = section === 'students' || section === 'teachers' || section === 'guardians'
+  const visibleRecords = isPaginatedSection ? filteredRecords.slice(listPage * listRowsPerPage, listPage * listRowsPerPage + listRowsPerPage) : filteredRecords
+
+  useEffect(() => {
+    if (!isPaginatedSection) return
+    const lastPage = Math.max(0, Math.ceil(filteredRecords.length / listRowsPerPage) - 1)
+    setListPage((current) => Math.min(current, lastPage))
+  }, [filteredRecords.length, isPaginatedSection, listRowsPerPage])
   const handleResetPassword = async (record: AdminRecord) => {
     if (!record.sourceType || !record.sourceId) return
     try {
@@ -338,8 +349,9 @@ const AdminManagementPage: FC = () => {
           {error && <Typography color="error" sx={{ px: 1, pt: 1 }}>{error}</Typography>}
           {notice && <Typography color="success.main" sx={{ px: 1, pt: 1 }}>{notice}</Typography>}
           {isLoading && <LinearProgress sx={{ mx: 1, mb: 1 }} />}
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
-          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && editableSections ? <Stack direction="row" spacing={0.5}><Tooltip title="View"><IconButton size="small" aria-label={`View ${record.title}`} onClick={() => { setViewingRecord(record); setQuestionPage(0) }}><VisibilityOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${record.title}`} onClick={() => startEditing(record)}><EditOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Delete"><IconButton size="small" color="error" aria-label={`Delete ${record.title}`} onClick={() => handleDelete(record)}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip></Stack> : column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => { setQuery(event.target.value); setListPage(0) }} /></Stack>
+          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{visibleRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && editableSections ? <Stack direction="row" spacing={0.5}><Tooltip title="View"><IconButton size="small" aria-label={`View ${record.title}`} onClick={() => { setViewingRecord(record); setQuestionPage(0) }}><VisibilityOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${record.title}`} onClick={() => startEditing(record)}><EditOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Delete"><IconButton size="small" color="error" aria-label={`Delete ${record.title}`} onClick={() => handleDelete(record)}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip></Stack> : column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
+          {isPaginatedSection && <TablePagination component="div" count={filteredRecords.length} page={listPage} onPageChange={(_, nextPage) => setListPage(nextPage)} rowsPerPage={listRowsPerPage} onRowsPerPageChange={(event) => { setListRowsPerPage(Number(event.target.value)); setListPage(0) }} rowsPerPageOptions={[5, 10, 25]} />}
           {!filteredRecords.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
         </Paper>
       </Container>
