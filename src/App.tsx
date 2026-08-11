@@ -17,6 +17,7 @@ const HomeOurMentors = lazy(() => import('@/components/home/mentors'))
 const HomeNewsLetter = lazy(() => import('@/components/home/newsletter'))
 const AdminDashboard = lazy(() => import('@/components/admin/admin-dashboard'))
 const AdminProfile = lazy(() => import('@/components/admin/admin-profile'))
+const AdminChangePassword = lazy(() => import('@/components/admin/admin-change-password'))
 const AddStudentPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.AddStudentPage })))
 const AddTeacherPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.AddTeacherPage })))
 const EditStudentPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.EditStudentPage })))
@@ -123,6 +124,7 @@ const App: React.FC = () => (
       <Route path="/mentors" element={<PageLayout><HomeOurMentors /></PageLayout>} />
       <Route path="/admin" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminDashboard /></Suspense></RoleRoute>} />
       <Route path="/admin/profile" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminProfile /></Suspense></RoleRoute>} />
+      <Route path="/admin/change-password" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminChangePassword /></Suspense></RoleRoute>} />
       <Route path="/admin/roles-permissions" element={<Navigate to="/admin/user-accounts" replace />} />
       <Route path="/admin/assessment-types" element={<Navigate to="/admin/all-assessments" replace />} />
       <Route path="/admin/students/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddStudentPage /></Suspense></RoleRoute>} />

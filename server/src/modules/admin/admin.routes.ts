@@ -21,6 +21,12 @@ const userAccountSchema = z.object({
   role: z.enum(['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']),
   status: z.enum(['ACTIVE', 'INACTIVE']),
 })
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(8).max(200).regex(/[a-z]/, 'New password must include a lowercase letter.').regex(/[A-Z]/, 'New password must include an uppercase letter.').regex(/\d/, 'New password must include a number.'),
+}).superRefine(({ currentPassword, newPassword }, context) => {
+  if (currentPassword === newPassword) context.addIssue({ code: 'custom', path: ['newPassword'], message: 'Your new password must be different from your current password.' })
+})
 
 type UserAccountSource = 'teacher' | 'student' | 'guardian'
 type UserAccountRecord = { id: string; title: string; data: Record<string, string>; status: string; sourceType: UserAccountSource | 'user'; sourceId: string; userId?: string }
@@ -107,6 +113,23 @@ const getModel = (section: string) => {
 }
 
 router.use(requireAdmin)
+
+router.post('/change-password', async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body)
+    const user = await prisma.user.findUnique({ where: { id: res.locals.adminUserId }, select: { passwordHash: true } })
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) return res.status(400).json({ message: 'Current password is incorrect.' })
+
+    const passwordHash = await bcrypt.hash(newPassword, 12)
+    await prisma.user.update({ where: { id: res.locals.adminUserId }, data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null } })
+
+    const isHttps = req.secure || req.get('x-forwarded-proto') === 'https' || req.get('origin')?.startsWith('https://')
+    res.clearCookie('coursespace_session', { httpOnly: true, sameSite: isHttps ? 'none' : 'lax', secure: isHttps, path: '/' })
+    return res.json({ message: 'Password updated. Please sign in with your new password.' })
+  } catch (error) {
+    return next(error)
+  }
+})
 
 router.get('/dashboard', async (_req, res, next) => {
   try {

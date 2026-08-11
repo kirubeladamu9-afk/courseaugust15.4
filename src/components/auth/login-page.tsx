@@ -13,7 +13,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import Visibility from '@mui/icons-material/Visibility'
 import VisibilityOff from '@mui/icons-material/VisibilityOff'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/logo'
 import { Header } from '@/components/header'
 import { StyledButton } from '@/components/styled-button'
@@ -28,7 +28,9 @@ const roleDestinations = {
 
 const LoginPage: FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login } = useAuth()
+  const successMessage = (location.state as { message?: string } | null)?.message
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
@@ -74,6 +76,7 @@ const LoginPage: FC = () => {
 
           <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 4 }}>
             <Stack spacing={2.25}>
+              {successMessage && <Alert severity="success">{successMessage}</Alert>}
               {error && <Alert severity="error">{error}</Alert>}
               {fieldError && <Alert severity="warning">{fieldError}</Alert>}
               <TextField label="Email or Username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" fullWidth required />

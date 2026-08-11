@@ -253,6 +253,9 @@ const AdminHeader: FC<{ onMenuClick: () => void; onToggleSidebar: () => void; si
     if (item === 'Profile') {
       navigate('/admin/profile')
     }
+    if (item === 'Change Password') {
+      navigate('/admin/change-password')
+    }
     if (item === 'Logout') {
       await logout()
       navigate('/login', { replace: true })
