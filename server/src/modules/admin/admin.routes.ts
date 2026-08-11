@@ -730,6 +730,17 @@ router.get('/:section', async (req, res, next) => {
   try {
     const section = sectionSchema.parse(req.params.section)
     const records = await getModel(section).findMany({ orderBy: { createdAt: 'asc' } })
+    if (section === 'learning-materials') {
+      const teacherIds = [...new Set(records.map((record) => ((record as { data: unknown }).data as { teacherId?: string }).teacherId).filter((id): id is string => Boolean(id)))]
+      const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
+      const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
+      return res.json({ records: records.map((record) => {
+        const materialRecord = record as { id: string; title: string; data: Record<string, unknown>; status: string; createdAt: Date; updatedAt: Date }
+        const data = materialRecord.data
+        const teacherId = typeof data.teacherId === 'string' ? data.teacherId : ''
+        return { ...materialRecord, data: { ...data, teacherName: teacherNames.get(teacherId) || '—' } }
+      }) })
+    }
     return res.json({ records })
   } catch (error) {
     return next(error)
