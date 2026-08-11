@@ -250,13 +250,14 @@ router.get('/students', async (_req, res, next) => {
 
 const gradeLevelSchema = z.object({ grade: z.string().trim().min(1).max(80), classes: z.coerce.number().int().nonnegative(), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), gradeLevelId: z.string().trim().min(1), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
+const subjectUpdateSchema = recordSchema
 const teacherSchema = z.object({ fullName: z.string().trim().min(1).max(160), gender: z.string().trim().min(1).max(40), photoName: z.string().trim().max(255).optional(), phoneNumber: z.string().trim().max(40).optional(), address: z.string().trim().max(300).optional(), nationalId: z.string().trim().max(120).optional(), assignedSubjects: z.string().trim().max(300).optional(), assignedClasses: z.string().trim().max(300).optional(), status: z.enum(['Active', 'Inactive', 'On Leave']) })
 const teacherUpdateSchema = teacherSchema.partial()
 const studentUpdateSchema = z.object({ fullName: z.string().trim().min(1).max(160).optional(), gradeLevel: z.string().trim().min(1).max(40).optional(), status: z.enum(['Active', 'Inactive', 'Pending']).optional() })
 const guardianUpdateSchema = guardianSchema.partial()
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
-const toClassSectionRecord = (record: { id: string; name: string; students: number; status: string; gradeLevel: { name: string } | null }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, 'Grade Level': record.gradeLevel?.name || '—', Students: String(record.students) }, status: record.status })
+const toClassSectionRecord = (record: { id: string; name: string; gradeLevelId: string | null; students: number; status: string; gradeLevel: { name: string } | null }) => ({ id: record.id, title: record.name, data: { 'Class / Section': record.name, 'Grade Level': record.gradeLevel?.name || '—', gradeLevelId: record.gradeLevelId || '', Students: String(record.students) }, status: record.status })
 const toTeacherRecord = (record: { id: string; fullName: string; gender: string; photoName: string | null; phoneNumber: string | null; address: string | null; nationalId: string | null; assignedSubjects: string | null; assignedClasses: string | null; status: string }) => ({ id: record.id, title: record.fullName, data: { 'Full Name': record.fullName, Gender: record.gender, Photo: record.photoName || '—', 'Phone Number': record.phoneNumber || '—', Address: record.address || '—', 'National ID / Passport Number': record.nationalId || '—', 'Assigned Subjects': record.assignedSubjects || '—', 'Assigned Classes': record.assignedClasses || '—' }, status: record.status })
 
 router.get('/teachers', async (_req, res, next) => {
@@ -311,6 +312,48 @@ router.post('/classes-sections', async (req, res, next) => {
     const input = classSectionSchema.parse(req.body)
     const record = await prisma.classSection.create({ data: { name: input.classSection, gradeLevelId: input.gradeLevelId, students: input.students, status: input.status }, include: { gradeLevel: { select: { name: true } } } })
     return res.status(201).json({ record: toClassSectionRecord(record) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/grade-levels/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const input = gradeLevelSchema.parse(req.body)
+    const record = await prisma.gradeLevel.update({ where: { id }, data: { name: input.grade, classes: input.classes, students: input.students, status: input.status } })
+    return res.json({ record: toGradeLevelRecord(record) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/grade-levels/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    await prisma.gradeLevel.delete({ where: { id } })
+    return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/classes-sections/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const input = classSectionSchema.parse(req.body)
+    const record = await prisma.classSection.update({ where: { id }, data: { name: input.classSection, gradeLevelId: input.gradeLevelId, students: input.students, status: input.status }, include: { gradeLevel: { select: { name: true } } } })
+    return res.json({ record: toClassSectionRecord(record) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/classes-sections/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    await prisma.classSection.delete({ where: { id } })
+    return res.status(204).send()
   } catch (error) {
     return next(error)
   }
@@ -402,6 +445,27 @@ router.delete('/guardians/:id', async (req, res, next) => {
   try {
     const id = z.string().min(1).parse(req.params.id)
     await prisma.guardian.delete({ where: { id } })
+    return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/subjects/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const input = subjectUpdateSchema.parse(req.body)
+    const record = await prisma.subject.update({ where: { id }, data: input })
+    return res.json({ record })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/subjects/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    await prisma.subject.delete({ where: { id } })
     return res.status(204).send()
   } catch (error) {
     return next(error)
