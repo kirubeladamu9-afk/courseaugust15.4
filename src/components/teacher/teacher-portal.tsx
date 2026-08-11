@@ -190,17 +190,20 @@ const AssignmentBuilder: FC = () => {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [assignedAssessments, setAssignedAssessments] = useState<{ id: string; assessment: string; className: string; dueDate: string; status: string }[]>([])
 
   useEffect(() => {
     Promise.all([
       api.get<{ assessments: { id: string; title: string }[] }>('/api/teacher/assessments', { withCredentials: true }),
       api.get<{ classes: string[] }>('/api/teacher/assigned-classes', { withCredentials: true }),
+      api.get<{ assignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[] }>('/api/teacher/assessments/assignments', { withCredentials: true }),
     ])
-      .then(([assessmentResponse, classResponse]) => {
+      .then(([assessmentResponse, classResponse, assignmentResponse]) => {
         setAssessments(assessmentResponse.data.assessments)
         setClasses(classResponse.data.classes)
         setAssessmentId(assessmentResponse.data.assessments[0]?.id || '')
         setClassName(classResponse.data.classes[0] || '')
+        setAssignedAssessments(assignmentResponse.data.assignments)
       })
       .catch(() => setError('Unable to load assessments and assigned classes. Please try again.'))
       .finally(() => setLoading(false))
@@ -215,6 +218,9 @@ const AssignmentBuilder: FC = () => {
     setError('')
     try {
       await api.post(`/api/teacher/assessments/${assessmentId}/assign`, { className, dueDate }, { withCredentials: true })
+      const { data } = await api.get<{ assignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[] }>('/api/teacher/assessments/assignments', { withCredentials: true })
+      setAssignedAssessments(data.assignments)
+      setDueDate('')
       setNotice('Assessment assigned successfully.')
     } catch (requestError) {
       setError(axios.isAxiosError<{ message?: string }>(requestError) ? requestError.response?.data.message || 'Unable to assign the assessment.' : 'Unable to assign the assessment.')
@@ -223,7 +229,7 @@ const AssignmentBuilder: FC = () => {
     }
   }
 
-  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assign Assessment</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>Choose a saved assessment, assigned class, and due date.</Typography>{loading ? <LinearProgress /> : <Grid container spacing={2}><Grid item xs={12} md={5}><Select fullWidth value={assessmentId} disabled={!assessments.length} onChange={(event) => setAssessmentId(event.target.value)} displayEmpty aria-label="Assessment"><MenuItem value="" disabled>{assessments.length ? 'Select an assessment' : 'No saved assessments'}</MenuItem>{assessments.map((assessment) => <MenuItem key={assessment.id} value={assessment.id}>{assessment.title}</MenuItem>)}</Select></Grid><Grid item xs={12} md={4}><Select fullWidth value={className} disabled={!classes.length} onChange={(event) => setClassName(event.target.value)} displayEmpty aria-label="Class"><MenuItem value="" disabled>{classes.length ? 'Select an assigned class' : 'No assigned classes'}</MenuItem>{classes.map((assignedClass) => <MenuItem key={assignedClass} value={assignedClass}>{assignedClass}</MenuItem>)}</Select></Grid><Grid item xs={12} md={3}><TextField fullWidth label="Due date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} InputLabelProps={{ shrink: true }} /></Grid><Grid item xs={12}><Button variant="contained" onClick={assignAssessment} disabled={saving || !assessments.length || !classes.length}>{saving ? 'Assigning...' : 'Assign Assessment'}</Button></Grid></Grid>}{notice && <Typography color="success.main" sx={{ mt: 2 }}>{notice}</Typography>}{error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}</Paper>
+  return <Stack spacing={2}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assign Assessment</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>Choose a saved assessment, assigned class, and due date.</Typography>{loading ? <LinearProgress /> : <Grid container spacing={2}><Grid item xs={12} md={5}><Select fullWidth value={assessmentId} disabled={!assessments.length} onChange={(event) => setAssessmentId(event.target.value)} displayEmpty aria-label="Assessment"><MenuItem value="" disabled>{assessments.length ? 'Select an assessment' : 'No saved assessments'}</MenuItem>{assessments.map((assessment) => <MenuItem key={assessment.id} value={assessment.id}>{assessment.title}</MenuItem>)}</Select></Grid><Grid item xs={12} md={4}><Select fullWidth value={className} disabled={!classes.length} onChange={(event) => setClassName(event.target.value)} displayEmpty aria-label="Class"><MenuItem value="" disabled>{classes.length ? 'Select an assigned class' : 'No assigned classes'}</MenuItem>{classes.map((assignedClass) => <MenuItem key={assignedClass} value={assignedClass}>{assignedClass}</MenuItem>)}</Select></Grid><Grid item xs={12} md={3}><TextField fullWidth label="Due date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} InputLabelProps={{ shrink: true }} /></Grid><Grid item xs={12}><Button variant="contained" onClick={assignAssessment} disabled={saving || !assessments.length || !classes.length}>{saving ? 'Assigning...' : 'Assign Assessment'}</Button></Grid></Grid>}{notice && <Typography color="success.main" sx={{ mt: 2 }}>{notice}</Typography>}{error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}</Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assigned Assessment</Typography>{assignedAssessments.length ? <TableContainer sx={{ mt: 2 }}><Table><TableHead><TableRow>{['Assessment', 'Class', 'Due date', 'Status'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assignedAssessments.map((assignment) => <TableRow hover key={assignment.id}><TableCell>{assignment.assessment}</TableCell><TableCell>{assignment.className}</TableCell><TableCell>{new Date(assignment.dueDate).toLocaleDateString()}</TableCell><TableCell><Chip size="small" label={assignment.status} color="success" /></TableCell></TableRow>)}</TableBody></Table></TableContainer> : <Typography color="text.secondary" sx={{ mt: 1 }}>No assessments assigned yet.</Typography>}</Paper></Stack>
 }
 
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {

@@ -82,6 +82,20 @@ router.get('/assessments', async (_req, res, next) => {
   }
 })
 
+router.get('/assessments/assignments', async (_req, res, next) => {
+  try {
+    const assessments = await prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } })
+    const assignments = assessments.flatMap((assessment) => {
+      const data = assessment.data as { teacherId?: string; assignments?: { className: string; dueDate: string }[] }
+      if (data.teacherId !== res.locals.auth.sub) return []
+      return (data.assignments || []).map((assignment, index) => ({ id: `${assessment.id}-${index}`, assessment: assessment.title, className: assignment.className, dueDate: assignment.dueDate, status: 'Assigned' }))
+    })
+    return res.json({ assignments })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.post('/assessments/:id/assign', async (req, res, next) => {
   try {
     const assessmentId = z.string().min(1).parse(req.params.id)
