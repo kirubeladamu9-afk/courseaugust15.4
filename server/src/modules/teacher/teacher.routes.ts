@@ -53,7 +53,7 @@ const assessmentStatusSchema = z.object({ status: z.enum(['Draft', 'Published', 
 
 router.get('/students', async (_req, res, next) => {
   try {
-    const students = await prisma.student.findMany({ orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, gradeLevel: true, status: true } })
+    const students = await prisma.student.findMany({ orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, gradeLevel: true, classSection: true, academicYear: true, status: true } })
     return res.json({ students })
   } catch (error) {
     return next(error)
