@@ -393,6 +393,22 @@ router.delete('/guardians/:id', async (req, res, next) => {
   }
 })
 
+router.get('/all-assessments', async (_req, res, next) => {
+  try {
+    const quizzes = await prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } })
+    const teacherIds = quizzes.map((quiz) => (quiz.data as { teacherId?: string }).teacherId).filter((id): id is string => Boolean(id))
+    const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
+    const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
+    const records = quizzes.map((quiz) => {
+      const data = quiz.data as { teacherId?: string; className?: string }
+      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—' }, status: quiz.status }
+    })
+    return res.json({ records })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/:section', async (req, res, next) => {
   try {
     const section = sectionSchema.parse(req.params.section)
