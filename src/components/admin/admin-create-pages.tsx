@@ -325,8 +325,6 @@ const profileFields: Record<EditableProfileType, FieldConfig[]> = {
     { name: 'classSection', label: 'Class & section', required: true },
     { name: 'enrollmentDate', label: 'Enrollment date', type: 'date', required: true },
     { name: 'address', label: 'Address' },
-    { name: 'guardianSearch', label: 'Guardian name or email', required: true },
-    { name: 'relationshipType', label: 'Relationship to student', options: ['Mother', 'Father', 'Guardian', 'Emergency Contact'], required: true },
     { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'Pending'], required: true },
   ],
   teacher: [
@@ -393,9 +391,7 @@ const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
         const profile = data[type] || {}
         const dateValue = (value: unknown) => typeof value === 'string' ? value.slice(0, 10) : ''
         if (type === 'student') {
-          const links = profile.guardianLinks as { guardian: { name: string; email?: string | null }; relationshipType: string }[] | undefined
-          const linkedGuardian = links?.[0]
-          setValues({ ...Object.fromEntries(profileFields.student.map(({ name }) => [name, String(profile[name] || '')])), dateOfBirth: dateValue(profile.dateOfBirth), enrollmentDate: dateValue(profile.enrollmentDate), guardianSearch: linkedGuardian?.guardian.email || linkedGuardian?.guardian.name || '', relationshipType: linkedGuardian?.relationshipType || 'Guardian' })
+          setValues({ ...Object.fromEntries(profileFields.student.map(({ name }) => [name, String(profile[name] || '')])), dateOfBirth: dateValue(profile.dateOfBirth), enrollmentDate: dateValue(profile.enrollmentDate) })
           return
         }
         setValues(Object.fromEntries(profileFields[type].map(({ name }) => [name, String(profile[name] || '')])))
