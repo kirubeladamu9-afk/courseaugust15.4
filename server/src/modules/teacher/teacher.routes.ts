@@ -68,6 +68,26 @@ router.post('/change-password', async (req, res, next) => {
   }
 })
 
+router.get('/timetable', async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: res.locals.auth.sub }, select: { name: true } })
+    const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { fullName: true, assignedSubjects: true, assignedClasses: true } }) : null
+    const entries = await prisma.timetableEntry.findMany({ orderBy: [{ academicYear: 'asc' }, { day: 'asc' }, { startTime: 'asc' }] })
+    const teacherName = teacher?.fullName?.toLowerCase()
+    const assignedSubjects = (teacher?.assignedSubjects || '').split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
+    const assignedClasses = (teacher?.assignedClasses || '').split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
+    const visibleEntries = entries.filter((entry) => {
+      const isAssignedTeacher = Boolean(teacherName && entry.teacher.toLowerCase() === teacherName)
+      const isAssignedClassSubject = assignedClasses.includes(entry.classSection.toLowerCase()) && assignedSubjects.includes(entry.subject.toLowerCase())
+      return isAssignedTeacher || isAssignedClassSubject
+    })
+    const requestedYear = typeof req.query.academicYear === 'string' ? req.query.academicYear : visibleEntries[0]?.academicYear
+    return res.json({ academicYears: [...new Set(visibleEntries.map((entry) => entry.academicYear))], entries: requestedYear ? visibleEntries.filter((entry) => entry.academicYear === requestedYear) : [] })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/dashboard', async (_req, res, next) => {
   try {
     const teacherId = res.locals.auth.sub

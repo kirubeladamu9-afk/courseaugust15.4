@@ -424,6 +424,49 @@ const TeacherDashboard: FC = () => {
   </>
 }
 
+type TeacherTimetableEntry = { id: string; academicYear: string; classSection: string; day: string; period: string; startTime: string; endTime: string; subject: string; teacher: string; room: string | null }
+
+const TeacherTimetable: FC = () => {
+  const [academicYears, setAcademicYears] = useState<string[]>([])
+  const [academicYear, setAcademicYear] = useState('')
+  const [entries, setEntries] = useState<TeacherTimetableEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get<{ academicYears: string[]; entries: TeacherTimetableEntry[] }>('/api/teacher/timetable', { withCredentials: true })
+      .then(({ data }) => {
+        setAcademicYears(data.academicYears)
+        setAcademicYear(data.academicYears[0] || '')
+        setEntries(data.entries)
+      })
+      .catch(() => setError('Unable to load your timetable. Please try again.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (!academicYear) return
+    api.get<{ entries: TeacherTimetableEntry[] }>('/api/teacher/timetable', { params: { academicYear }, withCredentials: true })
+      .then(({ data }) => setEntries(data.entries))
+      .catch(() => setError('Unable to load your timetable. Please try again.'))
+  }, [academicYear])
+
+  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
+      <Box><Typography variant="h5">Weekly teaching schedule</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Your assigned classes, subjects, rooms, and teaching periods.</Typography></Box>
+      <TextField size="small" select label="Academic Year" value={academicYear} onChange={(event) => setAcademicYear(event.target.value)} sx={{ minWidth: 170 }} disabled={!academicYears.length}>{academicYears.map((year) => <MenuItem key={year} value={year}>{year}</MenuItem>)}</TextField>
+    </Stack>
+    {loading && <LinearProgress sx={{ mb: 2 }} />}
+    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    {!loading && !error && !entries.length && <Typography color="text.secondary" sx={{ py: 3 }}>No timetable periods have been assigned to you yet.</Typography>}
+    <Stack spacing={1.5}>{['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => {
+      const dayEntries = entries.filter((entry) => entry.day === day)
+      if (!dayEntries.length) return null
+      return <Box key={day}><Typography variant="subtitle1" sx={{ mb: 1 }}>{day}</Typography><Stack spacing={1}>{dayEntries.map((entry) => <Paper key={entry.id} variant="outlined" sx={{ p: 1.5, backgroundColor: 'background.default' }}><Grid container spacing={1.5} alignItems="center"><Grid item xs={12} sm={2}><Typography variant="subtitle2">{entry.period}</Typography><Typography variant="caption" color="text.secondary">{entry.startTime}–{entry.endTime}</Typography></Grid><Grid item xs={12} sm={3}><Typography fontWeight={700}>{entry.subject}</Typography><Typography variant="body2" color="text.secondary">{entry.classSection}</Typography></Grid><Grid item xs={12} sm={3}><Typography variant="body2">{entry.room || 'Room not assigned'}</Typography><Typography variant="caption" color="text.secondary">Location</Typography></Grid><Grid item xs={12} sm={4}><Typography variant="body2" color="text.secondary">Academic year</Typography><Typography variant="subtitle2">{entry.academicYear}</Typography></Grid></Grid></Paper>)}</Stack></Box>
+    })}</Stack>
+  </Paper>
+}
+
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   const details = pageDetails[pageKey] || pageDetails.dashboard
   const navigate = useNavigate()
@@ -490,6 +533,7 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   if (pageKey === 'profile') return <TeacherProfilePage />
   if (pageKey === 'change-password') return <ChangePasswordPage />
   if (pageKey === 'dashboard') return <TeacherDashboard />
+  if (pageKey === 'timetable') return <TeacherTimetable />
   if (pageKey === 'assessments/create') return <AssessmentBuilder />
   if (pageKey === 'assessments/assign') return <AssignmentBuilder />
   if (pageKey === 'students') return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
