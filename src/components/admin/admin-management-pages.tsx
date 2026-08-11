@@ -100,6 +100,8 @@ const formatLastLogin = (value: string) => {
   return Number.isNaN(timestamp) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp)
 }
 
+const ProfilePhoto: FC<{ source: string; name: string }> = ({ source, name }) => source.startsWith('data:image/') || source.startsWith('https://') ? <Box component="img" src={source} alt={`${name} profile`} sx={{ width: 144, height: 144, borderRadius: 3, objectFit: 'cover', display: 'block' }} /> : <Typography color="text.secondary">No photo available</Typography>
+
 const getLiveMetrics = (section: string, records: AdminRecord[], isLoading: boolean): [string, string, string][] | null => {
   if (!liveMetricSections.has(section)) return null
   const count = (status: string) => records.filter((record) => record.status.toLowerCase() === status.toLowerCase()).length
@@ -364,7 +366,7 @@ const AdminManagementPage: FC = () => {
   }
 
   if (viewingRecord && section !== 'all-assessments') {
-    return <AdminPanelLayout title={viewingRecord.title}><Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}><Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="text.secondary">{config.title}</Typography><Typography variant="subtitle2" color="primary.main">{viewingRecord.title}</Typography></Breadcrumbs><Button onClick={() => setViewingRecord(null)} sx={{ mb: 3, px: 0 }}>Back to {config.title}</Button><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 3 }}>{viewingRecord.title}</Typography><Grid container spacing={2}>{Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Grid item xs={12} sm={6} md={4} key={label}><Typography variant="body2" color="text.secondary">{label}</Typography><Typography fontWeight={600}>{value || '—'}</Typography></Grid>)}</Grid></Paper></Container></AdminPanelLayout>
+    return <AdminPanelLayout title={viewingRecord.title}><Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}><Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="text.secondary">{config.title}</Typography><Typography variant="subtitle2" color="primary.main">{viewingRecord.title}</Typography></Breadcrumbs><Button onClick={() => setViewingRecord(null)} sx={{ mb: 3, px: 0 }}>Back to {config.title}</Button><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 3 }}>{viewingRecord.title}</Typography><Grid container spacing={2}>{Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Grid item xs={12} sm={6} md={4} key={label}><Typography variant="body2" color="text.secondary">{label}</Typography>{label === 'Photo' ? <ProfilePhoto source={value} name={viewingRecord.title} /> : <Typography fontWeight={600}>{value || '—'}</Typography>}</Grid>)}</Grid></Paper></Container></AdminPanelLayout>
   }
 
   if (viewingRecord && section === 'all-assessments') {
