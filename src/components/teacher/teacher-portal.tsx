@@ -39,6 +39,7 @@ import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutl
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined'
 import AddRounded from '@mui/icons-material/AddRounded'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
+import EditOutlined from '@mui/icons-material/EditOutlined'
 import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
 import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined'
 import Radio from '@mui/material/Radio'
@@ -234,12 +235,29 @@ const AssignmentBuilder: FC = () => {
 
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   const details = pageDetails[pageKey] || pageDetails.dashboard
+  const navigate = useNavigate()
   const [students, setStudents] = useState<{ id: string; fullName: string; gradeLevel: string; status: string }[]>([])
   const [studentsLoading, setStudentsLoading] = useState(false)
   const [studentsError, setStudentsError] = useState('')
   const [assessments, setAssessments] = useState<{ id: string; title: string; className: string; questionCount: number; status: string }[]>([])
   const [assessmentsLoading, setAssessmentsLoading] = useState(false)
   const [assessmentsError, setAssessmentsError] = useState('')
+  const [assessmentActionError, setAssessmentActionError] = useState('')
+  const [deletingAssessmentId, setDeletingAssessmentId] = useState('')
+
+  const deleteAssessment = async (assessmentId: string) => {
+    if (!window.confirm('Delete this assessment? This action cannot be undone.')) return
+    setDeletingAssessmentId(assessmentId)
+    setAssessmentActionError('')
+    try {
+      await api.delete(`/api/teacher/assessments/${assessmentId}`, { withCredentials: true })
+      setAssessments((current) => current.filter((assessment) => assessment.id !== assessmentId))
+    } catch (requestError) {
+      setAssessmentActionError(axios.isAxiosError<{ message?: string }>(requestError) ? requestError.response?.data.message || 'Unable to delete the assessment.' : 'Unable to delete the assessment.')
+    } finally {
+      setDeletingAssessmentId('')
+    }
+  }
 
   useEffect(() => {
     if (pageKey !== 'students') return
@@ -269,7 +287,7 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   if (pageKey === 'assessments/assign') return <AssignmentBuilder />
   return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
     <Typography variant="h5">{details.title}</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>{details.description}</Typography>
-    {pageKey === 'students' || pageKey === 'materials' || pageKey === 'assessments' ? <>{studentsLoading && pageKey === 'students' && <LinearProgress sx={{ mb: 2 }} />}{studentsError && pageKey === 'students' && <Typography color="error" sx={{ mb: 2 }}>{studentsError}</Typography>}{assessmentsLoading && pageKey === 'assessments' && <LinearProgress sx={{ mb: 2 }} />}{assessmentsError && pageKey === 'assessments' && <Typography color="error" sx={{ mb: 2 }}>{assessmentsError}</Typography>}<TableContainer><Table><TableHead><TableRow>{(pageKey === 'students' ? ['Student', 'Class', 'Progress', 'Status'] : pageKey === 'materials' ? ['Material', 'Type', 'Assigned class', 'Status'] : ['Assessment', 'Class', 'Due date', 'Status']).map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{(pageKey === 'students' ? students.map((student) => [student.fullName, student.gradeLevel, '—', student.status]) : pageKey === 'materials' ? [['Algebra workbook', 'PDF', 'Grade 8', 'Published'], ['Linear equations video', 'Video', 'Grade 7', 'Published'], ['Practice worksheet', 'Document', 'Grade 9', 'Draft']] : assessments.map((assessment) => [assessment.title, `${assessment.className} · ${assessment.questionCount} questions`, '—', assessment.status])).map((row) => <TableRow hover key={row[0]}>{row.map((cell, index) => <TableCell key={cell}>{index === row.length - 1 ? <Chip size="small" label={cell} color={cell === 'Published' || cell === 'Open' || cell === 'On track' || cell === 'Active' ? 'success' : 'warning'} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>{pageKey === 'assessments' && !assessmentsLoading && !assessmentsError && !assessments.length && <Typography color="text.secondary" sx={{ p: 3 }}>No saved assessments found.</Typography>}</> : <Grid container spacing={2}><Grid item xs={12} md={7}><TextField fullWidth label={pageKey.includes('password') ? 'New password' : 'Title'} type={pageKey.includes('password') ? 'password' : 'text'} /></Grid><Grid item xs={12} md={5}><Select fullWidth defaultValue="Grade 8" aria-label="Class"><MenuItem value="Grade 7">Grade 7</MenuItem><MenuItem value="Grade 8">Grade 8</MenuItem><MenuItem value="Grade 9">Grade 9</MenuItem></Select></Grid><Grid item xs={12}><Button variant="contained" startIcon={pageKey.includes('upload') ? <UploadFileOutlined /> : undefined}>{pageKey.includes('upload') ? 'Upload Material' : pageKey.includes('password') ? 'Update Password' : 'Save Changes'}</Button></Grid></Grid>}
+    {pageKey === 'students' || pageKey === 'materials' || pageKey === 'assessments' ? <>{studentsLoading && pageKey === 'students' && <LinearProgress sx={{ mb: 2 }} />}{studentsError && pageKey === 'students' && <Typography color="error" sx={{ mb: 2 }}>{studentsError}</Typography>}{assessmentsLoading && pageKey === 'assessments' && <LinearProgress sx={{ mb: 2 }} />}{assessmentsError && pageKey === 'assessments' && <Typography color="error" sx={{ mb: 2 }}>{assessmentsError}</Typography>}{assessmentActionError && pageKey === 'assessments' && <Typography color="error" sx={{ mb: 2 }}>{assessmentActionError}</Typography>}<TableContainer><Table><TableHead><TableRow>{(pageKey === 'students' ? ['Student', 'Class', 'Progress', 'Status'] : pageKey === 'materials' ? ['Material', 'Type', 'Assigned class', 'Status'] : ['Assessment', 'Class', 'Due date', 'Status', 'Actions']).map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{(pageKey === 'students' ? students.map((student) => [student.fullName, student.gradeLevel, '—', student.status]) : pageKey === 'materials' ? [['Algebra workbook', 'PDF', 'Grade 8', 'Published'], ['Linear equations video', 'Video', 'Grade 7', 'Published'], ['Practice worksheet', 'Document', 'Grade 9', 'Draft']] : assessments.map((assessment) => [assessment.title, `${assessment.className} · ${assessment.questionCount} questions`, '—', assessment.status, assessment.id])).map((row) => <TableRow hover key={row[0]}>{row.map((cell, index) => <TableCell key={cell}>{pageKey === 'assessments' && index === row.length - 1 ? <Stack direction="row" spacing={0.5}><Button size="small" startIcon={<EditOutlined />} onClick={() => navigate(`/teacher/assessments/create?edit=${row[4]}`)}>Edit</Button><Button size="small" color="error" startIcon={<DeleteOutlineRounded />} onClick={() => deleteAssessment(String(row[4]))} disabled={deletingAssessmentId === row[4]}>{deletingAssessmentId === row[4] ? 'Deleting...' : 'Delete'}</Button></Stack> : index === row.length - 1 ? <Chip size="small" label={cell} color={cell === 'Published' || cell === 'Open' || cell === 'On track' || cell === 'Active' ? 'success' : 'warning'} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>{pageKey === 'assessments' && !assessmentsLoading && !assessmentsError && !assessments.length && <Typography color="text.secondary" sx={{ p: 3 }}>No saved assessments found.</Typography>}</> : <Grid container spacing={2}><Grid item xs={12} md={7}><TextField fullWidth label={pageKey.includes('password') ? 'New password' : 'Title'} type={pageKey.includes('password') ? 'password' : 'text'} /></Grid><Grid item xs={12} md={5}><Select fullWidth defaultValue="Grade 8" aria-label="Class"><MenuItem value="Grade 7">Grade 7</MenuItem><MenuItem value="Grade 8">Grade 8</MenuItem><MenuItem value="Grade 9">Grade 9</MenuItem></Select></Grid><Grid item xs={12}><Button variant="contained" startIcon={pageKey.includes('upload') ? <UploadFileOutlined /> : undefined}>{pageKey.includes('upload') ? 'Upload Material' : pageKey.includes('password') ? 'Update Password' : 'Save Changes'}</Button></Grid></Grid>}
   </Paper>
 }
 

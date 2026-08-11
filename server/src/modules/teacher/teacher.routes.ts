@@ -106,6 +106,18 @@ router.post('/assessments/:id/assign', async (req, res, next) => {
   }
 })
 
+router.delete('/assessments/:id', async (req, res, next) => {
+  try {
+    const assessmentId = z.string().min(1).parse(req.params.id)
+    const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
+    if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
+    await prisma.quiz.delete({ where: { id: assessmentId } })
+    return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.post('/assessments', async (req, res, next) => {
   try {
     const input = assessmentSchema.parse(req.body)
