@@ -84,12 +84,8 @@ router.get('/assessments', async (_req, res, next) => {
 
 router.get('/assessments/assignments', async (_req, res, next) => {
   try {
-    const assessments = await prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } })
-    const records = assessments.flatMap((assessment) => {
-      const data = assessment.data as { teacherId?: string; assignments?: { className: string; dueDate: string }[] }
-      if (data.teacherId !== res.locals.auth.sub) return []
-      return (data.assignments || []).map((assignment, index) => ({ id: `${assessment.id}-${index}`, assessment: assessment.title, className: assignment.className, dueDate: assignment.dueDate, status: 'Assigned' }))
-    })
+    const assignments = await prisma.assessmentAssignment.findMany({ where: { teacherId: res.locals.auth.sub }, orderBy: { createdAt: 'desc' }, include: { quiz: { select: { title: true } } } })
+    const records = assignments.map((assignment) => ({ id: assignment.id, assessment: assignment.quiz.title, className: assignment.className, dueDate: assignment.dueDate.toISOString(), status: assignment.status }))
     return res.json({ assignments: records })
   } catch (error) {
     return next(error)
@@ -102,10 +98,8 @@ router.post('/assessments/:id/assign', async (req, res, next) => {
     const input = assignmentSchema.parse(req.body)
     const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
     if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
-    const data = assessment.data as { assignments?: { className: string; dueDate: string }[] }
-    const assignment = { className: input.className, dueDate: input.dueDate.toISOString() }
-    await prisma.quiz.update({ where: { id: assessment.id }, data: { data: { ...data, assignments: [...(data.assignments || []), assignment] } } })
-    return res.status(201).json({ assignment: { ...assignment, status: 'Assigned' } })
+    const assignment = await prisma.assessmentAssignment.create({ data: { quizId: assessment.id, teacherId: res.locals.auth.sub, className: input.className, dueDate: input.dueDate } })
+    return res.status(201).json({ assignment: { id: assignment.id, className: assignment.className, dueDate: assignment.dueDate.toISOString(), status: assignment.status } })
   } catch (error) {
     return next(error)
   }
