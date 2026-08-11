@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type FC } from 'react'
 import axios from 'axios'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
+import Divider from '@mui/material/Divider'
 import Button from '@mui/material/Button'
 import ButtonBase from '@mui/material/ButtonBase'
 import Checkbox from '@mui/material/Checkbox'
@@ -29,13 +30,14 @@ import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined'
+import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
+import EmailOutlined from '@mui/icons-material/EmailOutlined'
 import AssessmentOutlined from '@mui/icons-material/AssessmentOutlined'
 import Avatar from '@mui/material/Avatar'
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined'
 import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded'
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
 import FolderOutlined from '@mui/icons-material/FolderOutlined'
-import GradeOutlined from '@mui/icons-material/GradeOutlined'
 import MenuRounded from '@mui/icons-material/MenuRounded'
 import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined'
@@ -44,6 +46,7 @@ import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
 import EditOutlined from '@mui/icons-material/EditOutlined'
 import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
 import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined'
+import ShieldOutlined from '@mui/icons-material/ShieldOutlined'
 import Radio from '@mui/material/Radio'
 import SearchRounded from '@mui/icons-material/SearchRounded'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
@@ -67,10 +70,6 @@ const portalGroups = [
   { label: 'Assessments', icon: <AssessmentOutlined fontSize="small" />, items: [{ label: 'Create Assessment', path: '/teacher/assessments/create' }, { label: 'Assign Assessment', path: '/teacher/assessments/assign' }, { label: 'My Assessments', path: '/teacher/assessments' }] },
 ]
 
-const footerItems = [
-  { label: 'Gradebook', path: '/teacher/gradebook', icon: <GradeOutlined fontSize="small" /> },
-]
-
 const pageDetails: Record<string, { title: string; description: string }> = {
   dashboard: { title: 'Teacher Dashboard', description: 'Manage your classes, materials, and assessments from one place.' },
   students: { title: 'Student List', description: 'Review the students assigned to your classes.' },
@@ -81,7 +80,6 @@ const pageDetails: Record<string, { title: string; description: string }> = {
   assessments: { title: 'My Assessments', description: 'Review assessments and monitor student submissions.' },
   'assessments/create': { title: 'Create Assessment', description: 'Build an assessment for one of your classes.' },
   'assessments/assign': { title: 'Assign Assessment', description: 'Choose classes and due dates for an assessment.' },
-  gradebook: { title: 'Gradebook', description: 'Record and review grades for your students.' },
   profile: { title: 'My Profile', description: 'Update your teacher profile information.' },
   'change-password': { title: 'Change Password', description: 'Keep your account secure with a new password.' },
 }
@@ -99,7 +97,7 @@ const SidebarContent: FC<{ currentPath: string; onNavigate: (path: string) => vo
     <Box sx={{ mb: 4 }}><Logo /></Box>
     <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>Teacher Portal</Typography>
     <Stack spacing={0.8} sx={{ mt: 1.25 }}>
-      {[...portalItems, ...footerItems].map((item) => <ButtonBase key={item.path} onClick={() => navigate(item.path)} sx={{ ...buttonSx, ...(isActive(item.path) ? { color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' } } : {}) }}><Box sx={{ display: 'flex', mr: 1.25 }}>{item.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.86rem', fontWeight: 600 }}>{item.label}</Typography></ButtonBase>)}
+      {portalItems.map((item) => <ButtonBase key={item.path} onClick={() => navigate(item.path)} sx={{ ...buttonSx, ...(isActive(item.path) ? { color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' } } : {}) }}><Box sx={{ display: 'flex', mr: 1.25 }}>{item.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.86rem', fontWeight: 600 }}>{item.label}</Typography></ButtonBase>)}
       {portalGroups.map((group) => <Box key={group.label}>
         <ButtonBase onClick={() => setExpanded(expanded === group.label ? '' : group.label)} sx={{ ...buttonSx, mt: 0.5 }}><Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{group.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.86rem', fontWeight: 600 }}>{group.label}</Typography><Box sx={{ display: 'flex', ml: 'auto' }}>{expanded === group.label ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box></ButtonBase>
         <Collapse in={expanded === group.label} timeout="auto" unmountOnExit><Stack spacing={0.25} sx={{ mt: 0.25 }}>{group.items.map((item) => <ButtonBase key={item.path} onClick={() => navigate(item.path)} sx={{ ...nestedSx, ...(isActive(item.path) ? { color: 'primary.main', backgroundColor: 'background.default' } : {}) }}><Typography variant="subtitle2" sx={{ fontSize: '0.82rem' }}>{item.label}</Typography></ButtonBase>)}</Stack></Collapse>
@@ -330,6 +328,36 @@ const AssignmentBuilder: FC = () => {
   return <Stack spacing={2}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assign Assessment</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>Choose a saved assessment, assigned class, and due date.</Typography>{loading ? <LinearProgress /> : <Grid container spacing={2}><Grid item xs={12} md={5}><Select fullWidth value={assessmentId} disabled={!assessments.length} onChange={(event) => setAssessmentId(event.target.value)} displayEmpty aria-label="Assessment"><MenuItem value="" disabled>{assessments.length ? 'Select an assessment' : 'No saved assessments'}</MenuItem>{assessments.map((assessment) => <MenuItem key={assessment.id} value={assessment.id}>{assessment.title}</MenuItem>)}</Select></Grid><Grid item xs={12} md={4}><Select fullWidth value={className} disabled={!classes.length} onChange={(event) => setClassName(event.target.value)} displayEmpty aria-label="Class"><MenuItem value="" disabled>{classes.length ? 'Select an assigned class' : 'No assigned classes'}</MenuItem>{classes.map((assignedClass) => <MenuItem key={assignedClass} value={assignedClass}>{assignedClass}</MenuItem>)}</Select></Grid><Grid item xs={12} md={3}><TextField fullWidth required label="Due date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} onClick={(event) => { const input = event.currentTarget.querySelector('input') || event.currentTarget as HTMLInputElement; input.showPicker?.() }} inputProps={{ 'aria-label': 'Due date' }} InputLabelProps={{ shrink: true }} /></Grid><Grid item xs={12}><Button variant="contained" onClick={assignAssessment} disabled={saving || !assessments.length || !classes.length}>{saving ? editingAssignmentId ? 'Updating...' : 'Assigning...' : editingAssignmentId ? 'Update Assignment' : 'Assign Assessment'}</Button></Grid></Grid>}{notice && <Typography color="success.main" sx={{ mt: 2 }}>{notice}</Typography>}{error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}</Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assigned Assessment</Typography>{assignedAssessments.length ? <TableContainer sx={{ mt: 2 }}><Table><TableHead><TableRow>{['Assessment', 'Class', 'Due date', 'Status', 'Actions'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assignedAssessments.map((assignment) => <TableRow hover key={assignment.id}><TableCell>{assignment.assessment}</TableCell><TableCell>{assignment.className}</TableCell><TableCell>{new Date(assignment.dueDate).toLocaleDateString()}</TableCell><TableCell><Chip size="small" label={assignment.status} color="success" /></TableCell><TableCell><Stack direction="row" spacing={0.5}><Button size="small" startIcon={<EditOutlined />} onClick={() => editAssignment(assignment)}>Edit</Button><Button size="small" color="error" startIcon={<DeleteOutlineRounded />} onClick={() => deleteAssignment(assignment.id)} disabled={deletingAssignmentId === assignment.id}>{deletingAssignmentId === assignment.id ? 'Deleting...' : 'Delete'}</Button></Stack></TableCell></TableRow>)}</TableBody></Table></TableContainer> : <Typography color="text.secondary" sx={{ mt: 1 }}>No assessments assigned yet.</Typography>}</Paper></Stack>
 }
 
+const TeacherProfilePage: FC = () => {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const [subjects, setSubjects] = useState<string[]>([])
+  const [classes, setClasses] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const initials = user?.name.split(' ').map((name) => name[0]).join('').slice(0, 2).toUpperCase() || 'TR'
+  const lastLogin = user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Not available'
+
+  useEffect(() => {
+    Promise.all([
+      api.get<{ subjects: string[] }>('/api/teacher/assigned-subjects', { withCredentials: true }),
+      api.get<{ classes: string[] }>('/api/teacher/assigned-classes', { withCredentials: true }),
+    ]).then(([subjectsResponse, classesResponse]) => {
+      setSubjects(subjectsResponse.data.subjects)
+      setClasses(classesResponse.data.classes)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  return <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, borderRadius: 3 }}>
+    <ButtonBase onClick={() => navigate('/teacher')} sx={{ mb: 3, color: 'text.secondary', borderRadius: 1, p: 0.5, '&:hover': { color: 'primary.main' } }}><ArrowBackRounded sx={{ fontSize: 18, mr: 0.5 }} /><Typography variant="subtitle2">Back to dashboard</Typography></ButtonBase>
+    <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'center', sm: 'flex-start' }} spacing={2.5}><Avatar sx={{ width: 88, height: 88, backgroundColor: 'primary.main', fontSize: 30, fontWeight: 700 }}>{initials}</Avatar><Box sx={{ textAlign: { xs: 'center', sm: 'left' }, flex: 1 }}><Typography component="h1" variant="h2" sx={{ fontSize: { xs: 26, md: 30 }, mb: 0.5 }}>{user?.name || 'Teacher'}</Typography><Stack direction="row" justifyContent={{ xs: 'center', sm: 'flex-start' }} flexWrap="wrap" spacing={1} sx={{ mb: 1 }}><Chip label="Teacher" size="small" color="primary" /><Chip label={user?.status === 'active' ? 'Active account' : user?.status || 'Unknown status'} size="small" sx={{ backgroundColor: 'rgba(50, 220, 136, 0.16)', color: '#32dc88' }} /></Stack><Stack direction="row" alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} spacing={0.75}><EmailOutlined sx={{ fontSize: 17, color: 'text.secondary' }} /><Typography variant="body2" color="text.secondary">{user?.email || 'No email available'}</Typography></Stack></Box></Stack>
+    <Divider sx={{ my: 3 }} />
+    <Grid container spacing={2}><Grid item xs={12} sm={4}><Stack direction="row" spacing={1.25} alignItems="center"><ScheduleOutlined color="primary" /><Box><Typography variant="caption" color="text.secondary">Last login</Typography><Typography variant="subtitle2">{lastLogin}</Typography></Box></Stack></Grid><Grid item xs={12} sm={4}><Stack direction="row" spacing={1.25} alignItems="center"><ShieldOutlined color="primary" /><Box><Typography variant="caption" color="text.secondary">Access level</Typography><Typography variant="subtitle2">Teacher portal access</Typography></Box></Stack></Grid><Grid item xs={12} sm={4}><Stack direction="row" spacing={1.25} alignItems="center"><PeopleAltOutlined color="primary" /><Box><Typography variant="caption" color="text.secondary">Assigned classes</Typography><Typography variant="subtitle2">{loading ? 'Loading...' : classes.length || 'None assigned'}</Typography></Box></Stack></Grid></Grid>
+    <Divider sx={{ my: 3 }} />
+    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}><PersonOutlineRounded color="primary" /><Typography variant="h4">Personal Information</Typography></Stack>
+    <Grid container spacing={2}><Grid item xs={12} sm={6}><Typography variant="caption" color="text.secondary">Full name</Typography><Typography variant="body1" sx={{ mt: 0.5 }}>{user?.name || 'Not available'}</Typography></Grid><Grid item xs={12} sm={6}><Typography variant="caption" color="text.secondary">Username</Typography><Typography variant="body1" sx={{ mt: 0.5 }}>{user?.username || 'Not available'}</Typography></Grid><Grid item xs={12} sm={6}><Typography variant="caption" color="text.secondary">Email address</Typography><Typography variant="body1" sx={{ mt: 0.5 }}>{user?.email || 'Not available'}</Typography></Grid><Grid item xs={12} sm={6}><Typography variant="caption" color="text.secondary">Role</Typography><Typography variant="body1" sx={{ mt: 0.5 }}>Teacher</Typography></Grid><Grid item xs={12} sm={6}><Typography variant="caption" color="text.secondary">Assigned subjects</Typography><Typography variant="body1" sx={{ mt: 0.5 }}>{loading ? 'Loading...' : subjects.join(', ') || 'None assigned'}</Typography></Grid><Grid item xs={12} sm={6}><Typography variant="caption" color="text.secondary">Assigned classes</Typography><Typography variant="body1" sx={{ mt: 0.5 }}>{loading ? 'Loading...' : classes.join(', ') || 'None assigned'}</Typography></Grid></Grid>
+  </Paper>
+}
+
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   const details = pageDetails[pageKey] || pageDetails.dashboard
   const navigate = useNavigate()
@@ -392,6 +420,8 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
       .finally(() => setAssessmentsLoading(false))
   }, [pageKey])
 
+  if (pageKey === 'gradebook') return <Navigate to="/teacher" replace />
+  if (pageKey === 'profile') return <TeacherProfilePage />
   if (pageKey === 'dashboard') return <>
     <Grid container spacing={2} sx={{ mb: 3 }}><Grid item xs={12} sm={4}><StatCard label="Assigned students" value="124" /></Grid><Grid item xs={12} sm={4}><StatCard label="Active materials" value="32" tone="secondary" /></Grid><Grid item xs={12} sm={4}><StatCard label="Pending grades" value="18" /></Grid></Grid>
     <Grid container spacing={2}><Grid item xs={12} md={7}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Today&apos;s timetable</Typography><Stack spacing={1.5} sx={{ mt: 2 }}>{[['08:00', 'Grade 8 · Mathematics', 'Room 204'], ['10:30', 'Grade 7 · Mathematics', 'Room 108'], ['13:00', 'Grade 9 · Mathematics', 'Room 301']].map(([time, className, room]) => <Stack key={time} direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><Typography fontWeight={700}>{time}</Typography><Typography>{className}</Typography><Typography variant="body2" color="text.secondary">{room}</Typography></Stack>)}</Stack></Paper></Grid><Grid item xs={12} md={5}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assessment progress</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>This week</Typography><Stack spacing={2.5} sx={{ mt: 3 }}>{[['Assignments graded', 72], ['Materials viewed', 84], ['Class participation', 68]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper></Grid></Grid>
