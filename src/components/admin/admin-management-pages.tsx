@@ -35,6 +35,7 @@ import { useEffect, useMemo, useState, type FC, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import api from '@/lib/api'
 import { AdminPanelLayout } from './admin-dashboard'
+import AdminTimetable from './admin-timetable'
 
 type SectionConfig = {
   title: string
@@ -364,6 +365,8 @@ const AdminManagementPage: FC = () => {
       setError('Unable to create the record. Please try again.')
     }
   }
+
+  if (section === 'timetable') return <AdminTimetable />
 
   if (viewingRecord && section !== 'all-assessments') {
     return <AdminPanelLayout title={viewingRecord.title}><Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}><Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="text.secondary">{config.title}</Typography><Typography variant="subtitle2" color="primary.main">{viewingRecord.title}</Typography></Breadcrumbs><Button onClick={() => setViewingRecord(null)} sx={{ mb: 3, px: 0 }}>Back to {config.title}</Button><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 3 }}>{viewingRecord.title}</Typography><Grid container spacing={2}>{Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Grid item xs={12} sm={6} md={4} key={label}><Typography variant="body2" color="text.secondary">{label}</Typography>{label === 'Photo' ? <ProfilePhoto source={value} name={viewingRecord.title} /> : <Typography fontWeight={600}>{value || '—'}</Typography>}</Grid>)}</Grid></Paper></Container></AdminPanelLayout>

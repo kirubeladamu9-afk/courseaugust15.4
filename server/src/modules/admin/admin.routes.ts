@@ -21,6 +21,20 @@ const userAccountSchema = z.object({
   role: z.enum(['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']),
   status: z.enum(['ACTIVE', 'INACTIVE']),
 })
+const timetableEntrySchema = z.object({
+  day: z.enum(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']),
+  period: z.string().trim().min(1).max(40),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  subject: z.string().trim().min(1).max(120),
+  teacher: z.string().trim().min(1).max(160),
+  room: z.string().trim().max(120).optional().default(''),
+})
+const timetableSaveSchema = z.object({
+  academicYear: z.string().trim().min(1).max(20),
+  classSection: z.string().trim().min(1).max(120),
+  entries: z.array(timetableEntrySchema).max(100),
+})
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(200),
   newPassword: z.string().min(8).max(200).regex(/[a-z]/, 'New password must include a lowercase letter.').regex(/[A-Z]/, 'New password must include an uppercase letter.').regex(/\d/, 'New password must include a number.'),
@@ -113,6 +127,50 @@ const getModel = (section: string) => {
 }
 
 router.use(requireAdmin)
+
+router.get('/timetable/options', async (_req, res, next) => {
+  try {
+    const [students, sections, subjects, teachers] = await Promise.all([
+      prisma.student.findMany({ distinct: ['academicYear'], select: { academicYear: true }, orderBy: { academicYear: 'asc' } }),
+      prisma.classSection.findMany({ where: { status: { not: 'Inactive' } }, include: { gradeLevel: { select: { name: true } } }, orderBy: { name: 'asc' } }),
+      prisma.subject.findMany({ orderBy: { title: 'asc' }, select: { id: true, title: true } }),
+      prisma.teacher.findMany({ where: { status: { not: 'Inactive' } }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, assignedSubjects: true, assignedClasses: true } }),
+    ])
+    return res.json({
+      academicYears: students.map(({ academicYear }) => academicYear),
+      classes: sections.map((section) => ({ id: section.id, name: section.gradeLevel && !section.name.toLowerCase().startsWith(section.gradeLevel.name.toLowerCase()) ? `${section.gradeLevel.name} - ${section.name}` : section.name })),
+      subjects: subjects.map(({ id, title }) => ({ id, name: title })),
+      teachers,
+    })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/timetable', async (req, res, next) => {
+  try {
+    const academicYear = z.string().trim().min(1).max(20).parse(req.query.academicYear)
+    const classSection = z.string().trim().min(1).max(120).parse(req.query.classSection)
+    const entries = await prisma.timetableEntry.findMany({ where: { academicYear, classSection }, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] })
+    return res.json({ entries })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.put('/timetable', async (req, res, next) => {
+  try {
+    const input = timetableSaveSchema.parse(req.body)
+    await prisma.$transaction([
+      prisma.timetableEntry.deleteMany({ where: { academicYear: input.academicYear, classSection: input.classSection } }),
+      ...input.entries.map((entry) => prisma.timetableEntry.create({ data: { ...entry, academicYear: input.academicYear, classSection: input.classSection } })),
+    ])
+    const entries = await prisma.timetableEntry.findMany({ where: { academicYear: input.academicYear, classSection: input.classSection }, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] })
+    return res.json({ entries, message: 'Timetable saved successfully.' })
+  } catch (error) {
+    return next(error)
+  }
+})
 
 router.post('/change-password', async (req, res, next) => {
   try {
