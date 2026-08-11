@@ -70,7 +70,7 @@ const portalItems = [
 ]
 
 const portalGroups = [
-  { label: 'Materials', icon: <FolderOutlined fontSize="small" />, items: [{ label: 'Upload Material', path: '/teacher/materials/upload' }, { label: 'Assign Material', path: '/teacher/materials/assign' }, { label: 'Material List', path: '/teacher/materials' }] },
+  { label: 'Materials', icon: <FolderOutlined fontSize="small" />, items: [{ label: 'Upload Material', path: '/teacher/materials/upload' }, { label: 'Material List', path: '/teacher/materials' }] },
   { label: 'Assessments', icon: <AssessmentOutlined fontSize="small" />, items: [{ label: 'Create Assessment', path: '/teacher/assessments/create' }, { label: 'Assign Assessment', path: '/teacher/assessments/assign' }, { label: 'My Assessments', path: '/teacher/assessments' }] },
 ]
 
@@ -80,7 +80,6 @@ const pageDetails: Record<string, { title: string; description: string }> = {
   timetable: { title: 'Timetable', description: 'View your teaching schedule and upcoming classes.' },
   materials: { title: 'Material List', description: 'Manage the learning materials shared with your classes.' },
   'materials/upload': { title: 'Upload Material', description: 'Add a PDF, Word, PowerPoint, or Excel file for your students.' },
-  'materials/assign': { title: 'Assign Material', description: 'Share learning materials with selected classes.' },
   assessments: { title: 'My Assessments', description: 'Review assessments and monitor student submissions.' },
   'assessments/create': { title: 'Create Assessment', description: 'Build an assessment for one of your classes.' },
   'assessments/assign': { title: 'Assign Assessment', description: 'Choose classes and due dates for an assessment.' },
@@ -684,6 +683,7 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   if (pageKey === 'change-password') return <ChangePasswordPage />
   if (pageKey === 'dashboard') return <TeacherDashboard />
   if (pageKey === 'timetable') return <TeacherTimetable />
+  if (pageKey === 'materials/assign') return <Navigate to="/teacher/materials/upload" replace />
   if (pageKey === 'materials/upload') return <MaterialUploadPage />
   if (pageKey === 'materials') return <MaterialListPage />
   if (pageKey === 'assessments/create') return <AssessmentBuilder />
