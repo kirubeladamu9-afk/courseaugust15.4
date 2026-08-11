@@ -19,6 +19,9 @@ const AdminDashboard = lazy(() => import('@/components/admin/admin-dashboard'))
 const AdminProfile = lazy(() => import('@/components/admin/admin-profile'))
 const AddStudentPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.AddStudentPage })))
 const AddTeacherPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.AddTeacherPage })))
+const EditStudentPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.EditStudentPage })))
+const EditTeacherPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.EditTeacherPage })))
+const EditGuardianPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.EditGuardianPage })))
 const CreateLessonPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.CreateLessonPage })))
 const CreateQuizPage = lazy(() => import('@/components/admin/admin-create-pages').then((module) => ({ default: module.CreateQuizPage })))
 const AdminManagementPage = lazy(() => import('@/components/admin/admin-management-pages'))
@@ -122,8 +125,11 @@ const App: React.FC = () => (
       <Route path="/admin/profile" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminProfile /></Suspense></RoleRoute>} />
       <Route path="/admin/roles-permissions" element={<Navigate to="/admin/user-accounts" replace />} />
       <Route path="/admin/assessment-types" element={<Navigate to="/admin/all-assessments" replace />} />
-      <Route path="/admin/:section" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminManagementPage /></Suspense></RoleRoute>} />
       <Route path="/admin/students/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddStudentPage /></Suspense></RoleRoute>} />
+      <Route path="/admin/students/:id/edit" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><EditStudentPage /></Suspense></RoleRoute>} />
+      <Route path="/admin/teachers/:id/edit" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><EditTeacherPage /></Suspense></RoleRoute>} />
+      <Route path="/admin/guardians/:id/edit" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><EditGuardianPage /></Suspense></RoleRoute>} />
+      <Route path="/admin/:section" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AdminManagementPage /></Suspense></RoleRoute>} />
       <Route path="/admin/teachers/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><AddTeacherPage /></Suspense></RoleRoute>} />
       <Route path="/admin/lessons/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateLessonPage /></Suspense></RoleRoute>} />
       <Route path="/admin/quizzes/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateQuizPage /></Suspense></RoleRoute>} />

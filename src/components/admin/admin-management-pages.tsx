@@ -238,6 +238,10 @@ const AdminManagementPage: FC = () => {
 
   const startEditing = (record: AdminRecord) => {
     if (!editableSections) return
+    if (['students', 'teachers', 'guardians'].includes(section)) {
+      navigate(`/admin/${section}/${record.id}/edit`)
+      return
+    }
     setEditingRecordId(record.id)
     setEditValues(section === 'all-assessments'
       ? { title: record.title, assessmentType: record.data['Assessment Type'] || 'Quiz', className: record.data.Class || '', status: record.status }

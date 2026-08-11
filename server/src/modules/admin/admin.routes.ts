@@ -249,12 +249,23 @@ router.get('/students', async (_req, res, next) => {
   }
 })
 
+router.get('/students/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const student = await prisma.student.findUnique({ where: { id }, include: { guardianLinks: { include: { guardian: true } } } })
+    if (!student) return res.status(404).json({ message: 'Student not found.' })
+    return res.json({ student })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 const gradeLevelSchema = z.object({ grade: z.string().trim().min(1).max(80), classes: z.coerce.number().int().nonnegative(), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const classSectionSchema = z.object({ classSection: z.string().trim().min(1).max(80), gradeLevelId: z.string().trim().min(1), students: z.coerce.number().int().nonnegative(), status: z.string().trim().min(1).max(40) })
 const subjectUpdateSchema = recordSchema
 const teacherSchema = z.object({ fullName: z.string().trim().min(1).max(160), gender: z.string().trim().min(1).max(40), photoName: z.string().trim().max(255).optional(), phoneNumber: z.string().trim().max(40).optional(), address: z.string().trim().max(300).optional(), nationalId: z.string().trim().max(120).optional(), assignedSubjects: z.string().trim().max(300).optional(), assignedClasses: z.string().trim().max(300).optional(), status: z.enum(['Active', 'Inactive', 'On Leave']) })
 const teacherUpdateSchema = teacherSchema.partial()
-const studentUpdateSchema = z.object({ fullName: z.string().trim().min(1).max(160).optional(), gradeLevel: z.string().trim().min(1).max(40).optional(), status: z.enum(['Active', 'Inactive', 'Pending']).optional() })
+const studentUpdateSchema = studentSchema.partial()
 const guardianUpdateSchema = guardianSchema.partial()
 
 const toGradeLevelRecord = (record: { id: string; name: string; classes: number; students: number; status: string }) => ({ id: record.id, title: record.name, data: { Grade: record.name, Classes: String(record.classes), Students: String(record.students) }, status: record.status })
@@ -392,8 +403,17 @@ router.post('/students', async (req, res, next) => {
 router.patch('/students/:id', async (req, res, next) => {
   try {
     const id = z.string().min(1).parse(req.params.id)
-    const input = studentUpdateSchema.parse(req.body)
-    const student = await prisma.student.update({ where: { id }, data: input, include: { guardianLinks: { include: { guardian: true } } } })
+    const { guardianSearch, relationshipType, ...studentData } = studentUpdateSchema.parse(req.body)
+    const guardian = guardianSearch ? await prisma.guardian.findFirst({ where: { OR: [{ email: { contains: guardianSearch, mode: 'insensitive' } }, { name: { contains: guardianSearch, mode: 'insensitive' } }] } }) : null
+    if (guardianSearch && !guardian) return res.status(400).json({ message: 'No existing guardian matched the search.' })
+    const student = await prisma.student.update({
+      where: { id },
+      data: {
+        ...studentData,
+        ...(guardian ? { guardianLinks: { deleteMany: {}, create: { guardianId: guardian.id, relationshipType: relationshipType || 'Guardian' } } } : {}),
+      },
+      include: { guardianLinks: { include: { guardian: true } } },
+    })
     return res.json({ record: { id: student.id, title: student.fullName, data: { Student: student.fullName, Grade: student.gradeLevel, Guardians: student.guardianLinks.map(({ guardian }) => guardian.name).join(', ') || '—' }, status: student.status } })
   } catch (error) {
     return next(error)
@@ -405,6 +425,17 @@ router.delete('/students/:id', async (req, res, next) => {
     const id = z.string().min(1).parse(req.params.id)
     await prisma.student.delete({ where: { id } })
     return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/teachers/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const teacher = await prisma.teacher.findUnique({ where: { id } })
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found.' })
+    return res.json({ teacher })
   } catch (error) {
     return next(error)
   }
@@ -426,6 +457,17 @@ router.delete('/teachers/:id', async (req, res, next) => {
     const id = z.string().min(1).parse(req.params.id)
     await prisma.teacher.delete({ where: { id } })
     return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/guardians/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const guardian = await prisma.guardian.findUnique({ where: { id }, include: { studentLinks: { include: { student: true } } } })
+    if (!guardian) return res.status(404).json({ message: 'Guardian not found.' })
+    return res.json({ guardian })
   } catch (error) {
     return next(error)
   }

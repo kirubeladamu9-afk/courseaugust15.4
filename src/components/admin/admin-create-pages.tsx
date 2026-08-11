@@ -14,7 +14,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import SaveOutlined from '@mui/icons-material/SaveOutlined'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { AdminPanelLayout } from '@/components/admin/admin-dashboard'
 import api from '@/lib/api'
 
@@ -271,7 +271,117 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
   )
 }
 
+type EditableProfileType = 'student' | 'teacher' | 'guardian'
+
+const profileFields: Record<EditableProfileType, FieldConfig[]> = {
+  student: [
+    { name: 'fullName', label: 'Full name', required: true },
+    { name: 'dateOfBirth', label: 'Date of birth', type: 'date', required: true },
+    { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true },
+    { name: 'admissionNumber', label: 'Student ID / Admission number', required: true },
+    { name: 'photoName', label: 'Student photo filename' },
+    { name: 'academicYear', label: 'Academic year', required: true },
+    { name: 'gradeLevel', label: 'Grade level', required: true },
+    { name: 'classSection', label: 'Class & section', required: true },
+    { name: 'enrollmentDate', label: 'Enrollment date', type: 'date', required: true },
+    { name: 'address', label: 'Address' },
+    { name: 'guardianSearch', label: 'Guardian name or email', required: true },
+    { name: 'relationshipType', label: 'Relationship to student', options: ['Mother', 'Father', 'Guardian', 'Emergency Contact'], required: true },
+    { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'Pending'], required: true },
+  ],
+  teacher: [
+    { name: 'fullName', label: 'Full name', required: true },
+    { name: 'gender', label: 'Gender', options: ['Female', 'Male', 'Non-binary', 'Prefer not to say'], required: true },
+    { name: 'photoName', label: 'Photo filename' },
+    { name: 'phoneNumber', label: 'Phone number', type: 'tel' },
+    { name: 'address', label: 'Address' },
+    { name: 'nationalId', label: 'National ID / Passport Number' },
+    { name: 'assignedSubjects', label: 'Assigned subjects' },
+    { name: 'assignedClasses', label: 'Assigned classes' },
+    { name: 'status', label: 'Status', options: ['Active', 'Inactive', 'On Leave'], required: true },
+  ],
+  guardian: [
+    { name: 'name', label: 'Full name', required: true },
+    { name: 'email', label: 'Email address', type: 'email' },
+    { name: 'phone', label: 'Phone number', type: 'tel' },
+    { name: 'address', label: 'Address' },
+    { name: 'occupation', label: 'Occupation' },
+    { name: 'nationalId', label: 'National ID / Passport Number' },
+    { name: 'photoName', label: 'Photo filename' },
+  ],
+}
+
+const AdminEditProfilePage: FC<{ type: EditableProfileType }> = ({ type }) => {
+  const navigate = useNavigate()
+  const { id = '' } = useParams()
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const listRoute = `/admin/${type === 'guardian' ? 'guardians' : `${type}s`}`
+  const title = `Edit ${type.charAt(0).toUpperCase()}${type.slice(1)}`
+
+  useEffect(() => {
+    api.get<{ student?: Record<string, unknown>; teacher?: Record<string, unknown>; guardian?: Record<string, unknown> }>(`/api/admin/${type === 'guardian' ? 'guardians' : `${type}s`}/${id}`, { withCredentials: true })
+      .then(({ data }) => {
+        const profile = data[type] || {}
+        const dateValue = (value: unknown) => typeof value === 'string' ? value.slice(0, 10) : ''
+        if (type === 'student') {
+          const links = profile.guardianLinks as { guardian: { name: string; email?: string | null }; relationshipType: string }[] | undefined
+          const linkedGuardian = links?.[0]
+          setValues({ ...Object.fromEntries(profileFields.student.map(({ name }) => [name, String(profile[name] || '')])), dateOfBirth: dateValue(profile.dateOfBirth), enrollmentDate: dateValue(profile.enrollmentDate), guardianSearch: linkedGuardian?.guardian.email || linkedGuardian?.guardian.name || '', relationshipType: linkedGuardian?.relationshipType || 'Guardian' })
+          return
+        }
+        setValues(Object.fromEntries(profileFields[type].map(({ name }) => [name, String(profile[name] || '')])))
+      })
+      .catch(() => setError(`Unable to load this ${type} profile.`))
+      .finally(() => setLoading(false))
+  }, [id, type])
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      await api.patch(`/api/admin/${type === 'guardian' ? 'guardians' : `${type}s`}/${id}`, values, { withCredentials: true })
+      navigate(listRoute)
+    } catch (requestError) {
+      setError(`Unable to update this ${type}. Check the details and try again.`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <AdminPanelLayout title={title}>
+    <Box component="main" sx={{ py: { xs: 3, md: 5 } }}>
+      <Box sx={{ maxWidth: 920, mx: 'auto', px: { xs: 2, md: 4 } }}>
+        <Breadcrumbs sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="text.secondary">{type === 'guardian' ? 'Guardian List' : `${type.charAt(0).toUpperCase()}${type.slice(1)} List`}</Typography><Typography variant="subtitle2" color="primary.main">{title}</Typography></Breadcrumbs>
+        <Button startIcon={<ArrowBackRounded />} onClick={() => navigate(listRoute)} sx={{ mb: 3, px: 0 }}>Back to list</Button>
+        <Paper component="form" onSubmit={handleSubmit} elevation={0} sx={{ p: { xs: 2.5, md: 4 }, borderRadius: 3 }}>
+          <Typography component="h1" variant="h2" sx={{ fontSize: { xs: 26, md: 32 }, mb: 0.75 }}>{title}</Typography>
+          <Typography color="text.secondary" sx={{ mb: 3 }}>Review and update the complete profile information.</Typography>
+          {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 3 }}>{error}</Alert>}
+          <Grid container spacing={2.25}>
+            {profileFields[type].map((field) => <Grid item xs={12} sm={field.name === 'address' || field.name === 'assignedSubjects' || field.name === 'assignedClasses' || field.name === 'guardianSearch' ? 12 : 6} key={field.name}>
+              <TextField fullWidth required={field.required} disabled={loading || saving} label={field.label} type={field.options ? undefined : field.type || 'text'} select={Boolean(field.options)} InputLabelProps={field.type === 'date' ? { shrink: true } : undefined} value={values[field.name] || ''} onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}>
+                {field.options?.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+              </TextField>
+            </Grid>)}
+          </Grid>
+          <Stack direction={{ xs: 'column-reverse', sm: 'row' }} justifyContent="flex-end" spacing={1.5} sx={{ mt: 4 }}>
+            <Button variant="outlined" disabled={saving} onClick={() => navigate(listRoute)}>Cancel</Button>
+            <Button type="submit" variant="contained" disabled={loading || saving} startIcon={<SaveOutlined />}>{saving ? 'Saving...' : 'Save changes'}</Button>
+          </Stack>
+        </Paper>
+      </Box>
+    </Box>
+  </AdminPanelLayout>
+}
+
 export const AddStudentPage: FC = () => <AdminCreatePage type="student" />
+export const EditStudentPage: FC = () => <AdminEditProfilePage type="student" />
+export const EditTeacherPage: FC = () => <AdminEditProfilePage type="teacher" />
+export const EditGuardianPage: FC = () => <AdminEditProfilePage type="guardian" />
 export const AddTeacherPage: FC = () => <AdminCreatePage type="teacher" />
 export const CreateLessonPage: FC = () => <AdminCreatePage type="lesson" />
 export const CreateQuizPage: FC = () => <AdminCreatePage type="quiz" />
