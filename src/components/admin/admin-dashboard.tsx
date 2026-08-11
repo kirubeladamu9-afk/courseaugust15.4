@@ -1,4 +1,4 @@
-import { useState, type FC, type ReactNode } from 'react'
+import { useEffect, useState, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Badge from '@mui/material/Badge'
@@ -40,7 +40,7 @@ import SearchRounded from '@mui/icons-material/SearchRounded'
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined'
 import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded'
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/logo'
 import { useAuth } from '@/auth/auth-context'
 import ThemeToggle from '@/components/theme-toggle'
@@ -144,6 +144,7 @@ interface AdminSidebarProps {
 
 const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [expandedMenu, setExpandedMenu] = useState('User Management')
   const itemRoutes: Record<string, string> = {
     'User Accounts': '/admin/user-accounts',
@@ -183,8 +184,14 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     { label: 'Settings', parent: 'General Settings', icon: <SettingsOutlined fontSize="small" />, items: ['Academic Settings', 'User Accounts', 'System Settings'] },
   ]
 
+  useEffect(() => {
+    const activeGroup = menuGroups.find(({ parent, items }) => [parent, ...items].some((item) => itemRoutes[item] === location.pathname))
+    if (activeGroup) setExpandedMenu(activeGroup.label)
+  }, [location.pathname])
+
   const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
   const nestedButtonSx = { justifyContent: 'flex-start', width: '100%', py: 0.65, pl: 2.75, borderRadius: 1.5, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
+  const activeMenuButtonSx = { backgroundColor: 'action.selected', color: 'primary.main', '&:hover': { backgroundColor: 'action.selected' } }
 
   return (
     <Box sx={{ width: 248, height: '100vh', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
@@ -202,7 +209,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
           return (
             <Box key={label}>
               <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Typography>
-              <ButtonBase onClick={() => { const route = itemRoutes[parent]; if (route) { navigate(route); onClose?.() } setExpandedMenu(isExpanded ? '' : label) }} sx={{ ...menuButtonSx, mt: 0.5 }}>
+              <ButtonBase onClick={() => { const route = itemRoutes[parent]; if (route) { navigate(route); onClose?.() } setExpandedMenu(isExpanded ? '' : label) }} sx={{ ...menuButtonSx, ...(itemRoutes[parent] === location.pathname ? activeMenuButtonSx : {}), mt: 0.5 }}>
                 <Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{icon}</Box>
                 <Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{parent}</Typography>
                 {items.length > 0 && <Box sx={{ display: 'flex', ml: 'auto' }}>{isExpanded ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box>}
@@ -210,7 +217,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
               <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                 <Stack spacing={0.25} sx={{ mt: 0.25 }}>
                   {items.map((item) => (
-                    <ButtonBase key={item} onClick={() => { const route = itemRoutes[item]; if (route) navigate(route); onClose?.() }} sx={nestedButtonSx}>
+                    <ButtonBase key={item} onClick={() => { const route = itemRoutes[item]; if (route) navigate(route); onClose?.() }} sx={{ ...nestedButtonSx, ...(itemRoutes[item] === location.pathname ? activeMenuButtonSx : {}) }}>
                       <Typography variant="subtitle2" sx={{ fontSize: '0.75rem' }}>{item}</Typography>
                     </ButtonBase>
                   ))}
