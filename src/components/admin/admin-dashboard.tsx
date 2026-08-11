@@ -23,7 +23,6 @@ import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
 import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined'
 import MenuBookOutlined from '@mui/icons-material/MenuBookOutlined'
 import BarChartOutlined from '@mui/icons-material/BarChartOutlined'
-import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import PersonAddAltOutlined from '@mui/icons-material/PersonAddAltOutlined'
 import CoPresentOutlined from '@mui/icons-material/CoPresentOutlined'
 import AddTaskOutlined from '@mui/icons-material/AddTaskOutlined'
@@ -172,9 +171,6 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     'Enrollment Reports': '/admin/enrollment-reports',
     'Performance Trends': '/admin/performance-trends',
     'Custom / Export Reports': '/admin/custom-export-reports',
-    'General Settings': '/admin/general-settings',
-    'Academic Settings': '/admin/academic-settings',
-    'System Settings': '/admin/system-settings',
   }
   const menuGroups = [
     { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['User Accounts'] },
@@ -186,7 +182,6 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     { label: 'Assessments', parent: 'All Assessments', icon: <QuizOutlined fontSize="small" />, items: [] },
     { label: 'Communication', parent: 'Announcements', icon: <NotificationsNoneOutlined fontSize="small" />, items: ['Messages / Notices'] },
     { label: 'Reports & Analytics', parent: 'Enrollment Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Performance Trends', 'Custom / Export Reports'] },
-    { label: 'Settings', parent: 'General Settings', icon: <SettingsOutlined fontSize="small" />, items: ['Academic Settings', 'User Accounts', 'System Settings'] },
   ]
 
   useEffect(() => {
