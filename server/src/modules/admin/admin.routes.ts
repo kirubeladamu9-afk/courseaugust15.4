@@ -81,20 +81,31 @@ const guardianSchema = z.object({
   nationalId: z.string().trim().max(120).optional(),
   photoName: z.string().trim().max(5000000).optional(),
 })
+const dateInputSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid date.').refine((value) => {
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+}, 'Enter a valid date.').transform((value) => new Date(`${value}T00:00:00Z`))
 const studentSchema = z.object({
   fullName: z.string().trim().min(1).max(160),
-  dateOfBirth: z.coerce.date(),
+  dateOfBirth: dateInputSchema,
   gender: z.string().trim().min(1).max(40),
   admissionNumber: z.string().trim().min(1).max(80),
   photoName: z.string().trim().max(5000000).optional(),
   academicYear: z.string().trim().min(1).max(20),
   gradeLevel: z.string().trim().min(1).max(40),
   classSection: z.string().trim().min(1).max(80),
-  enrollmentDate: z.coerce.date(),
+  enrollmentDate: dateInputSchema,
   address: z.string().trim().max(300).optional(),
   guardianSearch: z.string().trim().min(1).max(160),
   relationshipType: z.enum(['Mother', 'Father', 'Guardian', 'Emergency Contact']).default('Guardian'),
   status: z.enum(['Active', 'Inactive', 'Pending']),
+}).superRefine(({ dateOfBirth, enrollmentDate }, context) => {
+  const today = new Date()
+  today.setUTCHours(23, 59, 59, 999)
+  if (dateOfBirth > today) context.addIssue({ code: 'custom', path: ['dateOfBirth'], message: 'Date of birth cannot be in the future.' })
+  if (enrollmentDate < dateOfBirth) context.addIssue({ code: 'custom', path: ['enrollmentDate'], message: 'Enrollment date cannot be before the date of birth.' })
+  if (enrollmentDate > today) context.addIssue({ code: 'custom', path: ['enrollmentDate'], message: 'Enrollment date cannot be in the future.' })
 })
 
 type AdminRecordModel = {

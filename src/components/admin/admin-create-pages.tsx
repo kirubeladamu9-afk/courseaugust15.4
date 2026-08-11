@@ -37,6 +37,14 @@ interface Guardian {
   email?: string | null
 }
 
+const isValidDateValue = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+}
+const todayDateValue = () => new Date().toISOString().slice(0, 10)
+
 const pageConfig: Record<CreateType, { title: string; description: string; fields: FieldConfig[] }> = {
   student: {
     title: 'Add Student',
@@ -170,9 +178,29 @@ const AdminCreatePage: FC<{ type: CreateType }> = ({ type }) => {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (type === 'student' && !values.existingGuardian?.trim()) {
-      setValidationError('Search for an existing guardian before saving.')
-      return
+    if (type === 'student') {
+      const dateOfBirth = values.dateOfBirth || ''
+      const enrollmentDate = values.enrollmentDate || ''
+      if (!isValidDateValue(dateOfBirth) || !isValidDateValue(enrollmentDate)) {
+        setValidationError('Enter valid dates for date of birth and enrollment date.')
+        return
+      }
+      if (dateOfBirth > todayDateValue()) {
+        setValidationError('Date of birth cannot be in the future.')
+        return
+      }
+      if (enrollmentDate < dateOfBirth) {
+        setValidationError('Enrollment date cannot be before the date of birth.')
+        return
+      }
+      if (enrollmentDate > todayDateValue()) {
+        setValidationError('Enrollment date cannot be in the future.')
+        return
+      }
+      if (!values.existingGuardian?.trim()) {
+        setValidationError('Search for an existing guardian before saving.')
+        return
+      }
     }
     setValidationError('')
     if (type === 'student') {
