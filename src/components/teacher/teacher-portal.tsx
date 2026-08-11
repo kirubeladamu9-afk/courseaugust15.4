@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type FC } from 'react'
+import { useEffect, useMemo, useState, type FC, type FormEvent } from 'react'
 import axios from 'axios'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Box from '@mui/material/Box'
+import Alert from '@mui/material/Alert'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Divider from '@mui/material/Divider'
 import Button from '@mui/material/Button'
@@ -362,6 +363,47 @@ const TeacherProfilePage: FC = () => {
   </Paper>
 }
 
+const ChangePasswordPage: FC = () => {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError('')
+    setSuccess('')
+    if (newPassword.length < 8) {
+      setError('Your new password must be at least 8 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('New password and confirmation do not match.')
+      return
+    }
+    setSaving(true)
+    try {
+      const { data } = await api.post<{ message: string }>('/api/teacher/change-password', { currentPassword, newPassword }, { withCredentials: true })
+      setSuccess(data.message)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (requestError) {
+      setError(axios.isAxiosError<{ message?: string }>(requestError) ? requestError.response?.data.message || 'Unable to update your password.' : 'Unable to update your password.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <Paper component="form" onSubmit={handleSubmit} elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, maxWidth: 640 }}>
+    <Typography variant="h5">Change Password</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>Use a strong password that you do not use on another account.</Typography>
+    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}{success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+    <Stack spacing={2}><TextField fullWidth required disabled={saving} label="Current password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" /><TextField fullWidth required disabled={saving} label="New password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} helperText="At least 8 characters" autoComplete="new-password" /><TextField fullWidth required disabled={saving} label="Confirm new password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" /><Button type="submit" variant="contained" disabled={saving}>{saving ? 'Updating password...' : 'Update Password'}</Button></Stack>
+  </Paper>
+}
+
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   const details = pageDetails[pageKey] || pageDetails.dashboard
   const navigate = useNavigate()
@@ -426,6 +468,7 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
 
   if (pageKey === 'gradebook') return <Navigate to="/teacher" replace />
   if (pageKey === 'profile') return <TeacherProfilePage />
+  if (pageKey === 'change-password') return <ChangePasswordPage />
   if (pageKey === 'dashboard') return <>
     <Grid container spacing={2} sx={{ mb: 3 }}><Grid item xs={12} sm={4}><StatCard label="Assigned students" value="124" /></Grid><Grid item xs={12} sm={4}><StatCard label="Active materials" value="32" tone="secondary" /></Grid><Grid item xs={12} sm={4}><StatCard label="Pending grades" value="18" /></Grid></Grid>
     <Grid container spacing={2}><Grid item xs={12} md={7}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Today&apos;s timetable</Typography><Stack spacing={1.5} sx={{ mt: 2 }}>{[['08:00', 'Grade 8 · Mathematics', 'Room 204'], ['10:30', 'Grade 7 · Mathematics', 'Room 108'], ['13:00', 'Grade 9 · Mathematics', 'Room 301']].map(([time, className, room]) => <Stack key={time} direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><Typography fontWeight={700}>{time}</Typography><Typography>{className}</Typography><Typography variant="body2" color="text.secondary">{room}</Typography></Stack>)}</Stack></Paper></Grid><Grid item xs={12} md={5}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assessment progress</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>This week</Typography><Stack spacing={2.5} sx={{ mt: 3 }}>{[['Assignments graded', 72], ['Materials viewed', 84], ['Class participation', 68]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper></Grid></Grid>
