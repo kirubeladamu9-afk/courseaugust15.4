@@ -24,6 +24,11 @@ const assessmentQuestionSchema = z.object({
   if (question.type === 'multiple' && (!Array.isArray(question.correctAnswer) || !question.correctAnswer.length || question.correctAnswer.some((answer) => !question.options[Number(answer)]))) context.addIssue({ code: 'custom', message: 'Multiple-answer questions require one or more valid correct options.' })
 })
 
+const assignmentSchema = z.object({
+  className: z.string().trim().min(1).max(80),
+  dueDate: z.coerce.date(),
+})
+
 const assessmentSchema = z.object({
   title: z.string().trim().min(1).max(160),
   className: z.string().trim().min(1).max(80),
@@ -72,6 +77,21 @@ router.get('/assessments', async (_req, res, next) => {
         return { id: assessment.id, title: assessment.title, className: data.className || '—', questionCount: data.questions?.length || 0, status: assessment.status }
       })
     return res.json({ assessments: records })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/assessments/:id/assign', async (req, res, next) => {
+  try {
+    const assessmentId = z.string().min(1).parse(req.params.id)
+    const input = assignmentSchema.parse(req.body)
+    const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
+    if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
+    const data = assessment.data as { assignments?: { className: string; dueDate: string }[] }
+    const assignments = [...(data.assignments || []), { className: input.className, dueDate: input.dueDate.toISOString() }]
+    await prisma.quiz.update({ where: { id: assessment.id }, data: { data: { ...data, assignments } } })
+    return res.status(201).json({ assignment: assignments[assignments.length - 1] })
   } catch (error) {
     return next(error)
   }

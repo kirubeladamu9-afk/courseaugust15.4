@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FC } from 'react'
+import axios from 'axios'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
@@ -179,6 +180,52 @@ const AssessmentBuilder: FC = () => {
   </Stack>
 }
 
+const AssignmentBuilder: FC = () => {
+  const [assessments, setAssessments] = useState<{ id: string; title: string }[]>([])
+  const [classes, setClasses] = useState<string[]>([])
+  const [assessmentId, setAssessmentId] = useState('')
+  const [className, setClassName] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    Promise.all([
+      api.get<{ assessments: { id: string; title: string }[] }>('/api/teacher/assessments', { withCredentials: true }),
+      api.get<{ classes: string[] }>('/api/teacher/assigned-classes', { withCredentials: true }),
+    ])
+      .then(([assessmentResponse, classResponse]) => {
+        setAssessments(assessmentResponse.data.assessments)
+        setClasses(classResponse.data.classes)
+        setAssessmentId(assessmentResponse.data.assessments[0]?.id || '')
+        setClassName(classResponse.data.classes[0] || '')
+      })
+      .catch(() => setError('Unable to load assessments and assigned classes. Please try again.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const assignAssessment = async () => {
+    if (!assessmentId || !className || !dueDate) {
+      setError('Select an assessment, class, and due date before assigning.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await api.post(`/api/teacher/assessments/${assessmentId}/assign`, { className, dueDate }, { withCredentials: true })
+      setNotice('Assessment assigned successfully.')
+    } catch (requestError) {
+      setError(axios.isAxiosError<{ message?: string }>(requestError) ? requestError.response?.data.message || 'Unable to assign the assessment.' : 'Unable to assign the assessment.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assign Assessment</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>Choose a saved assessment, assigned class, and due date.</Typography>{loading ? <LinearProgress /> : <Grid container spacing={2}><Grid item xs={12} md={5}><Select fullWidth value={assessmentId} disabled={!assessments.length} onChange={(event) => setAssessmentId(event.target.value)} displayEmpty aria-label="Assessment"><MenuItem value="" disabled>{assessments.length ? 'Select an assessment' : 'No saved assessments'}</MenuItem>{assessments.map((assessment) => <MenuItem key={assessment.id} value={assessment.id}>{assessment.title}</MenuItem>)}</Select></Grid><Grid item xs={12} md={4}><Select fullWidth value={className} disabled={!classes.length} onChange={(event) => setClassName(event.target.value)} displayEmpty aria-label="Class"><MenuItem value="" disabled>{classes.length ? 'Select an assigned class' : 'No assigned classes'}</MenuItem>{classes.map((assignedClass) => <MenuItem key={assignedClass} value={assignedClass}>{assignedClass}</MenuItem>)}</Select></Grid><Grid item xs={12} md={3}><TextField fullWidth label="Due date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} InputLabelProps={{ shrink: true }} /></Grid><Grid item xs={12}><Button variant="contained" onClick={assignAssessment} disabled={saving || !assessments.length || !classes.length}>{saving ? 'Assigning...' : 'Assign Assessment'}</Button></Grid></Grid>}{notice && <Typography color="success.main" sx={{ mt: 2 }}>{notice}</Typography>}{error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}</Paper>
+}
+
 const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   const details = pageDetails[pageKey] || pageDetails.dashboard
   const [students, setStudents] = useState<{ id: string; fullName: string; gradeLevel: string; status: string }[]>([])
@@ -213,6 +260,7 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
     <Grid container spacing={2}><Grid item xs={12} md={7}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Today&apos;s timetable</Typography><Stack spacing={1.5} sx={{ mt: 2 }}>{[['08:00', 'Grade 8 · Mathematics', 'Room 204'], ['10:30', 'Grade 7 · Mathematics', 'Room 108'], ['13:00', 'Grade 9 · Mathematics', 'Room 301']].map(([time, className, room]) => <Stack key={time} direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><Typography fontWeight={700}>{time}</Typography><Typography>{className}</Typography><Typography variant="body2" color="text.secondary">{room}</Typography></Stack>)}</Stack></Paper></Grid><Grid item xs={12} md={5}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assessment progress</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>This week</Typography><Stack spacing={2.5} sx={{ mt: 3 }}>{[['Assignments graded', 72], ['Materials viewed', 84], ['Class participation', 68]].map(([label, value]) => <Box key={label as string}><Stack direction="row" justifyContent="space-between"><Typography variant="body2">{label}</Typography><Typography variant="body2" color="text.secondary">{value}%</Typography></Stack><LinearProgress variant="determinate" value={value as number} sx={{ mt: 0.75, height: 8, borderRadius: 4 }} /></Box>)}</Stack></Paper></Grid></Grid>
   </>
   if (pageKey === 'assessments/create') return <AssessmentBuilder />
+  if (pageKey === 'assessments/assign') return <AssignmentBuilder />
   return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
     <Typography variant="h5">{details.title}</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>{details.description}</Typography>
     {pageKey === 'students' || pageKey === 'materials' || pageKey === 'assessments' ? <>{studentsLoading && pageKey === 'students' && <LinearProgress sx={{ mb: 2 }} />}{studentsError && pageKey === 'students' && <Typography color="error" sx={{ mb: 2 }}>{studentsError}</Typography>}{assessmentsLoading && pageKey === 'assessments' && <LinearProgress sx={{ mb: 2 }} />}{assessmentsError && pageKey === 'assessments' && <Typography color="error" sx={{ mb: 2 }}>{assessmentsError}</Typography>}<TableContainer><Table><TableHead><TableRow>{(pageKey === 'students' ? ['Student', 'Class', 'Progress', 'Status'] : pageKey === 'materials' ? ['Material', 'Type', 'Assigned class', 'Status'] : ['Assessment', 'Class', 'Due date', 'Status']).map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{(pageKey === 'students' ? students.map((student) => [student.fullName, student.gradeLevel, '—', student.status]) : pageKey === 'materials' ? [['Algebra workbook', 'PDF', 'Grade 8', 'Published'], ['Linear equations video', 'Video', 'Grade 7', 'Published'], ['Practice worksheet', 'Document', 'Grade 9', 'Draft']] : assessments.map((assessment) => [assessment.title, `${assessment.className} · ${assessment.questionCount} questions`, '—', assessment.status])).map((row) => <TableRow hover key={row[0]}>{row.map((cell, index) => <TableCell key={cell}>{index === row.length - 1 ? <Chip size="small" label={cell} color={cell === 'Published' || cell === 'Open' || cell === 'On track' || cell === 'Active' ? 'success' : 'warning'} /> : cell}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>{pageKey === 'assessments' && !assessmentsLoading && !assessmentsError && !assessments.length && <Typography color="text.secondary" sx={{ p: 3 }}>No saved assessments found.</Typography>}</> : <Grid container spacing={2}><Grid item xs={12} md={7}><TextField fullWidth label={pageKey.includes('password') ? 'New password' : 'Title'} type={pageKey.includes('password') ? 'password' : 'text'} /></Grid><Grid item xs={12} md={5}><Select fullWidth defaultValue="Grade 8" aria-label="Class"><MenuItem value="Grade 7">Grade 7</MenuItem><MenuItem value="Grade 8">Grade 8</MenuItem><MenuItem value="Grade 9">Grade 9</MenuItem></Select></Grid><Grid item xs={12}><Button variant="contained" startIcon={pageKey.includes('upload') ? <UploadFileOutlined /> : undefined}>{pageKey.includes('upload') ? 'Upload Material' : pageKey.includes('password') ? 'Update Password' : 'Save Changes'}</Button></Grid></Grid>}
