@@ -134,6 +134,21 @@ router.get('/user-accounts', async (_req, res, next) => {
   }
 })
 
+router.patch('/user-accounts/:id', async (req, res, next) => {
+  try {
+    const id = z.string().min(1).parse(req.params.id)
+    const status = z.enum(['ACTIVE', 'INACTIVE']).parse(req.body.status)
+    const user = await prisma.user.update({
+      where: { id },
+      data: { status: AccountStatus[status] },
+      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+    })
+    return res.json({ record: toUserAccountRecord(user) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.post('/user-accounts/:sourceType/:sourceId/reset-password', async (req, res, next) => {
   try {
     const sourceType = z.enum(['user', 'teacher', 'student', 'guardian']).parse(req.params.sourceType)
