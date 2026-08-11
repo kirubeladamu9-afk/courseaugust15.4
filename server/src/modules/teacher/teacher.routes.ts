@@ -85,9 +85,34 @@ router.get('/assessments', async (_req, res, next) => {
 
 router.get('/assessments/assignments', async (_req, res, next) => {
   try {
-    const assignments = await prisma.$queryRaw<{ id: string; assessment: string; className: string; dueDate: Date; status: string }[]>(Prisma.sql`SELECT aa.id, q.title AS assessment, aa.class_name AS "className", aa.due_date AS "dueDate", aa.status FROM assessment_assignments aa JOIN quizzes q ON q.id = aa.quiz_id WHERE aa.teacher_id = ${res.locals.auth.sub} ORDER BY aa.created_at DESC`)
+    const assignments = await prisma.$queryRaw<{ id: string; assessmentId: string; assessment: string; className: string; dueDate: Date; status: string }[]>(Prisma.sql`SELECT aa.id, aa.quiz_id AS "assessmentId", q.title AS assessment, aa.class_name AS "className", aa.due_date AS "dueDate", aa.status FROM assessment_assignments aa JOIN quizzes q ON q.id = aa.quiz_id WHERE aa.teacher_id = ${res.locals.auth.sub} ORDER BY aa.created_at DESC`)
     const records = assignments.map((assignment) => ({ ...assignment, dueDate: assignment.dueDate.toISOString() }))
     return res.json({ assignments: records })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.patch('/assessments/assignments/:id', async (req, res, next) => {
+  try {
+    const assignmentId = z.string().min(1).parse(req.params.id)
+    const input = assignmentSchema.extend({ assessmentId: z.string().min(1) }).parse(req.body)
+    const assessment = await prisma.quiz.findUnique({ where: { id: input.assessmentId } })
+    if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
+    const [assignment] = await prisma.$queryRaw<{ id: string; assessmentId: string; className: string; dueDate: Date; status: string }[]>(Prisma.sql`UPDATE assessment_assignments SET quiz_id = ${input.assessmentId}, class_name = ${input.className}, due_date = ${input.dueDate}, updated_at = NOW() WHERE id = ${assignmentId} AND teacher_id = ${res.locals.auth.sub} RETURNING id, quiz_id AS "assessmentId", class_name AS "className", due_date AS "dueDate", status`)
+    if (!assignment) return res.status(404).json({ message: 'Assigned assessment not found.' })
+    return res.json({ assignment: { ...assignment, dueDate: assignment.dueDate.toISOString() } })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.delete('/assessments/assignments/:id', async (req, res, next) => {
+  try {
+    const assignmentId = z.string().min(1).parse(req.params.id)
+    const [assignment] = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`DELETE FROM assessment_assignments WHERE id = ${assignmentId} AND teacher_id = ${res.locals.auth.sub} RETURNING id`)
+    if (!assignment) return res.status(404).json({ message: 'Assigned assessment not found.' })
+    return res.status(204).send()
   } catch (error) {
     return next(error)
   }
