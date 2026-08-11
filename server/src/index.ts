@@ -12,7 +12,7 @@ import { prisma } from './config/prisma'
 const app = express()
 
 app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }))
-app.use(express.json({ limit: '8mb' }))
+app.use(express.json({ limit: '30mb' }))
 app.use(cookieParser())
 app.disable('x-powered-by')
 

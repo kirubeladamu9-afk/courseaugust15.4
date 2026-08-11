@@ -51,6 +51,33 @@ const assessmentSchema = z.object({
 })
 
 const assessmentStatusSchema = z.object({ status: z.enum(['Draft', 'Published', 'Archived']) })
+const supportedMaterialExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'] as const
+const materialMimeTypes: Record<(typeof supportedMaterialExtensions)[number], string> = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+const maxMaterialFileSize = 20 * 1024 * 1024
+const materialSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  className: z.string().trim().min(1).max(80),
+  subjectName: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(2000).optional().default(''),
+  fileName: z.string().trim().min(1).max(260),
+  fileData: z.string().min(1).max(29 * 1024 * 1024),
+  assignmentScope: z.enum(['Whole Class', 'Specific Students']),
+  studentIds: z.array(z.string().min(1)).max(200).default([]),
+})
+type MaterialData = { teacherId: string; className: string; subjectName: string; description: string; fileName: string; fileExtension: string; fileData: string; assignmentScope: 'Whole Class' | 'Specific Students'; studentIds: string[] }
+
+const materialFileExtension = (fileName: string) => fileName.trim().split('.').pop()?.toLowerCase() || ''
+const isSupportedMaterialFile = (fileName: string) => supportedMaterialExtensions.includes(materialFileExtension(fileName) as (typeof supportedMaterialExtensions)[number])
+const matchesClass = (student: { gradeLevel: string; classSection: string }, className: string) => [student.classSection, `${student.gradeLevel} ${student.classSection}`].some((candidate) => candidate.toLowerCase() === className.toLowerCase())
+const getTeacherAssignments = async (teacherId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: teacherId }, select: { name: true } })
+  const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { assignedClasses: true, assignedSubjects: true } }) : null
+  return {
+    classes: teacher?.assignedClasses?.split(',').map((value) => value.trim()).filter(Boolean) || [],
+    subjects: teacher?.assignedSubjects?.split(',').map((value) => value.trim()).filter(Boolean) || [],
+  }
+}
+
 const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(8).max(200) }).superRefine(({ currentPassword, newPassword }, context) => {
   if (currentPassword === newPassword) context.addIssue({ code: 'custom', path: ['newPassword'], message: 'Your new password must be different from your current password.' })
 })
@@ -151,6 +178,74 @@ router.get('/assigned-classes', async (_req, res, next) => {
     const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { assignedClasses: true } }) : null
     const classes = teacher?.assignedClasses?.split(',').map((value) => value.trim()).filter(Boolean) || []
     return res.json({ classes })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/material-students', async (req, res, next) => {
+  try {
+    const className = z.string().trim().min(1).max(80).parse(req.query.className)
+    const assignments = await getTeacherAssignments(res.locals.auth.sub)
+    if (!assignments.classes.includes(className)) return res.status(403).json({ message: 'That class is not assigned to you.' })
+    const students = await prisma.student.findMany({ where: { status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, admissionNumber: true, gradeLevel: true, classSection: true } })
+    return res.json({ students: students.filter((student) => matchesClass(student, className)).map(({ id, fullName, admissionNumber }) => ({ id, fullName, admissionNumber })) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/materials', async (_req, res, next) => {
+  try {
+    const materials = await prisma.learningMaterial.findMany({ orderBy: { createdAt: 'desc' } })
+    const records = materials
+      .filter((material) => (material.data as MaterialData).teacherId === res.locals.auth.sub)
+      .map((material) => {
+        const data = material.data as MaterialData
+        return { id: material.id, title: material.title, className: data.className, subjectName: data.subjectName, description: data.description, fileName: data.fileName, fileExtension: data.fileExtension, assignmentScope: data.assignmentScope, studentCount: data.studentIds.length, uploadedAt: material.createdAt.toISOString(), status: material.status }
+      })
+    return res.json({ materials: records })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/materials/:id/file', async (req, res, next) => {
+  try {
+    const materialId = z.string().min(1).parse(req.params.id)
+    const material = await prisma.learningMaterial.findUnique({ where: { id: materialId } })
+    const data = material?.data as MaterialData | undefined
+    if (!material || !data || data.teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Material not found.' })
+    const base64 = data.fileData.split(',')[1]
+    if (!base64) return res.status(404).json({ message: 'Material file not found.' })
+    const fileExtension = materialFileExtension(data.fileName) as (typeof supportedMaterialExtensions)[number]
+    return res.type(materialMimeTypes[fileExtension]).setHeader('Content-Disposition', `${fileExtension === 'pdf' ? 'inline' : 'attachment'}; filename="${encodeURIComponent(data.fileName)}"`).send(Buffer.from(base64, 'base64'))
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/materials', async (req, res, next) => {
+  try {
+    const parsed = materialSchema.safeParse(req.body)
+    if (!parsed.success) return res.status(400).json({ message: 'Complete the required material details and choose a valid file.' })
+    const input = parsed.data
+    if (!isSupportedMaterialFile(input.fileName)) return res.status(400).json({ message: 'Only PDF, Word, PowerPoint, and Excel files are supported.' })
+    const base64 = input.fileData.split(',')[1]
+    if (!base64 || !input.fileData.startsWith('data:') || Buffer.byteLength(base64, 'base64') > maxMaterialFileSize) return res.status(400).json({ message: 'The selected file must be 20 MB or smaller.' })
+    if (input.assignmentScope === 'Whole Class' && input.studentIds.length) return res.status(400).json({ message: 'Whole-class materials cannot include selected students.' })
+    if (input.assignmentScope === 'Specific Students' && !input.studentIds.length) return res.status(400).json({ message: 'Select at least one student for a specific-student assignment.' })
+
+    const assignments = await getTeacherAssignments(res.locals.auth.sub)
+    if (!assignments.classes.includes(input.className) || !assignments.subjects.includes(input.subjectName)) return res.status(403).json({ message: 'Select a class and subject assigned to you.' })
+    if (input.studentIds.length) {
+      const students = await prisma.student.findMany({ where: { id: { in: input.studentIds } }, select: { id: true, gradeLevel: true, classSection: true } })
+      if (students.length !== input.studentIds.length || students.some((student) => !matchesClass(student, input.className))) return res.status(400).json({ message: 'Selected students must belong to the assigned class.' })
+    }
+
+    const fileExtension = materialFileExtension(input.fileName)
+    const material = await prisma.learningMaterial.create({ data: { title: input.title, status: 'Published', data: { teacherId: res.locals.auth.sub, className: input.className, subjectName: input.subjectName, description: input.description, fileName: input.fileName, fileExtension, fileData: input.fileData, assignmentScope: input.assignmentScope, studentIds: input.studentIds } } })
+    return res.status(201).json({ material: { id: material.id, title: material.title, uploadedAt: material.createdAt.toISOString(), status: material.status } })
   } catch (error) {
     return next(error)
   }

@@ -43,7 +43,11 @@ import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutl
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined'
 import AddRounded from '@mui/icons-material/AddRounded'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
+import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined'
 import EditOutlined from '@mui/icons-material/EditOutlined'
+import PictureAsPdfOutlined from '@mui/icons-material/PictureAsPdfOutlined'
+import SlideshowOutlined from '@mui/icons-material/SlideshowOutlined'
+import TableChartOutlined from '@mui/icons-material/TableChartOutlined'
 import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
 import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined'
 import ShieldOutlined from '@mui/icons-material/ShieldOutlined'
@@ -75,7 +79,7 @@ const pageDetails: Record<string, { title: string; description: string }> = {
   students: { title: 'Student List', description: 'Review the students assigned to your classes.' },
   timetable: { title: 'Timetable', description: 'View your teaching schedule and upcoming classes.' },
   materials: { title: 'Material List', description: 'Manage the learning materials shared with your classes.' },
-  'materials/upload': { title: 'Upload Material', description: 'Add a document, video, or resource for your students.' },
+  'materials/upload': { title: 'Upload Material', description: 'Add a PDF, Word, PowerPoint, or Excel file for your students.' },
   'materials/assign': { title: 'Assign Material', description: 'Share learning materials with selected classes.' },
   assessments: { title: 'My Assessments', description: 'Review assessments and monitor student submissions.' },
   'assessments/create': { title: 'Create Assessment', description: 'Build an assessment for one of your classes.' },
@@ -328,6 +332,152 @@ const AssignmentBuilder: FC = () => {
   return <Stack spacing={2}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assign Assessment</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>Choose a saved assessment, assigned class, and due date.</Typography>{loading ? <LinearProgress /> : <Grid container spacing={2}><Grid item xs={12} md={5}><Select fullWidth value={assessmentId} disabled={!assessments.length} onChange={(event) => setAssessmentId(event.target.value)} displayEmpty aria-label="Assessment"><MenuItem value="" disabled>{assessments.length ? 'Select an assessment' : 'No saved assessments'}</MenuItem>{assessments.map((assessment) => <MenuItem key={assessment.id} value={assessment.id}>{assessment.title}</MenuItem>)}</Select></Grid><Grid item xs={12} md={4}><Select fullWidth value={className} disabled={!classes.length} onChange={(event) => setClassName(event.target.value)} displayEmpty aria-label="Class"><MenuItem value="" disabled>{classes.length ? 'Select an assigned class' : 'No assigned classes'}</MenuItem>{classes.map((assignedClass) => <MenuItem key={assignedClass} value={assignedClass}>{assignedClass}</MenuItem>)}</Select></Grid><Grid item xs={12} md={3}><TextField fullWidth required label="Due date" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)}inputProps={{ 'aria-label': 'Due date' }} InputLabelProps={{ shrink: true }} /></Grid><Grid item xs={12}><Button variant="contained" onClick={assignAssessment} disabled={saving || !assessments.length || !classes.length}>{saving ? editingAssignmentId ? 'Updating...' : 'Assigning...' : editingAssignmentId ? 'Update Assignment' : 'Assign Assessment'}</Button></Grid></Grid>}{notice && <Typography color="success.main" sx={{ mt: 2 }}>{notice}</Typography>}{error && <Typography color="error" sx={{ mt: 2 }}>{error}</Typography>}</Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assigned Assessment</Typography>{assignedAssessments.length ? <TableContainer sx={{ mt: 2 }}><Table><TableHead><TableRow>{['Assessment', 'Class', 'Due date', 'Status', 'Actions'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assignedAssessments.map((assignment) => <TableRow hover key={assignment.id}><TableCell>{assignment.assessment}</TableCell><TableCell>{assignment.className}</TableCell><TableCell>{new Date(assignment.dueDate).toLocaleDateString()}</TableCell><TableCell><Chip size="small" label={assignment.status} color="success" /></TableCell><TableCell><Stack direction="row" spacing={0.5}><Button size="small" startIcon={<EditOutlined />} onClick={() => editAssignment(assignment)}>Edit</Button><Button size="small" color="error" startIcon={<DeleteOutlineRounded />} onClick={() => deleteAssignment(assignment.id)} disabled={deletingAssignmentId === assignment.id}>{deletingAssignmentId === assignment.id ? 'Deleting...' : 'Delete'}</Button></Stack></TableCell></TableRow>)}</TableBody></Table></TableContainer> : <Typography color="text.secondary" sx={{ mt: 1 }}>No assessments assigned yet.</Typography>}</Paper></Stack>
 }
 
+type MaterialRecord = { id: string; title: string; className: string; subjectName: string; description: string; fileName: string; fileExtension: string; assignmentScope: 'Whole Class' | 'Specific Students'; studentCount: number; uploadedAt: string; status: string }
+type MaterialStudent = { id: string; fullName: string; admissionNumber: string }
+
+const materialFileAccept = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx'
+const materialFileExtensions = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'])
+const materialFileUrl = (materialId: string) => `${api.defaults.baseURL || ''}/api/teacher/materials/${materialId}/file`
+const materialFileIcon = (extension: string) => extension === 'pdf' ? <PictureAsPdfOutlined color="error" /> : ['ppt', 'pptx'].includes(extension) ? <SlideshowOutlined color="warning" /> : ['xls', 'xlsx'].includes(extension) ? <TableChartOutlined color="success" /> : <DescriptionOutlined color="primary" />
+const formatFileSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+const MaterialUploadPage: FC = () => {
+  const navigate = useNavigate()
+  const [title, setTitle] = useState('')
+  const [className, setClassName] = useState('')
+  const [subjectName, setSubjectName] = useState('')
+  const [description, setDescription] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [assignmentScope, setAssignmentScope] = useState<'Whole Class' | 'Specific Students'>('Whole Class')
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
+  const [assignedClasses, setAssignedClasses] = useState<string[]>([])
+  const [assignedSubjects, setAssignedSubjects] = useState<string[]>([])
+  const [students, setStudents] = useState<MaterialStudent[]>([])
+  const [loadingAssignments, setLoadingAssignments] = useState(true)
+  const [loadingStudents, setLoadingStudents] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const uploadedAt = useMemo(() => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date()), [])
+
+  useEffect(() => {
+    Promise.all([
+      api.get<{ classes: string[] }>('/api/teacher/assigned-classes', { withCredentials: true }),
+      api.get<{ subjects: string[] }>('/api/teacher/assigned-subjects', { withCredentials: true }),
+    ]).then(([classResponse, subjectResponse]) => {
+      setAssignedClasses(classResponse.data.classes)
+      setAssignedSubjects(subjectResponse.data.subjects)
+      setClassName(classResponse.data.classes[0] || '')
+      setSubjectName(subjectResponse.data.subjects[0] || '')
+    }).catch(() => setError('Unable to load your assigned classes and subjects. Please try again.')).finally(() => setLoadingAssignments(false))
+  }, [])
+
+  useEffect(() => {
+    if (!className) {
+      setStudents([])
+      setSelectedStudentIds([])
+      return
+    }
+    setLoadingStudents(true)
+    setStudents([])
+    setSelectedStudentIds([])
+    api.get<{ students: MaterialStudent[] }>('/api/teacher/material-students', { params: { className }, withCredentials: true })
+      .then(({ data }) => setStudents(data.students))
+      .catch(() => setError('Unable to load students for the selected class. Please try again.'))
+      .finally(() => setLoadingStudents(false))
+  }, [className])
+
+  const selectFile = (nextFile: File | null) => {
+    setError('')
+    setNotice('')
+    if (!nextFile) {
+      setFile(null)
+      return
+    }
+    const extension = nextFile.name.split('.').pop()?.toLowerCase() || ''
+    if (!materialFileExtensions.has(extension)) {
+      setFile(null)
+      setError('Only PDF, Word, PowerPoint, and Excel files are supported.')
+      return
+    }
+    if (nextFile.size > 20 * 1024 * 1024) {
+      setFile(null)
+      setError('The selected file must be 20 MB or smaller.')
+      return
+    }
+    setFile(nextFile)
+  }
+
+  const submitMaterial = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError('')
+    setNotice('')
+    if (!title.trim() || !className || !subjectName || !file || (assignmentScope === 'Specific Students' && !selectedStudentIds.length)) {
+      setError(assignmentScope === 'Specific Students' && !selectedStudentIds.length ? 'Select at least one student for a specific-student assignment.' : 'Add a title, assigned class, subject, and file before uploading.')
+      return
+    }
+    const extension = file.name.split('.').pop()?.toLowerCase() || ''
+    if (!materialFileExtensions.has(extension)) {
+      setError('Only PDF, Word, PowerPoint, and Excel files are supported.')
+      return
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setError('The selected file must be 20 MB or smaller.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const fileData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Unable to read the selected file.'))
+        reader.onerror = () => reject(new Error('Unable to read the selected file.'))
+        reader.readAsDataURL(file)
+      })
+      await api.post('/api/teacher/materials', { title: title.trim(), className, subjectName, description: description.trim(), fileName: file.name, fileData, assignmentScope, studentIds: assignmentScope === 'Specific Students' ? selectedStudentIds : [] }, { withCredentials: true })
+      setNotice('Material uploaded successfully.')
+      setTitle('')
+      setDescription('')
+      setFile(null)
+      setSelectedStudentIds([])
+    } catch (requestError) {
+      setError(axios.isAxiosError<{ message?: string }>(requestError) ? requestError.response?.data.message || 'Unable to upload the material. Please try again.' : 'Unable to read the selected file. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <Stack spacing={2}>
+    <Paper component="form" onSubmit={submitMaterial} elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 3 }}><Box><Typography variant="h5">Material details</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Share a document with an assigned class or selected students.</Typography></Box><Button variant="outlined" onClick={() => navigate('/teacher/materials')}>View material list</Button></Stack>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}{notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
+      {loadingAssignments ? <LinearProgress /> : <Grid container spacing={2}><Grid item xs={12} md={6}><TextField fullWidth required label="Title" value={title} onChange={(event) => setTitle(event.target.value)} disabled={saving} /></Grid><Grid item xs={12} md={3}><TextField fullWidth select required label="Class" value={className} disabled={saving || !assignedClasses.length} onChange={(event) => setClassName(event.target.value)} helperText={assignedClasses.length ? 'Only your assigned classes are shown.' : 'No classes are assigned to you.'}>{assignedClasses.map((assignedClass) => <MenuItem key={assignedClass} value={assignedClass}>{assignedClass}</MenuItem>)}</TextField></Grid><Grid item xs={12} md={3}><TextField fullWidth select required label="Subject" value={subjectName} disabled={saving || !assignedSubjects.length} onChange={(event) => setSubjectName(event.target.value)} helperText={assignedSubjects.length ? 'Only your assigned subjects are shown.' : 'No subjects are assigned to you.'}>{assignedSubjects.map((subject) => <MenuItem key={subject} value={subject}>{subject}</MenuItem>)}</TextField></Grid><Grid item xs={12}><TextField fullWidth multiline minRows={3} label="Description (optional)" value={description} onChange={(event) => setDescription(event.target.value)} disabled={saving} /></Grid><Grid item xs={12} md={7}><Button component="label" variant="outlined" startIcon={<UploadFileOutlined />} disabled={saving} sx={{ minHeight: 56, px: 2.5 }}>{file ? `${file.name} · ${formatFileSize(file.size)}` : 'Choose document file'}<input hidden type="file" accept={materialFileAccept} onChange={(event) => selectFile(event.target.files?.[0] || null)} /></Button><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>PDF, Word, PowerPoint, or Excel · Maximum 20 MB</Typography></Grid><Grid item xs={12} md={5}><TextField fullWidth label="Upload date" value={uploadedAt} InputProps={{ readOnly: true }} helperText="Set automatically when you upload." /></Grid></Grid>}
+      {!loadingAssignments && <Box sx={{ mt: 3 }}><Typography variant="subtitle1" fontWeight={700}>Assignment scope</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} sx={{ mt: 0.5 }}><FormControlLabel value="Whole Class" control={<Radio checked={assignmentScope === 'Whole Class'} onChange={() => { setAssignmentScope('Whole Class'); setSelectedStudentIds([]) }} />} label="Whole Class" /><FormControlLabel value="Specific Students" control={<Radio checked={assignmentScope === 'Specific Students'} onChange={() => setAssignmentScope('Specific Students')} />} label="Specific Students" /></Stack>{assignmentScope === 'Specific Students' && <Box sx={{ mt: 1.5, maxWidth: 720 }}><TextField fullWidth select SelectProps={{ multiple: true, renderValue: (selected) => (selected as string[]).map((studentId) => students.find((student) => student.id === studentId)?.fullName).filter(Boolean).join(', ') }} label="Students" value={selectedStudentIds} onChange={(event) => setSelectedStudentIds(typeof event.target.value === 'string' ? event.target.value.split(',') : event.target.value)} disabled={loadingStudents || !students.length || saving} helperText={loadingStudents ? 'Loading students...' : students.length ? 'Choose one or more students from the selected class.' : 'No active students are available in this class.'}>{students.map((student) => <MenuItem key={student.id} value={student.id}><Checkbox checked={selectedStudentIds.includes(student.id)} />{student.fullName} · {student.admissionNumber}</MenuItem>)}</TextField></Box>}</Box>}
+      <Stack direction={{ xs: 'column-reverse', sm: 'row' }} justifyContent="flex-end" spacing={1.5} sx={{ mt: 3 }}><Button type="button" onClick={() => navigate('/teacher/materials')} disabled={saving}>Cancel</Button><Button type="submit" variant="contained" startIcon={<UploadFileOutlined />} disabled={saving || loadingAssignments || !assignedClasses.length || !assignedSubjects.length}>{saving ? 'Uploading...' : 'Upload material'}</Button></Stack>
+    </Paper>
+  </Stack>
+}
+
+const MaterialListPage: FC = () => {
+  const navigate = useNavigate()
+  const [materials, setMaterials] = useState<MaterialRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get<{ materials: MaterialRecord[] }>('/api/teacher/materials', { withCredentials: true })
+      .then(({ data }) => setMaterials(data.materials))
+      .catch(() => setError('Unable to load your materials. Please try again.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 3 }}><Box><Typography variant="h5">Material list</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Documents shared with your classes and selected students.</Typography></Box><Button variant="contained" startIcon={<AddRounded />} onClick={() => navigate('/teacher/materials/upload')}>Upload material</Button></Stack>
+    {loading && <LinearProgress sx={{ mb: 2 }} />}{error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    {!loading && !error && (materials.length ? <TableContainer><Table><TableHead><TableRow>{['File', 'Subject', 'Uploaded date', 'Audience', 'Actions'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{materials.map((material) => <TableRow key={material.id}><TableCell><Stack direction="row" spacing={1.25} alignItems="center"><Box sx={{ display: 'flex' }}>{materialFileIcon(material.fileExtension)}</Box><Box><Typography fontWeight={700}>{material.title}</Typography><Typography variant="caption" color="text.secondary">{material.fileName}</Typography></Box></Stack></TableCell><TableCell>{material.subjectName}</TableCell><TableCell>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(material.uploadedAt))}</TableCell><TableCell><Typography variant="body2">{material.className}</Typography><Typography variant="caption" color="text.secondary">{material.assignmentScope === 'Whole Class' ? 'Whole class' : `${material.studentCount} selected student${material.studentCount === 1 ? '' : 's'}`}</Typography></TableCell><TableCell><Stack direction="row" spacing={1}>{material.fileExtension === 'pdf' && <Button size="small" component="a" href={materialFileUrl(material.id)} target="_blank" rel="noreferrer">View</Button>}<Button size="small" variant="outlined" component="a" href={materialFileUrl(material.id)} download>Download</Button></Stack></TableCell></TableRow>)}</TableBody></Table></TableContainer> : <Box sx={{ py: 5, textAlign: 'center' }}><UploadFileOutlined color="disabled" sx={{ fontSize: 38 }} /><Typography color="text.secondary" sx={{ mt: 1 }}>No materials have been uploaded yet.</Typography></Box>)}
+  </Paper>
+}
+
 const TeacherProfilePage: FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -534,6 +684,8 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   if (pageKey === 'change-password') return <ChangePasswordPage />
   if (pageKey === 'dashboard') return <TeacherDashboard />
   if (pageKey === 'timetable') return <TeacherTimetable />
+  if (pageKey === 'materials/upload') return <MaterialUploadPage />
+  if (pageKey === 'materials') return <MaterialListPage />
   if (pageKey === 'assessments/create') return <AssessmentBuilder />
   if (pageKey === 'assessments/assign') return <AssignmentBuilder />
   if (pageKey === 'students') return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
