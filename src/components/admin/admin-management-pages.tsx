@@ -25,9 +25,7 @@ import LockResetRounded from '@mui/icons-material/LockResetRounded'
 import EditOutlined from '@mui/icons-material/EditOutlined'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
 import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined'
-import Dialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
-import DialogContent from '@mui/material/DialogContent'
+import TablePagination from '@mui/material/TablePagination'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined'
@@ -115,6 +113,8 @@ const AdminManagementPage: FC = () => {
   const [editValues, setEditValues] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
   const [viewingRecord, setViewingRecord] = useState<AdminRecord | null>(null)
+  const [questionPage, setQuestionPage] = useState(0)
+  const questionRowsPerPage = 5
 
   useEffect(() => {
     if (section !== 'teachers') {
@@ -293,6 +293,12 @@ const AdminManagementPage: FC = () => {
     }
   }
 
+  if (viewingRecord && section === 'all-assessments') {
+    const questions = viewingRecord.questions || []
+    const visibleQuestions = questions.slice(questionPage * questionRowsPerPage, questionPage * questionRowsPerPage + questionRowsPerPage)
+    return <AdminPanelLayout title={viewingRecord.title}><Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}><Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="text.secondary">All Assessments</Typography><Typography variant="subtitle2" color="primary.main">{viewingRecord.title}</Typography></Breadcrumbs><Button onClick={() => setViewingRecord(null)} sx={{ mb: 3, px: 0 }}>Back to All Assessments</Button><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 2 }}>{viewingRecord.title}</Typography><Grid container spacing={2} sx={{ mb: 3 }}>{Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Grid item xs={12} sm={4} key={label}><Typography variant="body2" color="text.secondary">{label}</Typography><Typography fontWeight={600}>{value}</Typography></Grid>)}</Grid><Typography variant="h5" sx={{ mb: 1 }}>Questions ({questions.length})</Typography>{questions.length ? <><Stack spacing={1.5}>{visibleQuestions.map((question, index) => <Paper key={`${viewingRecord.id}-question-${questionPage * questionRowsPerPage + index}`} variant="outlined" sx={{ p: 2 }}><Typography fontWeight={700}>Question {questionPage * questionRowsPerPage + index + 1}</Typography><Typography sx={{ mt: 0.5 }}>{question.prompt}</Typography>{question.options?.length ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>Options: {question.options.join(' · ')}</Typography> : null}<Typography variant="body2" color="text.secondary">Correct answer: {Array.isArray(question.correctAnswer) ? question.correctAnswer.join(', ') : question.correctAnswer || '—'} · {question.points || 0} points</Typography></Paper>)}</Stack><TablePagination component="div" count={questions.length} page={questionPage} onPageChange={(_, page) => setQuestionPage(page)} rowsPerPage={questionRowsPerPage} rowsPerPageOptions={[]} /></> : <Typography color="text.secondary">No questions found for this assessment.</Typography>}</Paper></Container></AdminPanelLayout>
+  }
+
   return (
     <AdminPanelLayout title={config.title}>
       <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
@@ -329,14 +335,10 @@ const AdminManagementPage: FC = () => {
           {notice && <Typography color="success.main" sx={{ px: 1, pt: 1 }}>{notice}</Typography>}
           {isLoading && <LinearProgress sx={{ mx: 1, mb: 1 }} />}
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ p: 1 }}><Typography variant="h5">{config.title} records</Typography><TextField size="small" placeholder="Search records" value={query} onChange={(event) => setQuery(event.target.value)} /></Stack>
-          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && editableSections ? <Stack direction="row" spacing={0.5}>{section === 'all-assessments' && <Tooltip title="View"><IconButton size="small" aria-label={`View ${record.title}`} onClick={() => setViewingRecord(record)}><VisibilityOutlined fontSize="small" /></IconButton></Tooltip>}<Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${record.title}`} onClick={() => startEditing(record)}><EditOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Delete"><IconButton size="small" color="error" aria-label={`Delete ${record.title}`} onClick={() => handleDelete(record)}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip></Stack> : column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
+          <TableContainer><Table><TableHead><TableRow>{config.columns.map((column) => <TableCell key={column} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{column}</TableCell>)}</TableRow></TableHead><TableBody>{filteredRecords.map((record) => <TableRow hover key={record.id}>{config.columns.map((column) => { const cell = column === 'Status' ? record.status : record.data[column] ?? (column === 'User' ? record.title : '—'); return <TableCell key={`${record.id}-${column}`} sx={{ whiteSpace: 'nowrap' }}>{column === 'Actions' && editableSections ? <Stack direction="row" spacing={0.5}>{section === 'all-assessments' && <Tooltip title="View"><IconButton size="small" aria-label={`View ${record.title}`} onClick={() => { setViewingRecord(record); setQuestionPage(0) }}><VisibilityOutlined fontSize="small" /></IconButton></Tooltip>}<Tooltip title="Edit"><IconButton size="small" aria-label={`Edit ${record.title}`} onClick={() => startEditing(record)}><EditOutlined fontSize="small" /></IconButton></Tooltip><Tooltip title="Delete"><IconButton size="small" color="error" aria-label={`Delete ${record.title}`} onClick={() => handleDelete(record)}><DeleteOutlineRounded fontSize="small" /></IconButton></Tooltip></Stack> : column === 'Actions' && record.sourceType ? <Tooltip title="Reset password"><IconButton size="small" aria-label={`Reset password for ${record.title}`} onClick={() => handleResetPassword(record)}><LockResetRounded fontSize="small" /></IconButton></Tooltip> : column === 'Status' && ['Active', 'Published', 'Assigned', 'Completed', 'Scheduled', 'Draft', 'Review', 'Pending'].includes(cell) ? <Chip size="small" label={cell} color={statusColor(cell)} /> : column !== 'Actions' ? cell : '—'}</TableCell> })}</TableRow>)}</TableBody></Table></TableContainer>
           {!filteredRecords.length && <Typography color="text.secondary" sx={{ p: 3 }}>No records match your search.</Typography>}
         </Paper>
       </Container>
-      <Dialog open={Boolean(viewingRecord)} onClose={() => setViewingRecord(null)} fullWidth maxWidth="sm">
-        <DialogTitle>{viewingRecord?.title}</DialogTitle>
-        <DialogContent dividers><Stack spacing={1.5}>{viewingRecord && Object.entries({ ...viewingRecord.data, Status: viewingRecord.status }).map(([label, value]) => <Stack key={label} direction="row" justifyContent="space-between" spacing={2}><Typography color="text.secondary">{label}</Typography><Typography fontWeight={600} textAlign="right">{value}</Typography></Stack>)}{viewingRecord?.questions?.length ? <Box><Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Questions ({viewingRecord.questions.length})</Typography><Stack spacing={1.5}>{viewingRecord.questions.map((question, index) => <Paper key={`${viewingRecord.id}-question-${index}`} variant="outlined" sx={{ p: 1.5 }}><Typography fontWeight={600}>Question {index + 1}</Typography><Typography sx={{ mt: 0.5 }}>{question.prompt}</Typography>{question.options?.length ? <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>Options: {question.options.join(' · ')}</Typography> : null}<Typography variant="body2" color="text.secondary">Correct answer: {Array.isArray(question.correctAnswer) ? question.correctAnswer.join(', ') : question.correctAnswer || '—'} · {question.points || 0} points</Typography></Paper>)}</Stack></Box> : null}</Stack></DialogContent>
-      </Dialog>
     </AdminPanelLayout>
   )
 }
