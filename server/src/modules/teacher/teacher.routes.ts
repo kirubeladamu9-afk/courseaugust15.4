@@ -35,7 +35,10 @@ const assessmentSchema = z.object({
   assessmentType: z.enum(['Quiz', 'Assignment', 'Midterm Exam', 'Final Exam', 'Project']).default('Quiz'),
   className: z.string().trim().min(1).max(80),
   subjectName: z.string().trim().min(1).max(120),
-  questions: z.array(assessmentQuestionSchema).min(1).max(100),
+  questions: z.array(assessmentQuestionSchema).max(100),
+}).superRefine((assessment, context) => {
+  if (assessment.assessmentType !== 'Project' && !assessment.questions.length) context.addIssue({ code: 'custom', path: ['questions'], message: 'This assessment type requires at least one question.' })
+  if (assessment.assessmentType === 'Project' && assessment.questions.length) context.addIssue({ code: 'custom', path: ['questions'], message: 'Projects do not use question builder questions.' })
 })
 
 const assessmentStatusSchema = z.object({ status: z.enum(['Draft', 'Published', 'Archived']) })
