@@ -30,6 +30,14 @@ const assignmentSchema = z.object({
   dueDate: z.coerce.date(),
 })
 
+const defaultAssessmentTypes = [
+  { title: 'Quiz', data: { description: 'Short, frequent, low-stakes check of understanding.', allowedQuestionTypes: ['single', 'true-false', 'fill-blank'], typical: '5–10 questions; auto-graded.' } },
+  { title: 'Assignment', data: { description: 'Homework-style task completed outside class time.', allowedQuestionTypes: ['single', 'multiple', 'fill-blank'], typical: 'Mix of auto-graded work; longer time window.' } },
+  { title: 'Midterm Exam', data: { description: 'Broader mid-term checkpoint covering multiple topics.', allowedQuestionTypes: ['single', 'multiple', 'true-false', 'fill-blank'], typical: '20–40 questions; timed and auto-graded.' } },
+  { title: 'Final Exam', data: { description: 'Comprehensive, high-stakes end-of-term assessment.', allowedQuestionTypes: ['single', 'multiple', 'true-false', 'fill-blank'], typical: 'Largest question count; strict time window.' } },
+  { title: 'Project', data: { description: 'Longer-term file or link submission graded manually.', allowedQuestionTypes: [], typical: 'Does not use the question builder.' } },
+]
+
 const assessmentSchema = z.object({
   title: z.string().trim().min(1).max(160),
   assessmentType: z.enum(['Quiz', 'Assignment', 'Midterm Exam', 'Final Exam', 'Project']).default('Quiz'),
@@ -58,6 +66,18 @@ router.get('/assigned-subjects', async (_req, res, next) => {
     const teacher = user ? await prisma.teacher.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { assignedSubjects: true } }) : null
     const subjects = teacher?.assignedSubjects?.split(',').map((value) => value.trim()).filter(Boolean) || []
     return res.json({ subjects })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/assessment-types', async (_req, res, next) => {
+  try {
+    for (const type of defaultAssessmentTypes) {
+      await prisma.assessmentType.upsert({ where: { title: type.title }, update: {}, create: { ...type, status: 'Active' } })
+    }
+    const records = await prisma.assessmentType.findMany({ where: { status: 'Active' }, orderBy: { createdAt: 'asc' }, select: { title: true, data: true } })
+    return res.json({ assessmentTypes: records.map((record) => ({ title: record.title, ...(record.data as object) })) })
   } catch (error) {
     return next(error)
   }

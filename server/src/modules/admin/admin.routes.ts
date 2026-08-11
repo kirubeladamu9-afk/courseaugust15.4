@@ -88,6 +88,7 @@ const models: Record<string, AdminRecordModel> = {
   'parent-student-link': prisma.parentStudentLink,
   'teacher-assignments': prisma.teacherAssignment,
   subjects: prisma.subject,
+  'assessment-types': prisma.assessmentType,
   chapters: prisma.chapter,
   lessons: prisma.lesson,
   'learning-materials': prisma.learningMaterial,
@@ -467,6 +468,23 @@ router.delete('/subjects/:id', async (req, res, next) => {
     const id = z.string().min(1).parse(req.params.id)
     await prisma.subject.delete({ where: { id } })
     return res.status(204).send()
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/assessment-types', async (_req, res, next) => {
+  try {
+    const defaults = [
+      { title: 'Quiz', data: { Purpose: 'Short, frequent, low-stakes check of understanding.', 'Allowed question types': 'Multiple Choice (Single), True/False, Fill in the Blank', Typical: '5–10 questions; auto-graded.' } },
+      { title: 'Assignment', data: { Purpose: 'Homework-style task completed outside class time.', 'Allowed question types': 'Multiple Choice (Single/Multiple), Fill in the Blank', Typical: 'Mix of auto-graded work; longer time window.' } },
+      { title: 'Midterm Exam', data: { Purpose: 'Broader mid-term checkpoint covering multiple topics.', 'Allowed question types': 'Multiple Choice, True/False, Fill in the Blank', Typical: '20–40 questions; timed and auto-graded.' } },
+      { title: 'Final Exam', data: { Purpose: 'Comprehensive, high-stakes end-of-term assessment.', 'Allowed question types': 'Multiple Choice, True/False, Fill in the Blank', Typical: 'Largest question count; strict time window.' } },
+      { title: 'Project', data: { Purpose: 'Longer-term file or link submission graded manually.', 'Allowed question types': 'File or link submission', Typical: 'Does not use the question builder.' } },
+    ]
+    for (const type of defaults) await prisma.assessmentType.upsert({ where: { title: type.title }, update: {}, create: { ...type, status: 'Active' } })
+    const records = await prisma.assessmentType.findMany({ orderBy: { createdAt: 'asc' } })
+    return res.json({ records })
   } catch (error) {
     return next(error)
   }

@@ -89,6 +89,16 @@ model Subject {
   @@map("subjects")
 }
 
+model AssessmentType {
+  id String @id @default(cuid())
+  title String @unique
+  data Json
+  status String @default("Active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("assessment_types")
+}
+
 model Chapter {
   id String @id @default(cuid())
   title String
