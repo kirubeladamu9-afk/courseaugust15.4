@@ -10,7 +10,6 @@ import ButtonBase from '@mui/material/ButtonBase'
 import Chip from '@mui/material/Chip'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
-import Collapse from '@mui/material/Collapse'
 import Drawer from '@mui/material/Drawer'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Grid from '@mui/material/Grid'
@@ -35,8 +34,6 @@ import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutl
 import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
 import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
-import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded'
-import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded'
 import CampaignOutlined from '@mui/icons-material/CampaignOutlined'
 import PlayCircleOutlineRounded from '@mui/icons-material/PlayCircleOutlineRounded'
 import { Logo } from '@/components/logo'
@@ -45,8 +42,8 @@ import { useAuth } from '@/auth/auth-context'
 import api from '@/lib/api'
 
 const portalGroups = [
-  { label: 'Learning', parent: 'Timetable', path: '/student/timetable', icon: <ScheduleOutlined fontSize="small" />, items: [{ label: 'Materials', path: '/student/materials' }, { label: 'Assessments', path: '/student/assessments' }] },
-  { label: 'Communication', parent: 'Announcements', path: '/student/announcements', icon: <CampaignOutlined fontSize="small" />, items: [] },
+  { label: 'LEARNING', items: [{ label: 'Timetable', path: '/student/timetable', icon: <ScheduleOutlined fontSize="small" /> }, { label: 'Materials', path: '/student/materials', icon: <FolderOutlined fontSize="small" /> }, { label: 'Assessments', path: '/student/assessments', icon: <AssessmentOutlined fontSize="small" /> }] },
+  { label: 'COMMUNICATION', items: [{ label: 'Announcements', path: '/student/announcements', icon: <CampaignOutlined fontSize="small" /> }] },
 ]
 
 const pageDetails: Record<string, { title: string; description: string }> = {
@@ -89,17 +86,15 @@ const initials = (name: string) => name.split(' ').map((part) => part[0]).join('
 
 const Sidebar: FC<{ path: string; onNavigate: (path: string) => void; onClose?: () => void }> = ({ path, onNavigate, onClose }) => {
   const nav = (next: string) => { onNavigate(next); onClose?.() }
-  const [expandedGroup, setExpandedGroup] = useState('Learning')
   const menuButtonSx = { justifyContent: 'flex-start', width: '100%', p: 1.1, borderRadius: 2, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
-  const nestedButtonSx = { justifyContent: 'flex-start', width: '100%', py: 0.65, pl: 2.75, borderRadius: 1.5, color: 'text.secondary', '&:hover': { backgroundColor: 'background.default' } }
   const activeMenuButtonSx = { backgroundColor: 'action.selected', color: 'primary.main', '&:hover': { backgroundColor: 'action.selected' } }
   return <Box sx={{ width: 248, height: '100%', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
     <Box sx={{ mb: 4 }}><Logo /></Box>
     <ButtonBase title="Dashboard" aria-label="Dashboard" onClick={() => nav('/student')} sx={{ ...menuButtonSx, color: 'primary.contrastText', backgroundColor: path === '/student' ? 'primary.main' : 'action.selected', '&:hover': { backgroundColor: path === '/student' ? 'primary.main' : 'action.selected' }, mb: 2 }}><DashboardOutlined fontSize="small" sx={{ mr: 1.5 }} /><Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Dashboard</Typography></ButtonBase>
     <Stack spacing={2}>
-      {portalGroups.map((group) => { const expanded = expandedGroup === group.label; return <Box key={group.label}><Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{group.label}</Typography><ButtonBase title={group.parent} aria-label={group.parent} onClick={() => { nav(group.path); setExpandedGroup(expanded ? '' : group.label) }} sx={{ ...menuButtonSx, ...(path === group.path ? activeMenuButtonSx : {}), mt: 0.5 }}><Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{group.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{group.parent}</Typography>{group.items.length > 0 && <Box sx={{ display: 'flex', ml: 'auto' }}>{expanded ? <ExpandLessRounded sx={{ fontSize: 17 }} /> : <ExpandMoreRounded sx={{ fontSize: 17 }} />}</Box>}</ButtonBase><Collapse in={expanded} timeout="auto" unmountOnExit><Stack spacing={0.25} sx={{ mt: 0.25 }}>{group.items.map((item) => <ButtonBase key={item.path} title={item.label} aria-label={item.label} onClick={() => nav(item.path)} sx={{ ...nestedButtonSx, ...(path === item.path ? activeMenuButtonSx : {}) }}><Typography variant="subtitle2" sx={{ fontSize: '0.75rem' }}>{item.label}</Typography></ButtonBase>)}</Stack></Collapse></Box> })}
+      {portalGroups.map((group) => <Box key={group.label}><Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{group.label}</Typography><Stack spacing={0.25} sx={{ mt: 0.5 }}>{group.items.map((item) => <ButtonBase key={item.path} title={item.label} aria-label={item.label} onClick={() => nav(item.path)} sx={{ ...menuButtonSx, ...(path === item.path ? activeMenuButtonSx : {}) }}><Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{item.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{item.label}</Typography></ButtonBase>)}</Stack></Box>)}
     </Stack>
-    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.25, mt: 3, textTransform: 'uppercase', letterSpacing: 0.8 }}>Profile / Settings</Typography>
+    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.25, mt: 3, textTransform: 'uppercase', letterSpacing: 0.8 }}>PROFILE / SETTINGS</Typography>
     <Stack spacing={0.8} sx={{ mt: 1 }}><ButtonBase title="My Profile" aria-label="My Profile" onClick={() => nav('/student/profile')} sx={{ ...menuButtonSx, ...(path === '/student/profile' ? activeMenuButtonSx : {}) }}><PersonOutlineRounded fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>My Profile</Typography></ButtonBase><ButtonBase title="Settings" aria-label="Settings" onClick={() => nav('/student/settings')} sx={{ ...menuButtonSx, ...(path === '/student/settings' ? activeMenuButtonSx : {}) }}><SettingsOutlined fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>Settings</Typography></ButtonBase></Stack>
   </Box>
 }
