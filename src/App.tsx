@@ -28,6 +28,7 @@ const CreateQuizPage = lazy(() => import('@/components/admin/admin-create-pages'
 const AdminManagementPage = lazy(() => import('@/components/admin/admin-management-pages'))
 const LoginPage = lazy(() => import('@/components/auth/login-page'))
 const TeacherPortal = lazy(() => import('@/components/teacher/teacher-portal'))
+const StudentPortal = lazy(() => import('@/components/student/student-portal'))
 
 interface PageLayoutProps {
   children: ReactNode
@@ -137,7 +138,7 @@ const App: React.FC = () => (
       <Route path="/admin/quizzes/new" element={<RoleRoute role="admin"><Suspense fallback={<LoadingState />}><CreateQuizPage /></Suspense></RoleRoute>} />
       <Route path="/teacher/*" element={<RoleRoute role="teacher"><Suspense fallback={<LoadingState />}><TeacherPortal /></Suspense></RoleRoute>} />
       <Route path="/parent" element={<RoleRoute role="parent"><InfoPage title="Parent Dashboard" description="Your parent dashboard is ready to help you follow student progress." /></RoleRoute>} />
-      <Route path="/student" element={<RoleRoute role="student"><InfoPage title="Student Dashboard" description="Your student dashboard is ready for your lessons and assessments." /></RoleRoute>} />
+      <Route path="/student/*" element={<RoleRoute role="student"><Suspense fallback={<LoadingState />}><StudentPortal /></Suspense></RoleRoute>} />
       <Route path="/contact" element={<InfoPage title="Contact Us" description="We would love to hear from you." />} />
       <Route path="/privacy" element={<InfoPage title="Privacy & Policy" description="Your privacy matters to us." />} />
       <Route path="/terms" element={<InfoPage title="Terms & Conditions" description="Please review our platform terms." />} />
