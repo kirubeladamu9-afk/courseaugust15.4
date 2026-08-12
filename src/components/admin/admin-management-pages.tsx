@@ -158,7 +158,11 @@ const ReportsAnalyticsPage: FC = () => {
     ]).then(([studentResponse, teacherResponse, materialResponse, assessmentResponse, userResponse]) => {
       setStudents(studentResponse.data.students)
       setTeachers(teacherResponse.data.records)
-      setMaterials(materialResponse.data.records)
+      setMaterials(materialResponse.data.records.map((record) => {
+        const materialData = record.data as Record<string, unknown>
+        const studentCount = Array.isArray(materialData.studentIds) ? materialData.studentIds.length : 0
+        return { ...record, data: { ...record.data, Subject: String(materialData.subjectName || 'Unknown subject'), Class: String(materialData.className || 'Unknown class'), 'Uploaded by': String(materialData.teacherName || 'Unknown teacher'), Audience: materialData.assignmentScope === 'Whole Class' ? 'Whole class' : `${studentCount} selected students`, Downloadable: 'Yes' } }
+      }))
       setAssessments(assessmentResponse.data.records)
       setUsers(userResponse.data.records)
     }).catch(() => setError('Unable to load report data. Please try again.')).finally(() => setLoading(false))
