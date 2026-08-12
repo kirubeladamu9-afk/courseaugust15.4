@@ -6,6 +6,7 @@ import authRoutes from './modules/auth/auth.routes'
 import adminRoutes from './modules/admin/admin.routes'
 import teacherRoutes from './modules/teacher/teacher.routes'
 import assessmentRoutes from './modules/assessment/assessment.routes'
+import studentRoutes from './modules/student/student.routes'
 import { env } from './config/env'
 import { prisma } from './config/prisma'
 
@@ -21,6 +22,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/teacher', teacherRoutes)
 app.use('/api/assessments', assessmentRoutes)
+app.use('/api/student', studentRoutes)
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (error instanceof Error && error.name === 'ZodError') return res.status(400).json({ message: 'Invalid request.' })
