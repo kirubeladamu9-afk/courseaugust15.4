@@ -169,7 +169,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     'Report Cards': '/admin/report-cards',
     Announcements: '/admin/announcements',
     'Messages / Notices': '/admin/messages-notices',
-    'Enrollment Reports': '/admin/enrollment-reports',
+    'Reports & Analytics': '/admin/reports-analytics',
     'Performance Trends': '/admin/performance-trends',
     'Custom / Export Reports': '/admin/custom-export-reports',
   }
@@ -183,7 +183,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     { label: 'Scheduling', parent: 'Timetable', icon: <PlayLessonOutlined fontSize="small" />, items: [] },
     { label: 'Assessments', parent: 'All Assessments', icon: <QuizOutlined fontSize="small" />, items: [] },
     { label: 'Communication', parent: 'Announcements', icon: <NotificationsNoneOutlined fontSize="small" />, items: ['Messages / Notices'] },
-    { label: 'Reports & Analytics', parent: 'Enrollment Reports', icon: <BarChartOutlined fontSize="small" />, items: ['Performance Trends', 'Custom / Export Reports'] },
+    { label: 'Reports & Analytics', parent: 'Reports & Analytics', icon: <BarChartOutlined fontSize="small" />, items: [] },
   ]
 
   useEffect(() => {
