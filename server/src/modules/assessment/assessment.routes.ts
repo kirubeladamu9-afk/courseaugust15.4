@@ -10,6 +10,7 @@ type AssessmentData = { questions?: StoredQuestion[]; submissions?: { studentId:
 
 const normalizeText = (value: string) => value.trim().toLowerCase()
 const sameSet = (left: string[], right: string[]) => left.length === right.length && left.every((value, index) => value === right[index])
+const finishExpiredAssessmentAssignments = () => prisma.assessmentAssignment.updateMany({ where: { endsAt: { lte: new Date() }, status: { notIn: ['Completed', 'Finished'] } }, data: { status: 'Finished' } })
 
 const studentCanSubmitAssessment = async (userId: string, assessmentId: string) => {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
@@ -20,7 +21,8 @@ const studentCanSubmitAssessment = async (userId: string, assessmentId: string) 
     where: {
       quizId: assessmentId,
       dueDate: { gte: new Date() },
-      status: { not: 'Completed' },
+      endsAt: { gte: new Date() },
+      status: { notIn: ['Completed', 'Finished'] },
       OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' } })),
     },
     select: { id: true },
@@ -29,6 +31,7 @@ const studentCanSubmitAssessment = async (userId: string, assessmentId: string) 
 
 router.post('/:id/submissions', requireAuth, requireRole('STUDENT'), async (req, res, next) => {
   try {
+    await finishExpiredAssessmentAssignments()
     const { answers } = submissionSchema.parse(req.body)
     const assessmentId = z.string().min(1).parse(req.params.id)
     const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })

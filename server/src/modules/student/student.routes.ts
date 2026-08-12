@@ -50,6 +50,7 @@ type AssessmentData = {
 
 const materialFileExtension = (fileName: string) => fileName.trim().split('.').pop()?.toLowerCase() || ''
 const classNamesForStudent = (student: { gradeLevel: string; classSection: string }) => [student.classSection, `${student.gradeLevel} ${student.classSection}`]
+const finishExpiredAssessmentAssignments = () => prisma.assessmentAssignment.updateMany({ where: { endsAt: { lte: new Date() }, status: { notIn: ['Completed', 'Finished'] } }, data: { status: 'Finished' } })
 
 const getAuthenticatedStudent = async (userId: string) => {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
@@ -135,15 +136,16 @@ router.get('/materials/:id/file', async (req, res, next) => {
 
 router.get('/assessments', async (_req, res, next) => {
   try {
+    await finishExpiredAssessmentAssignments()
     const student = await getAuthenticatedStudent(res.locals.auth.sub)
     if (!student) return res.status(404).json({ message: 'Student record not found.' })
 
     const classNames = classNamesForStudent(student)
     const classFilter = { OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' as const } })) }
     const assignments = await prisma.assessmentAssignment.findMany({
-      where: { dueDate: { gte: new Date() }, status: { not: 'Completed' }, ...classFilter },
+      where: { dueDate: { gte: new Date() }, endsAt: { gte: new Date() }, status: { notIn: ['Completed', 'Finished'] }, ...classFilter },
       orderBy: { dueDate: 'asc' },
-      select: { id: true, dueDate: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
+      select: { id: true, dueDate: true, timeLimitMinutes: true, endsAt: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
     })
     const quizzes = await prisma.quiz.findMany({ select: { id: true, title: true, assessmentType: true, data: true } })
 
@@ -157,6 +159,8 @@ router.get('/assessments', async (_req, res, next) => {
         assessmentType: quiz.assessmentType,
         subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
         dueDate: assignment.dueDate.toISOString(),
+        timeLimitMinutes: assignment.timeLimitMinutes,
+        endsAt: assignment.endsAt.toISOString(),
         status: submitted ? 'Submitted' : assignment.status,
         questionCount: Array.isArray(data.questions) ? data.questions.length : 0,
       }
@@ -186,6 +190,7 @@ router.get('/assessments', async (_req, res, next) => {
 
 router.get('/assessments/:assignmentId', async (req, res, next) => {
   try {
+    await finishExpiredAssessmentAssignments()
     const assignmentId = z.string().min(1).parse(req.params.assignmentId)
     const student = await getAuthenticatedStudent(res.locals.auth.sub)
     if (!student) return res.status(404).json({ message: 'Student record not found.' })
@@ -195,10 +200,11 @@ router.get('/assessments/:assignmentId', async (req, res, next) => {
       where: {
         id: assignmentId,
         dueDate: { gte: new Date() },
-        status: { not: 'Completed' },
+        endsAt: { gte: new Date() },
+        status: { notIn: ['Completed', 'Finished'] },
         OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' } })),
       },
-      select: { id: true, dueDate: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
+      select: { id: true, dueDate: true, timeLimitMinutes: true, endsAt: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
     })
     if (!assignment) return res.status(404).json({ message: 'Assessment not found.' })
 
@@ -217,6 +223,8 @@ router.get('/assessments/:assignmentId', async (req, res, next) => {
       assessmentType: assignment.quiz.assessmentType,
       subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
       dueDate: assignment.dueDate.toISOString(),
+      timeLimitMinutes: assignment.timeLimitMinutes,
+      endsAt: assignment.endsAt.toISOString(),
       questions,
     } })
   } catch (error) {
@@ -226,6 +234,7 @@ router.get('/assessments/:assignmentId', async (req, res, next) => {
 
 router.get('/dashboard', async (_req, res, next) => {
   try {
+    await finishExpiredAssessmentAssignments()
     const user = await prisma.user.findUnique({
       where: { id: res.locals.auth.sub },
       select: { name: true },
@@ -260,7 +269,7 @@ router.get('/dashboard', async (_req, res, next) => {
         orderBy: [{ startTime: 'asc' }, { period: 'asc' }],
       }),
       prisma.assessmentAssignment.findMany({
-        where: { dueDate: { gte: now }, status: { not: 'Completed' }, ...classFilter },
+        where: { dueDate: { gte: now }, endsAt: { gte: now }, status: { notIn: ['Completed', 'Finished'] }, ...classFilter },
         orderBy: { dueDate: 'asc' },
         select: {
           id: true,
