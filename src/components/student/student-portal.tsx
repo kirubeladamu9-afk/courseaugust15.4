@@ -42,8 +42,10 @@ import { useAuth } from '@/auth/auth-context'
 import api from '@/lib/api'
 
 const portalGroups = [
-  { label: 'LEARNING', items: [{ label: 'Timetable', path: '/student/timetable', icon: <ScheduleOutlined fontSize="small" /> }, { label: 'Materials', path: '/student/materials', icon: <FolderOutlined fontSize="small" /> }, { label: 'Assessments', path: '/student/assessments', icon: <AssessmentOutlined fontSize="small" /> }] },
-  { label: 'COMMUNICATION', items: [{ label: 'Announcements', path: '/student/announcements', icon: <CampaignOutlined fontSize="small" /> }] },
+  { label: 'TIMETABLE', items: [{ label: 'Timetable', path: '/student/timetable', icon: <ScheduleOutlined fontSize="small" /> }] },
+  { label: 'MATERIALS', items: [{ label: 'Materials', path: '/student/materials', icon: <FolderOutlined fontSize="small" /> }] },
+  { label: 'ASSESSMENTS', items: [{ label: 'Assessments', path: '/student/assessments', icon: <AssessmentOutlined fontSize="small" /> }] },
+  { label: 'ANNOUNCEMENTS', items: [{ label: 'Announcements', path: '/student/announcements', icon: <CampaignOutlined fontSize="small" /> }] },
 ]
 
 const pageDetails: Record<string, { title: string; description: string }> = {
@@ -90,12 +92,11 @@ const Sidebar: FC<{ path: string; onNavigate: (path: string) => void; onClose?: 
   const activeMenuButtonSx = { backgroundColor: 'action.selected', color: 'primary.main', '&:hover': { backgroundColor: 'action.selected' } }
   return <Box sx={{ width: 248, height: '100%', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
     <Box sx={{ mb: 4 }}><Logo /></Box>
-    <ButtonBase title="Dashboard" aria-label="Dashboard" onClick={() => nav('/student')} sx={{ ...menuButtonSx, color: 'primary.contrastText', backgroundColor: path === '/student' ? 'primary.main' : 'action.selected', '&:hover': { backgroundColor: path === '/student' ? 'primary.main' : 'action.selected' }, mb: 2 }}><DashboardOutlined fontSize="small" sx={{ mr: 1.5 }} /><Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Dashboard</Typography></ButtonBase>
+    <Box sx={{ mb: 2 }}><Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.25, mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.8 }}>DASHBOARD</Typography><ButtonBase title="Dashboard" aria-label="Dashboard" onClick={() => nav('/student')} sx={{ ...menuButtonSx, color: 'primary.contrastText', backgroundColor: path === '/student' ? 'primary.main' : 'action.selected', '&:hover': { backgroundColor: path === '/student' ? 'primary.main' : 'action.selected' } }}><DashboardOutlined fontSize="small" sx={{ mr: 1.5 }} /><Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Dashboard</Typography></ButtonBase></Box>
     <Stack spacing={2}>
       {portalGroups.map((group) => <Box key={group.label}><Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>{group.label}</Typography><Stack spacing={0.25} sx={{ mt: 0.5 }}>{group.items.map((item) => <ButtonBase key={item.path} title={item.label} aria-label={item.label} onClick={() => nav(item.path)} sx={{ ...menuButtonSx, ...(path === item.path ? activeMenuButtonSx : {}) }}><Box sx={{ display: 'flex', mr: 1.25, color: 'primary.main' }}>{item.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{item.label}</Typography></ButtonBase>)}</Stack></Box>)}
     </Stack>
-    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.25, mt: 3, textTransform: 'uppercase', letterSpacing: 0.8 }}>PROFILE / SETTINGS</Typography>
-    <Stack spacing={0.8} sx={{ mt: 1 }}><ButtonBase title="My Profile" aria-label="My Profile" onClick={() => nav('/student/profile')} sx={{ ...menuButtonSx, ...(path === '/student/profile' ? activeMenuButtonSx : {}) }}><PersonOutlineRounded fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>My Profile</Typography></ButtonBase><ButtonBase title="Settings" aria-label="Settings" onClick={() => nav('/student/settings')} sx={{ ...menuButtonSx, ...(path === '/student/settings' ? activeMenuButtonSx : {}) }}><SettingsOutlined fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>Settings</Typography></ButtonBase></Stack>
+    <Stack spacing={2} sx={{ mt: 1 }}><Box><Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.25, mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.8 }}>MY PROFILE</Typography><ButtonBase title="My Profile" aria-label="My Profile" onClick={() => nav('/student/profile')} sx={{ ...menuButtonSx, ...(path === '/student/profile' ? activeMenuButtonSx : {}) }}><PersonOutlineRounded fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>My Profile</Typography></ButtonBase></Box><Box><Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.25, mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.8 }}>SETTINGS</Typography><ButtonBase title="Settings" aria-label="Settings" onClick={() => nav('/student/settings')} sx={{ ...menuButtonSx, ...(path === '/student/settings' ? activeMenuButtonSx : {}) }}><SettingsOutlined fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>Settings</Typography></ButtonBase></Box></Stack>
   </Box>
 }
 
