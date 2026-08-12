@@ -133,6 +133,7 @@ model Quiz {
   id String @id @default(cuid())
   title String
   assessmentType String @default("Quiz")
+  timeLimitMinutes Int @default(30) @map("time_limit_minutes")
   data Json
   status String @default("Draft")
   createdAt DateTime @default(now())

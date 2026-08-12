@@ -45,6 +45,7 @@ const assessmentSchema = z.object({
   assessmentType: z.enum(['Quiz', 'Assignment', 'Midterm Exam', 'Final Exam', 'Project']).default('Quiz'),
   className: z.string().trim().min(1).max(80),
   subjectName: z.string().trim().min(1).max(120),
+  timeLimitMinutes: z.coerce.number().int().min(1).max(1440).default(30),
   questions: z.array(assessmentQuestionSchema).max(100),
 }).superRefine((assessment, context) => {
   if (assessment.assessmentType !== 'Project' && !assessment.questions.length) context.addIssue({ code: 'custom', path: ['questions'], message: 'This assessment type requires at least one question.' })
@@ -327,7 +328,7 @@ router.get('/assessments/:id', async (req, res, next) => {
     const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
     if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
     const data = assessment.data as { className?: string; subjectName?: string; questions?: unknown[] }
-    return res.json({ assessment: { id: assessment.id, title: assessment.title, assessmentType: assessment.assessmentType, className: data.className || '', subjectName: data.subjectName || '', questions: data.questions || [], status: assessment.status } })
+    return res.json({ assessment: { id: assessment.id, title: assessment.title, assessmentType: assessment.assessmentType, timeLimitMinutes: assessment.timeLimitMinutes, className: data.className || '', subjectName: data.subjectName || '', questions: data.questions || [], status: assessment.status } })
   } catch (error) {
     return next(error)
   }
@@ -354,7 +355,7 @@ router.patch('/assessments/:id', async (req, res, next) => {
     const input = assessmentSchema.parse(req.body)
     const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
     if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
-    const updated = await prisma.quiz.update({ where: { id: assessmentId }, data: { title: input.title, assessmentType: input.assessmentType, data: { teacherId: res.locals.auth.sub, className: input.className, subjectName: input.subjectName, questions: input.questions } } })
+    const updated = await prisma.quiz.update({ where: { id: assessmentId }, data: { title: input.title, assessmentType: input.assessmentType, timeLimitMinutes: input.timeLimitMinutes, data: { teacherId: res.locals.auth.sub, className: input.className, subjectName: input.subjectName, questions: input.questions } } })
     return res.json({ assessment: { id: updated.id, title: updated.title, status: updated.status } })
   } catch (error) {
     return next(error)
@@ -376,7 +377,7 @@ router.delete('/assessments/:id', async (req, res, next) => {
 router.post('/assessments', async (req, res, next) => {
   try {
     const input = assessmentSchema.parse(req.body)
-    const assessment = await prisma.quiz.create({ data: { title: input.title, assessmentType: input.assessmentType, data: { teacherId: res.locals.auth.sub, className: input.className, subjectName: input.subjectName, questions: input.questions }, status: 'Draft' } })
+    const assessment = await prisma.quiz.create({ data: { title: input.title, assessmentType: input.assessmentType, timeLimitMinutes: input.timeLimitMinutes, data: { teacherId: res.locals.auth.sub, className: input.className, subjectName: input.subjectName, questions: input.questions }, status: 'Draft' } })
     return res.status(201).json({ assessment: { id: assessment.id, title: assessment.title, status: assessment.status } })
   } catch (error) {
     return next(error)
