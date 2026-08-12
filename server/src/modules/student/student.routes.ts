@@ -46,6 +46,7 @@ type AssessmentData = {
   subjectName?: unknown
   questions?: AssessmentQuestion[]
   submissions?: AssessmentSubmission[]
+  drafts?: { studentId?: unknown; answers?: (string | string[])[]; updatedAt?: unknown }[]
 }
 
 const materialFileExtension = (fileName: string) => fileName.trim().split('.').pop()?.toLowerCase() || ''
@@ -143,9 +144,9 @@ router.get('/assessments', async (_req, res, next) => {
     const classNames = classNamesForStudent(student)
     const classFilter = { OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' as const } })) }
     const assignments = await prisma.assessmentAssignment.findMany({
-      where: { dueDate: { gte: new Date() }, endsAt: { gte: new Date() }, status: { notIn: ['Completed', 'Finished'] }, ...classFilter },
+      where: { status: { not: 'Completed' }, ...classFilter },
       orderBy: { dueDate: 'asc' },
-      select: { id: true, dueDate: true, timeLimitMinutes: true, endsAt: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
+      select: { id: true, dueDate: true, startsAt: true, timeLimitMinutes: true, endsAt: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
     })
     const quizzes = await prisma.quiz.findMany({ select: { id: true, title: true, assessmentType: true, data: true } })
 
@@ -159,6 +160,7 @@ router.get('/assessments', async (_req, res, next) => {
         assessmentType: quiz.assessmentType,
         subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
         dueDate: assignment.dueDate.toISOString(),
+        startsAt: assignment.startsAt.toISOString(),
         timeLimitMinutes: assignment.timeLimitMinutes,
         endsAt: assignment.endsAt.toISOString(),
         status: submitted ? 'Submitted' : assignment.status,
@@ -199,12 +201,12 @@ router.get('/assessments/:assignmentId', async (req, res, next) => {
     const assignment = await prisma.assessmentAssignment.findFirst({
       where: {
         id: assignmentId,
-        dueDate: { gte: new Date() },
+        startsAt: { lte: new Date() },
         endsAt: { gte: new Date() },
         status: { notIn: ['Completed', 'Finished'] },
         OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' } })),
       },
-      select: { id: true, dueDate: true, timeLimitMinutes: true, endsAt: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
+      select: { id: true, dueDate: true, startsAt: true, timeLimitMinutes: true, endsAt: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
     })
     if (!assignment) return res.status(404).json({ message: 'Assessment not found.' })
 
@@ -223,9 +225,11 @@ router.get('/assessments/:assignmentId', async (req, res, next) => {
       assessmentType: assignment.quiz.assessmentType,
       subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
       dueDate: assignment.dueDate.toISOString(),
+      startsAt: assignment.startsAt.toISOString(),
       timeLimitMinutes: assignment.timeLimitMinutes,
       endsAt: assignment.endsAt.toISOString(),
       questions,
+      draftAnswers: (Array.isArray(data.drafts) ? data.drafts.find((draft) => draft.studentId === res.locals.auth.sub)?.answers : undefined) || [],
     } })
   } catch (error) {
     return next(error)

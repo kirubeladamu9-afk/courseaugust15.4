@@ -102,55 +102,109 @@ const studentMaterialFileUrl = (materialId: string) => `${api.defaults.baseURL |
 const Materials: FC = () => { const [subject, setSubject] = useState('All subjects'); const [materials, setMaterials] = useState<StudentMaterial[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); useEffect(() => { api.get<{ materials: StudentMaterial[] }>('/api/student/materials', { withCredentials: true }).then(({ data }) => setMaterials(data.materials)).catch(() => setError('Unable to load your learning materials. Please try again.')).finally(() => setLoading(false)) }, []); const filtered = subject === 'All subjects' ? materials : materials.filter((item) => item.subjectName === subject); const subjects = [...new Set(materials.map((item) => item.subjectName).filter((item): item is string => Boolean(item)))]; return <Stack spacing={2}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h5">Shared materials</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Resources available for your assigned class.</Typography></Box><TextField select size="small" label="Subject" value={subject} onChange={(event) => setSubject(event.target.value)} sx={{ minWidth: 180 }}><MenuItem value="All subjects">All subjects</MenuItem>{subjects.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Stack></Paper>{loading && <LinearProgress />}{error && <Alert severity="error">{error}</Alert>}{!loading && !error && !filtered.length && <Typography color="text.secondary" sx={{ py: 3 }}>No learning materials have been shared with your class.</Typography>}{filtered.map((item) => { const fileUrl = studentMaterialFileUrl(item.id); return <Paper key={item.id} elevation={0} sx={{ p: 2, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}><Stack direction="row" spacing={1.5} alignItems="center"><Box sx={{ p: 1, borderRadius: 2, backgroundColor: 'background.default', color: 'primary.main' }}><DescriptionOutlined /></Box><Box><Typography fontWeight={700}>{item.title}</Typography><Typography variant="body2" color="text.secondary">{item.subjectName || 'Subject not specified'} · {item.teacherName || 'Teacher not specified'} · {formatDate(item.uploadedAt)} · {(item.fileExtension || 'file').toUpperCase()}</Typography>{item.fileName && <Typography variant="caption" color="text.secondary">{item.fileName}</Typography>}</Box></Stack><Stack direction="row" spacing={1}><Button size="small" component="a" href={fileUrl} target="_blank" rel="noreferrer">View</Button><Button size="small" variant="outlined" component="a" href={fileUrl} download startIcon={<DownloadOutlined />}>Download</Button></Stack></Stack></Paper>})}</Stack> }
 
 
-type StudentAssessment = { id: string; assessmentId: string; title: string; assessmentType: string; subjectName: string | null; dueDate: string; timeLimitMinutes: number; endsAt: string; status: string; questionCount: number }
+type StudentAssessment = { id: string; assessmentId: string; title: string; assessmentType: string; subjectName: string | null; dueDate: string; startsAt: string; timeLimitMinutes: number; endsAt: string; status: string; questionCount: number }
 type StudentResult = { id: string; title: string; assessmentType: string; subjectName: string | null; score: number | null; totalPoints: number; submittedAt: string | null }
 type StudentAssessmentQuestion = { type: 'single' | 'multiple' | 'true-false' | 'fill-blank'; prompt: string; options: string[] }
-type StudentAssessmentDetail = { id: string; assignmentId: string; title: string; assessmentType: string; subjectName: string | null; dueDate: string; timeLimitMinutes: number; endsAt: string; questions: StudentAssessmentQuestion[] }
+type StudentAssessmentDetail = { id: string; assignmentId: string; title: string; assessmentType: string; subjectName: string | null; dueDate: string; startsAt: string; timeLimitMinutes: number; endsAt: string; questions: StudentAssessmentQuestion[]; draftAnswers: (string | string[])[] }
 
 const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmitted: () => void }> = ({ assignmentId, onClose, onSubmitted }) => {
   const [assessment, setAssessment] = useState<StudentAssessmentDetail | null>(null)
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({})
+  const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const storageKey = 'student-assessment-draft-' + assignmentId
 
   useEffect(() => {
-    api.get<{ assessment: StudentAssessmentDetail }>(`/api/student/assessments/${assignmentId}`, { withCredentials: true })
-      .then(({ data }) => setAssessment(data.assessment))
+    api.get<{ assessment: StudentAssessmentDetail }>('/api/student/assessments/' + assignmentId, { withCredentials: true })
+      .then(({ data }) => {
+        setAssessment(data.assessment)
+        if (data.assessment.draftAnswers?.length) setAnswers(Object.fromEntries(data.assessment.draftAnswers.map((answer, index) => [index, answer])))
+        setRemainingSeconds(Math.max(0, Math.min(data.assessment.timeLimitMinutes * 60, Math.floor((new Date(data.assessment.endsAt).getTime() - Date.now()) / 1000))))
+        try {
+          const saved = sessionStorage.getItem(storageKey)
+          if (saved) setAnswers(JSON.parse(saved) as Record<number, string | string[]>)
+        } catch { /* Ignore unavailable or malformed browser storage. */ }
+      })
       .catch(() => setError('Unable to load this assessment. Please return to your assessment list and try again.'))
       .finally(() => setLoading(false))
-  }, [assignmentId])
+  }, [assignmentId, storageKey])
 
+  useEffect(() => {
+    if (!assessment || locked) return
+    const timer = window.setInterval(() => {
+      const next = Math.max(0, Math.min(assessment.timeLimitMinutes * 60, Math.floor((new Date(assessment.endsAt).getTime() - Date.now()) / 1000)))
+      setRemainingSeconds(next)
+      if (next <= 0) setLocked(true)
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [assessment, locked])
+
+  useEffect(() => {
+    if (!assessment || !Object.keys(answers).length || locked) return
+    try { sessionStorage.setItem(storageKey, JSON.stringify(answers)) } catch { /* Ignore unavailable browser storage. */ }
+    void api.post('/api/assessments/' + assessment.id + '/draft', { answers: assessment.questions.map((question, index) => answers[index] ?? (question.type === 'multiple' ? [] : '')) }, { withCredentials: true }).catch(() => undefined)
+  }, [answers, currentQuestion, assessment, storageKey, locked])
+
+  const updateAnswer = (questionIndex: number, answer: string | string[]) => setAnswers((current) => ({ ...current, [questionIndex]: answer }))
   const updateMultipleAnswer = (questionIndex: number, optionIndex: string, checked: boolean) => {
-    setAnswers((current) => {
-      const selected = Array.isArray(current[questionIndex]) ? current[questionIndex] : []
-      return { ...current, [questionIndex]: checked ? [...selected, optionIndex] : selected.filter((item) => item !== optionIndex) }
-    })
+    const selected = Array.isArray(answers[questionIndex]) ? answers[questionIndex] as string[] : []
+    updateAnswer(questionIndex, checked ? [...selected, optionIndex] : selected.filter((item) => item !== optionIndex))
   }
 
-  const submit = async () => {
-    if (!assessment) return
+  const submit = async (automatic = false) => {
+    if (!assessment || submitting) return
     const submittedAnswers = assessment.questions.map((question, index) => answers[index] ?? (question.type === 'multiple' ? [] : ''))
-    if (submittedAnswers.some((answer) => Array.isArray(answer) ? !answer.length : !answer.trim())) {
+    if (!automatic && submittedAnswers.some((answer) => Array.isArray(answer) ? !answer.length : !answer.trim())) {
       setError('Answer every question before submitting.')
       return
     }
     setSubmitting(true)
+    setLocked(true)
     setError('')
     try {
-      await api.post(`/api/assessments/${assessment.id}/submissions`, { answers: submittedAnswers }, { withCredentials: true })
-      onSubmitted()
+      await api.post('/api/assessments/' + assessment.id + '/submissions', { answers: submittedAnswers, automatic }, { withCredentials: true })
+      setMessage(automatic ? 'Time’s up — your answers were submitted automatically.' : 'Assessment submitted successfully.')
+      try { sessionStorage.removeItem(storageKey) } catch { /* Ignore unavailable browser storage. */ }
+      window.setTimeout(onSubmitted, automatic ? 1200 : 900)
     } catch {
+      setLocked(false)
       setError('Unable to submit this assessment. Please try again.')
     } finally {
       setSubmitting(false)
     }
   }
 
+  useEffect(() => {
+    if (locked && remainingSeconds <= 0 && assessment && !submitting && !message) void submit(true)
+  }, [locked, remainingSeconds, assessment, submitting, message])
+
   if (loading) return <LinearProgress />
   if (!assessment) return <Stack spacing={2}>{error && <Alert severity="error">{error}</Alert>}<Button variant="outlined" onClick={onClose}>Back to assessments</Button></Stack>
+  const question = assessment.questions[currentQuestion]
+  const minutes = Math.floor(remainingSeconds / 60)
+  const seconds = remainingSeconds % 60
+  const timerColor = remainingSeconds < 60 ? 'error.main' : remainingSeconds < 300 ? 'warning.main' : 'text.primary'
 
-  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}><Box><Typography variant="h5">{assessment.title}</Typography><Typography color="text.secondary">{assessment.subjectName || assessment.assessmentType} · {assessment.timeLimitMinutes} min · Due {formatDate(assessment.dueDate)}</Typography></Box><Button variant="outlined" onClick={onClose}>Back to assessments</Button></Stack>{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}<Stack spacing={3} sx={{ mt: 3 }}>{assessment.questions.map((question, questionIndex) => <Box key={`${questionIndex}-${question.prompt}`}><Typography fontWeight={700}>Question {questionIndex + 1}</Typography><Typography sx={{ mt: 0.5 }}>{question.prompt}</Typography>{question.type === 'fill-blank' ? <TextField fullWidth label="Your answer" value={typeof answers[questionIndex] === 'string' ? answers[questionIndex] : ''} onChange={(event) => setAnswers((current) => ({ ...current, [questionIndex]: event.target.value }))} sx={{ mt: 1.5 }} /> : <Stack sx={{ mt: 1 }}>{question.options.map((option, optionIndex) => <FormControlLabel key={option} control={question.type === 'multiple' ? <Checkbox checked={Array.isArray(answers[questionIndex]) && answers[questionIndex].includes(String(optionIndex))} onChange={(event) => updateMultipleAnswer(questionIndex, String(optionIndex), event.target.checked)} /> : <Radio checked={answers[questionIndex] === String(optionIndex)} onChange={() => setAnswers((current) => ({ ...current, [questionIndex]: String(optionIndex) }))} />} label={option} />)}</Stack>}</Box>)}</Stack><Button variant="contained" onClick={submit} disabled={submitting} sx={{ mt: 3 }}>{submitting ? 'Submitting...' : 'Submit assessment'}</Button></Paper>
+  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}>
+      <Box><Typography variant="h5">{assessment.title}</Typography><Typography color="text.secondary">{assessment.subjectName || assessment.assessmentType} · Due {formatDate(assessment.dueDate)}</Typography></Box>
+      <Button variant="outlined" onClick={onClose} disabled={submitting}>Back to assessments</Button>
+    </Stack>
+    <Paper elevation={0} sx={{ mt: 2, p: 1.5, position: 'sticky', top: 16, zIndex: 1, border: 1, borderColor: remainingSeconds < 300 ? timerColor : 'divider', backgroundColor: 'background.paper' }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography fontWeight={700}>Time remaining</Typography><Typography variant="h6" sx={{ color: timerColor }}>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</Typography></Stack>
+    </Paper>
+    {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+    {message && <Alert severity="success" sx={{ mt: 2 }}>{message}</Alert>}
+    <Box sx={{ mt: 3 }}><Typography variant="subtitle2" color="text.secondary">Question {currentQuestion + 1} of {assessment.questions.length}</Typography><Typography variant="h6" sx={{ mt: 1 }}>{question.prompt}</Typography>
+      {question.type === 'fill-blank' ? <TextField fullWidth label="Your answer" value={typeof answers[currentQuestion] === 'string' ? answers[currentQuestion] : ''} onChange={(event) => updateAnswer(currentQuestion, event.target.value)} disabled={locked} sx={{ mt: 2 }} /> : <Stack sx={{ mt: 1 }}>{question.options.map((option, optionIndex) => <FormControlLabel key={option + '-' + optionIndex} control={question.type === 'multiple' ? <Checkbox checked={Array.isArray(answers[currentQuestion]) && answers[currentQuestion].includes(String(optionIndex))} onChange={(event) => updateMultipleAnswer(currentQuestion, String(optionIndex), event.target.checked)} disabled={locked} /> : <Radio checked={answers[currentQuestion] === String(optionIndex)} onChange={() => updateAnswer(currentQuestion, String(optionIndex))} disabled={locked} />} label={option} />)}</Stack>}
+    </Box>
+    <Stack direction="row" justifyContent="space-between" sx={{ mt: 3 }}><Button variant="outlined" onClick={() => setCurrentQuestion((index) => Math.max(0, index - 1))} disabled={locked || currentQuestion === 0}>Previous</Button><Stack direction="row" spacing={1}><Button variant="outlined" onClick={() => setCurrentQuestion((index) => Math.min(assessment.questions.length - 1, index + 1))} disabled={locked || currentQuestion === assessment.questions.length - 1}>Next</Button><Button variant="contained" onClick={() => void submit()} disabled={locked || submitting}>Submit assessment</Button></Stack></Stack>
+  </Paper>
 }
 
 const Assessments: FC = () => {
@@ -160,6 +214,7 @@ const Assessments: FC = () => {
   const [error, setError] = useState('')
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
     setLoading(true)
@@ -169,12 +224,12 @@ const Assessments: FC = () => {
       .catch(() => setError('Unable to load your assessments and results. Please try again.'))
       .finally(() => setLoading(false))
   }, [reloadKey])
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
 
   if (selectedAssignmentId) return <AssessmentPlayer assignmentId={selectedAssignmentId} onClose={() => setSelectedAssignmentId(null)} onSubmitted={() => { setSelectedAssignmentId(null); setReloadKey((current) => current + 1) }} />
 
-  return <Stack spacing={2}>{loading && <LinearProgress />}{error && <Alert severity="error">{error}</Alert>}<Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Upcoming Assessments</Typography>{!loading && !error && (assessments.length ? <Stack spacing={1.5} sx={{ mt: 2 }}>{assessments.map((item) => <Box key={item.id} sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.default' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}><Box><Typography fontWeight={700}>{item.title}</Typography><Typography variant="body2" color="text.secondary">{item.subjectName || item.assessmentType} · {item.assessmentType} · {item.timeLimitMinutes} min · Due {formatDate(item.dueDate)} · {item.questionCount} question{item.questionCount === 1 ? '' : 's'}</Typography></Box>{item.status === 'Submitted' ? <Chip label="Submitted" color="success" size="small" /> : item.questionCount ? <Button variant="contained" startIcon={<PlayCircleOutlineRounded />} onClick={() => setSelectedAssignmentId(item.id)}>Start</Button> : <Chip label={item.status} color="warning" size="small" />}</Stack></Box>)}</Stack> : <Typography color="text.secondary" sx={{ mt: 2 }}>No active assessments are assigned to your class.</Typography>)}</Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">My Results</Typography>{!loading && !error && (results.length ? <Stack divider={<Divider flexItem />} sx={{ mt: 1 }}>{results.map((result) => <Stack key={`${result.id}-${result.submittedAt}`} direction="row" justifyContent="space-between" alignItems="center" sx={{ py: 1.5 }}><Box><Typography fontWeight={700}>{result.title}</Typography><Typography variant="caption" color="text.secondary">{result.subjectName || result.assessmentType} · {result.submittedAt ? formatDate(result.submittedAt) : 'Date unavailable'}</Typography></Box><Chip label={result.score === null ? 'Awaiting grading' : `${result.score} / ${result.totalPoints}`} size="small" color={result.score === null ? 'warning' : 'success'} /></Stack>)}</Stack> : <Typography color="text.secondary" sx={{ mt: 2 }}>No assessment results yet.</Typography>)}</Paper></Stack>
+  return <Stack spacing={2}>{loading && <LinearProgress />}{error && <Alert severity="error">{error}</Alert>}<Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Upcoming Assessments</Typography>{!loading && !error && (assessments.length ? <Stack spacing={1.5} sx={{ mt: 2 }}>{assessments.map((item) => { const startsAt = new Date(item.startsAt).getTime(); const endsAt = new Date(item.endsAt).getTime(); const available = now >= startsAt && now <= endsAt; const notYetAvailable = now < startsAt; return <Box key={item.id} sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.default' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}><Box><Typography fontWeight={700}>{item.title}</Typography><Typography variant="body2" color="text.secondary">{item.subjectName || item.assessmentType} · {item.assessmentType} · {item.timeLimitMinutes} min · Due {formatDate(item.dueDate)} · {item.questionCount} question{item.questionCount === 1 ? '' : 's'}</Typography></Box>{item.status === 'Submitted' ? <Chip label="Submitted" color="success" size="small" /> : !item.questionCount || !available ? <Chip label={notYetAvailable ? 'Not yet available' : 'Closed'} color={notYetAvailable ? 'warning' : 'default'} size="small" /> : <Button variant="contained" startIcon={<PlayCircleOutlineRounded />} onClick={() => setSelectedAssignmentId(item.id)}>Start</Button>}</Stack></Box> })}</Stack> : <Typography color="text.secondary" sx={{ mt: 2 }}>No active assessments are assigned to your class.</Typography>)}</Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">My Results</Typography>{!loading && !error && (results.length ? <Stack spacing={1.5} sx={{ mt: 2 }}>{results.map((result) => <Stack key={result.id + '-' + result.submittedAt} direction="row" justifyContent="space-between" alignItems="center"><Box><Typography fontWeight={700}>{result.title}</Typography><Typography variant="caption" color="text.secondary">{result.subjectName || result.assessmentType} · {result.submittedAt ? formatDate(result.submittedAt) : 'Date unavailable'}</Typography></Box><Chip label={result.score === null ? 'Awaiting grading' : result.score + ' / ' + result.totalPoints} size="small" color={result.score === null ? 'warning' : 'success'} /></Stack>)}</Stack> : <Typography color="text.secondary" sx={{ mt: 2 }}>No results to show yet.</Typography>)}</Paper></Stack>
 }
-
 const Announcements: FC = () => <Stack spacing={2}>{announcements.map((item) => <Paper key={item.title} elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction="row" justifyContent="space-between" spacing={2}><Box><Stack direction="row" spacing={1} alignItems="center"><Typography variant="h6">{item.title}</Typography><Chip label={item.scope} size="small" /></Stack><Typography color="text.secondary" sx={{ mt: 1 }}>{item.body}</Typography></Box><Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{item.date}</Typography></Stack></Paper>)}</Stack>
 
 const Settings: FC<{ email: string }> = ({ email }) => <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, maxWidth: 720 }}><Typography variant="h5">Contact details</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>Name and class details are maintained by school administration.</Typography><Grid container spacing={2}><Grid item xs={12} sm={6}><TextField fullWidth label="Phone" defaultValue="+251 91 000 0000" /></Grid><Grid item xs={12} sm={6}><TextField fullWidth label="Email" defaultValue={email} /></Grid></Grid><Button variant="contained" sx={{ mt: 2 }}>Request profile update</Button><Divider sx={{ my: 4 }} /><Typography variant="h5">Change password</Typography><Stack spacing={2} sx={{ mt: 2 }}><TextField fullWidth label="Current password" type="password" /><TextField fullWidth label="New password" type="password" /><TextField fullWidth label="Confirm new password" type="password" /><Button variant="outlined">Update password</Button></Stack></Paper>
