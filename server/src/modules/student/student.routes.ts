@@ -29,6 +29,25 @@ type MaterialData = {
   studentIds?: string[]
 }
 
+type AssessmentQuestion = {
+  type?: 'single' | 'multiple' | 'true-false' | 'fill-blank'
+  prompt?: unknown
+  options?: unknown
+  points?: unknown
+}
+
+type AssessmentSubmission = {
+  studentId?: unknown
+  score?: unknown
+  submittedAt?: unknown
+}
+
+type AssessmentData = {
+  subjectName?: unknown
+  questions?: AssessmentQuestion[]
+  submissions?: AssessmentSubmission[]
+}
+
 const materialFileExtension = (fileName: string) => fileName.trim().split('.').pop()?.toLowerCase() || ''
 const classNamesForStudent = (student: { gradeLevel: string; classSection: string }) => [student.classSection, `${student.gradeLevel} ${student.classSection}`]
 
@@ -109,6 +128,97 @@ router.get('/materials/:id/file', async (req, res, next) => {
     if (!base64) return res.status(404).json({ message: 'Material file not found.' })
 
     return res.type(materialMimeTypes[fileExtension]).setHeader('Content-Disposition', `${fileExtension === 'pdf' ? 'inline' : 'attachment'}; filename="${encodeURIComponent(data.fileName)}"`).send(Buffer.from(base64, 'base64'))
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/assessments', async (_req, res, next) => {
+  try {
+    const student = await getAuthenticatedStudent(res.locals.auth.sub)
+    if (!student) return res.status(404).json({ message: 'Student record not found.' })
+
+    const classNames = classNamesForStudent(student)
+    const classFilter = { OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' as const } })) }
+    const assignments = await prisma.assessmentAssignment.findMany({
+      where: { dueDate: { gte: new Date() }, status: { not: 'Completed' }, ...classFilter },
+      orderBy: { dueDate: 'asc' },
+      select: { id: true, dueDate: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
+    })
+    const quizzes = await prisma.quiz.findMany({ select: { id: true, title: true, assessmentType: true, data: true } })
+
+    const assessments = assignments.map(({ quiz, ...assignment }) => {
+      const data = quiz.data as AssessmentData
+      const submitted = (data.submissions || []).some((submission) => submission.studentId === res.locals.auth.sub)
+      return {
+        id: assignment.id,
+        assessmentId: quiz.id,
+        title: quiz.title,
+        assessmentType: quiz.assessmentType,
+        subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
+        dueDate: assignment.dueDate.toISOString(),
+        status: submitted ? 'Submitted' : assignment.status,
+        questionCount: Array.isArray(data.questions) ? data.questions.length : 0,
+      }
+    })
+
+    const results = quizzes.flatMap((quiz) => {
+      const data = quiz.data as AssessmentData
+      const totalPoints = Array.isArray(data.questions) ? data.questions.reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0) : 0
+      return (data.submissions || [])
+        .filter((submission) => submission.studentId === res.locals.auth.sub)
+        .map((submission) => ({
+          id: quiz.id,
+          title: quiz.title,
+          assessmentType: quiz.assessmentType,
+          subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
+          score: typeof submission.score === 'number' ? submission.score : null,
+          totalPoints,
+          submittedAt: typeof submission.submittedAt === 'string' ? submission.submittedAt : null,
+        }))
+    }).sort((left, right) => (right.submittedAt || '').localeCompare(left.submittedAt || ''))
+
+    return res.json({ assessments, results })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/assessments/:assignmentId', async (req, res, next) => {
+  try {
+    const assignmentId = z.string().min(1).parse(req.params.assignmentId)
+    const student = await getAuthenticatedStudent(res.locals.auth.sub)
+    if (!student) return res.status(404).json({ message: 'Student record not found.' })
+
+    const classNames = classNamesForStudent(student)
+    const assignment = await prisma.assessmentAssignment.findFirst({
+      where: {
+        id: assignmentId,
+        dueDate: { gte: new Date() },
+        status: { not: 'Completed' },
+        OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' } })),
+      },
+      select: { id: true, dueDate: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
+    })
+    if (!assignment) return res.status(404).json({ message: 'Assessment not found.' })
+
+    const data = assignment.quiz.data as AssessmentData
+    if ((data.submissions || []).some((submission) => submission.studentId === res.locals.auth.sub)) return res.status(409).json({ message: 'This assessment has already been submitted.' })
+    const questions = Array.isArray(data.questions) ? data.questions.map((question) => ({
+      type: question.type,
+      prompt: typeof question.prompt === 'string' ? question.prompt : '',
+      options: Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === 'string') : [],
+    })) : []
+
+    return res.json({ assessment: {
+      id: assignment.quiz.id,
+      assignmentId: assignment.id,
+      title: assignment.quiz.title,
+      assessmentType: assignment.quiz.assessmentType,
+      subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
+      dueDate: assignment.dueDate.toISOString(),
+      questions,
+    } })
   } catch (error) {
     return next(error)
   }

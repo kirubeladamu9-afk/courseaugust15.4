@@ -7,6 +7,7 @@ import Box from '@mui/material/Box'
 import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Button from '@mui/material/Button'
 import ButtonBase from '@mui/material/ButtonBase'
+import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
@@ -64,11 +65,6 @@ const announcements = [
   { title: 'Library hours updated', body: 'The library will remain open until 5:00 PM on weekdays during the assessment period.', date: 'May 15', scope: 'School-wide' },
 ]
 
-const assessments = [
-  { id: 'sample-assessment', title: 'Linear Equations Quiz', subject: 'Mathematics', type: 'Quiz', window: 'Available now · Closes May 22, 4:00 PM', duration: '20 minutes', status: 'Active' },
-  { id: 'science-review', title: 'Forces and Motion Worksheet', subject: 'Science', type: 'Assignment', window: 'Opens May 21 · Due May 27', duration: 'Untimed', status: 'Upcoming' },
-]
-
 const getPageKey = (pathname: string) => pathname.replace('/student/', '').replace('/student', 'dashboard') || 'dashboard'
 const initials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 type StudentTimetableEntry = { id: string; day: string; period: string; startTime: string; endTime: string; subject: string; teacher: string; room: string | null }
@@ -105,9 +101,79 @@ type StudentMaterial = { id: string; title: string; subjectName: string | null; 
 const studentMaterialFileUrl = (materialId: string) => `${api.defaults.baseURL || ''}/api/student/materials/${materialId}/file`
 const Materials: FC = () => { const [subject, setSubject] = useState('All subjects'); const [materials, setMaterials] = useState<StudentMaterial[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); useEffect(() => { api.get<{ materials: StudentMaterial[] }>('/api/student/materials', { withCredentials: true }).then(({ data }) => setMaterials(data.materials)).catch(() => setError('Unable to load your learning materials. Please try again.')).finally(() => setLoading(false)) }, []); const filtered = subject === 'All subjects' ? materials : materials.filter((item) => item.subjectName === subject); const subjects = [...new Set(materials.map((item) => item.subjectName).filter((item): item is string => Boolean(item)))]; return <Stack spacing={2}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h5">Shared materials</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Resources available for your assigned class.</Typography></Box><TextField select size="small" label="Subject" value={subject} onChange={(event) => setSubject(event.target.value)} sx={{ minWidth: 180 }}><MenuItem value="All subjects">All subjects</MenuItem>{subjects.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField></Stack></Paper>{loading && <LinearProgress />}{error && <Alert severity="error">{error}</Alert>}{!loading && !error && !filtered.length && <Typography color="text.secondary" sx={{ py: 3 }}>No learning materials have been shared with your class.</Typography>}{filtered.map((item) => { const fileUrl = studentMaterialFileUrl(item.id); return <Paper key={item.id} elevation={0} sx={{ p: 2, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}><Stack direction="row" spacing={1.5} alignItems="center"><Box sx={{ p: 1, borderRadius: 2, backgroundColor: 'background.default', color: 'primary.main' }}><DescriptionOutlined /></Box><Box><Typography fontWeight={700}>{item.title}</Typography><Typography variant="body2" color="text.secondary">{item.subjectName || 'Subject not specified'} · {item.teacherName || 'Teacher not specified'} · {formatDate(item.uploadedAt)} · {(item.fileExtension || 'file').toUpperCase()}</Typography>{item.fileName && <Typography variant="caption" color="text.secondary">{item.fileName}</Typography>}</Box></Stack><Stack direction="row" spacing={1}><Button size="small" component="a" href={fileUrl} target="_blank" rel="noreferrer">View</Button><Button size="small" variant="outlined" component="a" href={fileUrl} download startIcon={<DownloadOutlined />}>Download</Button></Stack></Stack></Paper>})}</Stack> }
 
-const AssessmentPlayer: FC<{ onClose: () => void }> = ({ onClose }) => { const [answer, setAnswer] = useState(''); const [time, setTime] = useState(20 * 60); const [message, setMessage] = useState(''); useEffect(() => { const timer = window.setInterval(() => setTime((current) => Math.max(0, current - 1)), 1000); return () => window.clearInterval(timer) }, []); const submit = async () => { if (!answer) return setMessage('Choose an answer before submitting.'); try { await api.post('/api/assessments/sample-assessment/submissions', { answers: [answer] }, { withCredentials: true }); setMessage('Your assessment was submitted successfully.') } catch { setMessage('This sample assessment is not available on the server yet.') } }; return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography variant="h5">Linear Equations Quiz</Typography><Typography color="text.secondary">Question 1 of 1</Typography></Box><Chip label={`${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}`} color="primary" /></Stack><LinearProgress variant="determinate" value={100} sx={{ my: 3 }} /><Typography variant="h6">Solve for x: 3x + 6 = 21</Typography><Stack sx={{ mt: 2 }}>{['3', '5', '7', '9'].map((option, index) => <FormControlLabel key={option} value={String(index)} control={<Radio checked={answer === String(index)} onChange={() => setAnswer(String(index))} />} label={option} />)}</Stack>{message && <Alert severity={message.includes('successfully') ? 'success' : 'info'} sx={{ mt: 2 }}>{message}</Alert>}<Stack direction="row" justifyContent="space-between" sx={{ mt: 3 }}><Button onClick={onClose}>Exit assessment</Button><Button variant="contained" onClick={submit}>Submit assessment</Button></Stack></Paper> }
 
-const Assessments: FC = () => { const [taking, setTaking] = useState(false); if (taking) return <AssessmentPlayer onClose={() => setTaking(false)} />; return <Stack spacing={2}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Upcoming Assessments</Typography><Stack spacing={1.5} sx={{ mt: 2 }}>{assessments.map((item) => <Box key={item.id} sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.default' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}><Box><Typography fontWeight={700}>{item.title}</Typography><Typography variant="body2" color="text.secondary">{item.subject} · {item.type} · {item.window} · {item.duration}</Typography></Box>{item.status === 'Active' ? <Button variant="contained" startIcon={<PlayCircleOutlineRounded />} onClick={() => setTaking(true)}>Start</Button> : <Chip label="Upcoming" color="warning" size="small" />}</Stack></Box>)}</Stack></Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">My Results</Typography><Stack divider={<Divider flexItem />} sx={{ mt: 1 }}>{[['Mathematics quiz', 'Mathematics', '18 / 20', 'May 17'], ['Science lab report', 'Science', 'Awaiting grading', 'May 15']].map(([title, subject, result, date]) => <Stack key={title} direction="row" justifyContent="space-between" alignItems="center" sx={{ py: 1.5 }}><Box><Typography fontWeight={700}>{title}</Typography><Typography variant="caption" color="text.secondary">{subject} · {date}</Typography></Box><Chip label={result} size="small" color={result.includes('Awaiting') ? 'warning' : 'success'} /></Stack>)}</Stack></Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Report Cards</Typography><Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}><Typography>Term 1 · 2024/25</Typography><Button variant="outlined" startIcon={<DownloadOutlined />}>View report card</Button></Stack></Paper></Stack> }
+type StudentAssessment = { id: string; assessmentId: string; title: string; assessmentType: string; subjectName: string | null; dueDate: string; status: string; questionCount: number }
+type StudentResult = { id: string; title: string; assessmentType: string; subjectName: string | null; score: number | null; totalPoints: number; submittedAt: string | null }
+type StudentAssessmentQuestion = { type: 'single' | 'multiple' | 'true-false' | 'fill-blank'; prompt: string; options: string[] }
+type StudentAssessmentDetail = { id: string; assignmentId: string; title: string; assessmentType: string; subjectName: string | null; dueDate: string; questions: StudentAssessmentQuestion[] }
+
+const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmitted: () => void }> = ({ assignmentId, onClose, onSubmitted }) => {
+  const [assessment, setAssessment] = useState<StudentAssessmentDetail | null>(null)
+  const [answers, setAnswers] = useState<Record<number, string | string[]>>({})
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get<{ assessment: StudentAssessmentDetail }>(`/api/student/assessments/${assignmentId}`, { withCredentials: true })
+      .then(({ data }) => setAssessment(data.assessment))
+      .catch(() => setError('Unable to load this assessment. Please return to your assessment list and try again.'))
+      .finally(() => setLoading(false))
+  }, [assignmentId])
+
+  const updateMultipleAnswer = (questionIndex: number, optionIndex: string, checked: boolean) => {
+    setAnswers((current) => {
+      const selected = Array.isArray(current[questionIndex]) ? current[questionIndex] : []
+      return { ...current, [questionIndex]: checked ? [...selected, optionIndex] : selected.filter((item) => item !== optionIndex) }
+    })
+  }
+
+  const submit = async () => {
+    if (!assessment) return
+    const submittedAnswers = assessment.questions.map((question, index) => answers[index] ?? (question.type === 'multiple' ? [] : ''))
+    if (submittedAnswers.some((answer) => Array.isArray(answer) ? !answer.length : !answer.trim())) {
+      setError('Answer every question before submitting.')
+      return
+    }
+    setSubmitting(true)
+    setError('')
+    try {
+      await api.post(`/api/assessments/${assessment.id}/submissions`, { answers: submittedAnswers }, { withCredentials: true })
+      onSubmitted()
+    } catch {
+      setError('Unable to submit this assessment. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) return <LinearProgress />
+  if (!assessment) return <Stack spacing={2}>{error && <Alert severity="error">{error}</Alert>}<Button variant="outlined" onClick={onClose}>Back to assessments</Button></Stack>
+
+  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}><Box><Typography variant="h5">{assessment.title}</Typography><Typography color="text.secondary">{assessment.subjectName || assessment.assessmentType} · Due {formatDate(assessment.dueDate)}</Typography></Box><Button variant="outlined" onClick={onClose}>Back to assessments</Button></Stack>{error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}<Stack spacing={3} sx={{ mt: 3 }}>{assessment.questions.map((question, questionIndex) => <Box key={`${questionIndex}-${question.prompt}`}><Typography fontWeight={700}>Question {questionIndex + 1}</Typography><Typography sx={{ mt: 0.5 }}>{question.prompt}</Typography>{question.type === 'fill-blank' ? <TextField fullWidth label="Your answer" value={typeof answers[questionIndex] === 'string' ? answers[questionIndex] : ''} onChange={(event) => setAnswers((current) => ({ ...current, [questionIndex]: event.target.value }))} sx={{ mt: 1.5 }} /> : <Stack sx={{ mt: 1 }}>{question.options.map((option, optionIndex) => <FormControlLabel key={option} control={question.type === 'multiple' ? <Checkbox checked={Array.isArray(answers[questionIndex]) && answers[questionIndex].includes(String(optionIndex))} onChange={(event) => updateMultipleAnswer(questionIndex, String(optionIndex), event.target.checked)} /> : <Radio checked={answers[questionIndex] === String(optionIndex)} onChange={() => setAnswers((current) => ({ ...current, [questionIndex]: String(optionIndex) }))} />} label={option} />)}</Stack>}</Box>)}</Stack><Button variant="contained" onClick={submit} disabled={submitting} sx={{ mt: 3 }}>{submitting ? 'Submitting...' : 'Submit assessment'}</Button></Paper>
+}
+
+const Assessments: FC = () => {
+  const [assessments, setAssessments] = useState<StudentAssessment[]>([])
+  const [results, setResults] = useState<StudentResult[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    api.get<{ assessments: StudentAssessment[]; results: StudentResult[] }>('/api/student/assessments', { withCredentials: true })
+      .then(({ data }) => { setAssessments(data.assessments); setResults(data.results) })
+      .catch(() => setError('Unable to load your assessments and results. Please try again.'))
+      .finally(() => setLoading(false))
+  }, [reloadKey])
+
+  if (selectedAssignmentId) return <AssessmentPlayer assignmentId={selectedAssignmentId} onClose={() => setSelectedAssignmentId(null)} onSubmitted={() => { setSelectedAssignmentId(null); setReloadKey((current) => current + 1) }} />
+
+  return <Stack spacing={2}>{loading && <LinearProgress />}{error && <Alert severity="error">{error}</Alert>}<Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Upcoming Assessments</Typography>{!loading && !error && (assessments.length ? <Stack spacing={1.5} sx={{ mt: 2 }}>{assessments.map((item) => <Box key={item.id} sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.default' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1}><Box><Typography fontWeight={700}>{item.title}</Typography><Typography variant="body2" color="text.secondary">{item.subjectName || item.assessmentType} · {item.assessmentType} · Due {formatDate(item.dueDate)} · {item.questionCount} question{item.questionCount === 1 ? '' : 's'}</Typography></Box>{item.status === 'Submitted' ? <Chip label="Submitted" color="success" size="small" /> : item.questionCount ? <Button variant="contained" startIcon={<PlayCircleOutlineRounded />} onClick={() => setSelectedAssignmentId(item.id)}>Start</Button> : <Chip label={item.status} color="warning" size="small" />}</Stack></Box>)}</Stack> : <Typography color="text.secondary" sx={{ mt: 2 }}>No active assessments are assigned to your class.</Typography>)}</Paper><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">My Results</Typography>{!loading && !error && (results.length ? <Stack divider={<Divider flexItem />} sx={{ mt: 1 }}>{results.map((result) => <Stack key={`${result.id}-${result.submittedAt}`} direction="row" justifyContent="space-between" alignItems="center" sx={{ py: 1.5 }}><Box><Typography fontWeight={700}>{result.title}</Typography><Typography variant="caption" color="text.secondary">{result.subjectName || result.assessmentType} · {result.submittedAt ? formatDate(result.submittedAt) : 'Date unavailable'}</Typography></Box><Chip label={result.score === null ? 'Awaiting grading' : `${result.score} / ${result.totalPoints}`} size="small" color={result.score === null ? 'warning' : 'success'} /></Stack>)}</Stack> : <Typography color="text.secondary" sx={{ mt: 2 }}>No assessment results yet.</Typography>)}</Paper></Stack>
+}
 
 const Announcements: FC = () => <Stack spacing={2}>{announcements.map((item) => <Paper key={item.title} elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction="row" justifyContent="space-between" spacing={2}><Box><Stack direction="row" spacing={1} alignItems="center"><Typography variant="h6">{item.title}</Typography><Chip label={item.scope} size="small" /></Stack><Typography color="text.secondary" sx={{ mt: 1 }}>{item.body}</Typography></Box><Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{item.date}</Typography></Stack></Paper>)}</Stack>
 

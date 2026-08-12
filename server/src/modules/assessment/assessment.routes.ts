@@ -11,13 +11,30 @@ type AssessmentData = { questions?: StoredQuestion[]; submissions?: { studentId:
 const normalizeText = (value: string) => value.trim().toLowerCase()
 const sameSet = (left: string[], right: string[]) => left.length === right.length && left.every((value, index) => value === right[index])
 
+const studentCanSubmitAssessment = async (userId: string, assessmentId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
+  const student = user ? await prisma.student.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { gradeLevel: true, classSection: true } }) : null
+  if (!student) return false
+  const classNames = [student.classSection, `${student.gradeLevel} ${student.classSection}`]
+  return Boolean(await prisma.assessmentAssignment.findFirst({
+    where: {
+      quizId: assessmentId,
+      dueDate: { gte: new Date() },
+      status: { not: 'Completed' },
+      OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' } })),
+    },
+    select: { id: true },
+  }))
+}
+
 router.post('/:id/submissions', requireAuth, requireRole('STUDENT'), async (req, res, next) => {
   try {
     const { answers } = submissionSchema.parse(req.body)
     const assessmentId = z.string().min(1).parse(req.params.id)
     const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
-    if (!assessment) return res.status(404).json({ message: 'Assessment not found.' })
+    if (!assessment || !(await studentCanSubmitAssessment(res.locals.auth.sub, assessmentId))) return res.status(404).json({ message: 'Assessment not found.' })
     const data = assessment.data as AssessmentData
+    if ((data.submissions || []).some((submission) => submission.studentId === res.locals.auth.sub)) return res.status(409).json({ message: 'This assessment has already been submitted.' })
     const questions = data.questions || []
     if (answers.length !== questions.length) return res.status(400).json({ message: 'An answer is required for each question.' })
 
