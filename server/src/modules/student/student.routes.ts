@@ -1,10 +1,120 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
+import { z } from 'zod'
 import { prisma } from '../../config/prisma'
 import { requireAuth, requireRole } from '../../middleware/auth'
 
 const router = Router()
 
-router.get('/dashboard', requireAuth, requireRole('STUDENT'), async (_req, res, next) => {
+const supportedMaterialExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'] as const
+const materialMimeTypes: Record<(typeof supportedMaterialExtensions)[number], string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+}
+
+type MaterialData = {
+  teacherId?: string
+  className?: string
+  subjectName?: string
+  description?: string
+  fileName?: string
+  fileExtension?: string
+  fileData?: string
+  assignmentScope?: 'Whole Class' | 'Specific Students'
+  studentIds?: string[]
+}
+
+const materialFileExtension = (fileName: string) => fileName.trim().split('.').pop()?.toLowerCase() || ''
+const classNamesForStudent = (student: { gradeLevel: string; classSection: string }) => [student.classSection, `${student.gradeLevel} ${student.classSection}`]
+
+const getAuthenticatedStudent = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
+  return user
+    ? prisma.student.findFirst({
+        where: { fullName: { equals: user.name, mode: 'insensitive' } },
+        select: { id: true, gradeLevel: true, classSection: true },
+      })
+    : null
+}
+
+const visibleMaterialsForStudent = async (student: { id: string; gradeLevel: string; classSection: string }, materialId?: string) => {
+  const classNames = classNamesForStudent(student)
+  const idFilter = materialId ? Prisma.sql`AND lm.id = ${materialId}` : Prisma.empty
+  return prisma.$queryRaw<Array<{ id: string; title: string; data: unknown; createdAt: Date }>>(Prisma.sql`
+    SELECT lm.id, lm.title, lm.data, lm."createdAt"
+    FROM learning_materials lm
+    WHERE lm.status = 'Published'
+      ${idFilter}
+      AND LOWER(COALESCE(lm.data->>'className', '')) IN (LOWER(${classNames[0]}), LOWER(${classNames[1]}))
+      AND (
+        LOWER(COALESCE(lm.data->>'assignmentScope', '')) = LOWER('Whole Class')
+        OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements_text(COALESCE(lm.data->'studentIds', '[]'::jsonb)) AS assigned(student_id)
+          WHERE assigned.student_id = ${student.id}
+        )
+      )
+    ORDER BY lm."createdAt" DESC
+  `)
+}
+
+router.use(requireAuth, requireRole('STUDENT'))
+
+router.get('/materials', async (_req, res, next) => {
+  try {
+    const student = await getAuthenticatedStudent(res.locals.auth.sub)
+    if (!student) return res.status(404).json({ message: 'Student record not found.' })
+
+    const materials = await visibleMaterialsForStudent(student)
+    const teacherIds = [...new Set(materials.map((material) => (material.data as MaterialData).teacherId).filter((id): id is string => Boolean(id)))]
+    const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
+    const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
+
+    return res.json({ materials: materials.map((material) => {
+      const data = material.data as MaterialData
+      return {
+        id: material.id,
+        title: material.title,
+        subjectName: data.subjectName || null,
+        teacherName: data.teacherId ? teacherNames.get(data.teacherId) || null : null,
+        fileName: data.fileName || null,
+        fileExtension: data.fileExtension || (data.fileName ? materialFileExtension(data.fileName) : null),
+        uploadedAt: material.createdAt.toISOString(),
+        description: data.description || null,
+      }
+    }) })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/materials/:id/file', async (req, res, next) => {
+  try {
+    const materialId = z.string().min(1).parse(req.params.id)
+    const student = await getAuthenticatedStudent(res.locals.auth.sub)
+    if (!student) return res.status(404).json({ message: 'Student record not found.' })
+
+    const [material] = await visibleMaterialsForStudent(student, materialId)
+    const data = material?.data as MaterialData | undefined
+    if (!material || !data || typeof data.fileName !== 'string' || typeof data.fileData !== 'string') return res.status(404).json({ message: 'Material not found.' })
+
+    const fileExtension = materialFileExtension(data.fileName) as (typeof supportedMaterialExtensions)[number]
+    if (!supportedMaterialExtensions.includes(fileExtension)) return res.status(404).json({ message: 'Material file not found.' })
+    const base64 = data.fileData.startsWith('data:') ? data.fileData.split(',')[1] : null
+    if (!base64) return res.status(404).json({ message: 'Material file not found.' })
+
+    return res.type(materialMimeTypes[fileExtension]).setHeader('Content-Disposition', `${fileExtension === 'pdf' ? 'inline' : 'attachment'}; filename="${encodeURIComponent(data.fileName)}"`).send(Buffer.from(base64, 'base64'))
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.get('/dashboard', async (_req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: res.locals.auth.sub },
