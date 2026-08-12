@@ -182,7 +182,6 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
     { label: 'Materials', parent: 'Learning Materials', icon: <MenuBookOutlined fontSize="small" />, items: [] },
     { label: 'Scheduling', parent: 'Timetable', icon: <PlayLessonOutlined fontSize="small" />, items: [] },
     { label: 'Assessments', parent: 'All Assessments', icon: <QuizOutlined fontSize="small" />, items: [] },
-    { label: 'Communication', parent: 'Announcements', icon: <NotificationsNoneOutlined fontSize="small" />, items: ['Messages / Notices'] },
     { label: 'Reports & Analytics', parent: 'Reports & Analytics', icon: <BarChartOutlined fontSize="small" />, items: [] },
   ]
 
