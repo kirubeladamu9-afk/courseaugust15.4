@@ -94,9 +94,9 @@ const Sidebar: FC<{ path: string; onNavigate: (path: string) => void; onClose?: 
   return <Box sx={{ width: 256, height: '100%', boxSizing: 'border-box', p: 3, backgroundColor: 'background.paper', overflowY: 'auto' }}>
     <Box sx={{ mb: 4 }}><Logo /></Box>
     <Typography variant="caption" color="text.disabled" sx={{ px: 1.25, textTransform: 'uppercase', letterSpacing: 0.8 }}>Student Portal</Typography>
-    <Stack spacing={0.8} sx={{ mt: 1.25 }}>{portalItems.map((item) => <ButtonBase key={item.path} onClick={() => nav(item.path)} sx={{ ...buttonSx, ...(path === item.path ? { color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' } } : {}) }}><Box sx={{ display: 'flex', mr: 1.25 }}>{item.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.86rem', fontWeight: 600 }}>{item.label}</Typography></ButtonBase>)}</Stack>
+    <Stack spacing={0.8} sx={{ mt: 1.25 }}>{portalItems.map((item) => <ButtonBase key={item.path} title={item.label} aria-label={item.label} onClick={() => nav(item.path)} sx={{ ...buttonSx, ...(path === item.path ? { color: 'primary.contrastText', backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.main' } } : {}) }}><Box sx={{ display: 'flex', mr: 1.25 }}>{item.icon}</Box><Typography variant="subtitle2" sx={{ fontSize: '0.86rem', fontWeight: 600 }}>{item.label}</Typography></ButtonBase>)}</Stack>
     <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.25, mt: 3, textTransform: 'uppercase', letterSpacing: 0.8 }}>Profile / Settings</Typography>
-    <ButtonBase onClick={() => nav('/student/settings')} sx={{ ...buttonSx, mt: 1, ...(path === '/student/settings' ? { color: 'primary.main', backgroundColor: 'background.default' } : {}) }}><SettingsOutlined fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>Settings</Typography></ButtonBase>
+    <ButtonBase title="Settings" aria-label="Settings" onClick={() => nav('/student/settings')} sx={{ ...buttonSx, mt: 1, ...(path === '/student/settings' ? { color: 'primary.main', backgroundColor: 'background.default' } : {}) }}><SettingsOutlined fontSize="small" sx={{ mr: 1.25 }} /><Typography variant="subtitle2" sx={{ fontSize: '0.78rem' }}>Settings</Typography></ButtonBase>
   </Box>
 }
 
