@@ -21,7 +21,6 @@ const studentCanSubmitAssessment = async (userId: string, assessmentId: string, 
   return Boolean(await prisma.assessmentAssignment.findFirst({
     where: {
       quizId: assessmentId,
-      dueDate: { gte: new Date() },
       ...(allowExpired ? {} : { endsAt: { gte: new Date() }, status: { notIn: ['Completed', 'Finished'] } }),
       OR: classNames.map((className) => ({ className: { equals: className, mode: 'insensitive' } })),
     },
