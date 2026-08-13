@@ -39,6 +39,7 @@ type AssessmentQuestion = {
 
 type AssessmentSubmission = {
   studentId?: unknown
+  answers?: (string | string[])[]
   score?: unknown
   submittedAt?: unknown
 }
@@ -183,11 +184,17 @@ router.get('/assessments', async (_req, res, next) => {
           totalPoints,
           status: 'Auto-Graded',
           submittedAt: typeof submission.submittedAt === 'string' ? submission.submittedAt : null,
-          questions: (data.questions || []).map((question) => {
+          questions: (data.questions || []).map((question, questionIndex) => {
             const options = Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === 'string') : []
             const correctAnswer = question.correctAnswer
+            const submittedAnswer = submission.answers?.[questionIndex]
             return {
               prompt: typeof question.prompt === 'string' ? question.prompt : '',
+              studentAnswer: Array.isArray(submittedAnswer)
+                ? submittedAnswer.map((answer) => options[Number(answer)]).filter((answer): answer is string => Boolean(answer))
+                : question.type === 'fill-blank'
+                  ? typeof submittedAnswer === 'string' ? submittedAnswer : ''
+                  : typeof submittedAnswer === 'string' ? options[Number(submittedAnswer)] || '' : '',
               correctAnswer: Array.isArray(correctAnswer)
                 ? correctAnswer.map((answer) => options[Number(answer)]).filter((answer): answer is string => Boolean(answer))
                 : question.type === 'fill-blank'
