@@ -5,7 +5,7 @@ import cors from 'cors'
 import authRoutes from './modules/auth/auth.routes'
 import adminRoutes from './modules/admin/admin.routes'
 import teacherRoutes from './modules/teacher/teacher.routes'
-import assessmentRoutes from './modules/assessment/assessment.routes'
+import assessmentRoutes, { finishExpiredAssessmentAssignments } from './modules/assessment/assessment.routes'
 import studentRoutes from './modules/student/student.routes'
 import { env } from './config/env'
 import { prisma } from './config/prisma'
@@ -43,8 +43,11 @@ const startServer = async () => {
 }
 
 const server = await startServer()
+const assessmentExpiryTimer = setInterval(() => { void finishExpiredAssessmentAssignments().catch(console.error) }, 1000)
+void finishExpiredAssessmentAssignments().catch(console.error)
 
 const shutdown = async () => {
+  clearInterval(assessmentExpiryTimer)
   server.close()
   await prisma.$disconnect()
 }
