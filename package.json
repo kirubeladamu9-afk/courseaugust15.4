@@ -4,9 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "prisma generate && prisma migrate deploy",
-    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
-    "dev:client": "vite",
+    "dev": "vite --host 0.0.0.0",
+    "dev:client": "vite --host 0.0.0.0",
     "dev:server": "tsx watch server/src/index.ts",
     "server": "tsx server/src/index.ts",
     "build": "prisma generate && tsc -b && tsc -p tsconfig.server.json && vite build",
