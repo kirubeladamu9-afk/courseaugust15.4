@@ -288,7 +288,7 @@ router.patch('/assessments/assignments/:id', async (req, res, next) => {
     const input = assignmentSchema.extend({ assessmentId: z.string().min(1) }).parse(req.body)
     const assessment = await prisma.quiz.findUnique({ where: { id: input.assessmentId } })
     if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
-    const startsAt = new Date()
+    const startsAt = input.dueDate
     const endsAt = new Date(startsAt.getTime() + input.timeLimitMinutes * 60_000)
     const [assignment] = await prisma.$queryRaw<{ id: string; assessmentId: string; className: string; dueDate: Date; timeLimitMinutes: number; startsAt: Date; endsAt: Date; status: string }[]>(Prisma.sql`UPDATE assessment_assignments SET quiz_id = ${input.assessmentId}, class_name = ${input.className}, due_date = ${input.dueDate}, time_limit_minutes = ${input.timeLimitMinutes}, starts_at = ${startsAt}, ends_at = ${endsAt}, status = 'Assigned', updated_at = NOW() WHERE id = ${assignmentId} AND teacher_id = ${res.locals.auth.sub} RETURNING id, quiz_id AS "assessmentId", class_name AS "className", due_date AS "dueDate", time_limit_minutes AS "timeLimitMinutes", starts_at AS "startsAt", ends_at AS "endsAt", status`)
     if (!assignment) return res.status(404).json({ message: 'Assigned assessment not found.' })
@@ -340,7 +340,7 @@ router.post('/assessments/:id/assign', async (req, res, next) => {
     const input = assignmentSchema.parse(req.body)
     const assessment = await prisma.quiz.findUnique({ where: { id: assessmentId } })
     if (!assessment || (assessment.data as { teacherId?: string }).teacherId !== res.locals.auth.sub) return res.status(404).json({ message: 'Assessment not found.' })
-    const startsAt = new Date()
+    const startsAt = input.dueDate
     const endsAt = new Date(startsAt.getTime() + input.timeLimitMinutes * 60_000)
     const [assignment] = await prisma.$queryRaw<{ id: string; className: string; dueDate: Date; timeLimitMinutes: number; startsAt: Date; endsAt: Date; status: string }[]>(Prisma.sql`INSERT INTO assessment_assignments (quiz_id, teacher_id, class_name, due_date, time_limit_minutes, starts_at, ends_at) VALUES (${assessment.id}, ${res.locals.auth.sub}, ${input.className}, ${input.dueDate}, ${input.timeLimitMinutes}, ${startsAt}, ${endsAt}) RETURNING id, class_name AS "className", due_date AS "dueDate", time_limit_minutes AS "timeLimitMinutes", starts_at AS "startsAt", ends_at AS "endsAt", status`)
     return res.status(201).json({ assignment: { ...assignment, dueDate: assignment.dueDate.toISOString(), startsAt: assignment.startsAt.toISOString(), endsAt: assignment.endsAt.toISOString() } })
