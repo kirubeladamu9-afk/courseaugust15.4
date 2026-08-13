@@ -107,6 +107,8 @@ type StudentResult = { id: string; title: string; assessmentType: string; subjec
 type StudentAssessmentQuestion = { type: 'single' | 'multiple' | 'true-false' | 'fill-blank'; prompt: string; options: string[] }
 type StudentAssessmentDetail = { id: string; assignmentId: string; title: string; assessmentType: string; subjectName: string | null; dueDate: string; startsAt: string; timeLimitMinutes: number; endsAt: string; questions: StudentAssessmentQuestion[]; draftAnswers: (string | string[])[] }
 
+type AssessmentSubmissionResult = { score: number; totalPoints: number; status: string }
+
 const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmitted: () => void }> = ({ assignmentId, onClose, onSubmitted }) => {
   const [assessment, setAssessment] = useState<StudentAssessmentDetail | null>(null)
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({})
@@ -116,6 +118,7 @@ const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmit
   const [submitting, setSubmitting] = useState(false)
   const [locked, setLocked] = useState(false)
   const [message, setMessage] = useState('')
+  const [submissionResult, setSubmissionResult] = useState<AssessmentSubmissionResult | null>(null)
   const [error, setError] = useState('')
   const storageKey = 'student-assessment-draft-' + assignmentId
 
@@ -167,10 +170,10 @@ const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmit
     setLocked(true)
     setError('')
     try {
-      await api.post('/api/assessments/' + assessment.id + '/submissions', { answers: submittedAnswers, automatic }, { withCredentials: true })
+      const { data } = await api.post<AssessmentSubmissionResult>('/api/assessments/' + assessment.id + '/submissions', { answers: submittedAnswers, automatic }, { withCredentials: true })
+      setSubmissionResult(data)
       setMessage(automatic ? 'Time’s up — your answers were submitted automatically.' : 'Assessment submitted successfully.')
       try { sessionStorage.removeItem(storageKey) } catch { /* Ignore unavailable browser storage. */ }
-      window.setTimeout(onSubmitted, automatic ? 1200 : 900)
     } catch {
       setLocked(false)
       setError('Unable to submit this assessment. Please try again.')
@@ -185,6 +188,17 @@ const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmit
 
   if (loading) return <LinearProgress />
   if (!assessment) return <Stack spacing={2}>{error && <Alert severity="error">{error}</Alert>}<Button variant="outlined" onClick={onClose}>Back to assessments</Button></Stack>
+  if (submissionResult) {
+    const percentage = submissionResult.totalPoints ? Math.round((submissionResult.score / submissionResult.totalPoints) * 100) : 0
+    return <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, textAlign: 'center' }}>
+      <Typography variant="h4">Assessment complete</Typography>
+      <Typography color="text.secondary" sx={{ mt: 1 }}>{assessment.title}</Typography>
+      <Typography variant="h2" color="primary.main" sx={{ mt: 3 }}>{submissionResult.score} / {submissionResult.totalPoints}</Typography>
+      <Typography variant="h6" sx={{ mt: 1 }}>{percentage}%</Typography>
+      {message && <Alert severity="success" sx={{ mt: 3, textAlign: 'left' }}>{message}</Alert>}
+      <Button variant="contained" onClick={onSubmitted} sx={{ mt: 3 }}>View my results</Button>
+    </Paper>
+  }
   const question = assessment.questions[currentQuestion]
   const minutes = Math.floor(remainingSeconds / 60)
   const seconds = remainingSeconds % 60
