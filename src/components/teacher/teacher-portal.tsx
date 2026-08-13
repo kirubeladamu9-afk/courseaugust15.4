@@ -88,6 +88,11 @@ const pageDetails: Record<string, { title: string; description: string }> = {
 }
 
 const getPageKey = (pathname: string) => pathname.replace('/teacher/', '').replace('/teacher', 'dashboard') || 'dashboard'
+const localDateTimeValue = (value: string) => {
+  const date = new Date(value)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
 
 const SidebarContent: FC<{ currentPath: string; onNavigate: (path: string) => void; onClose?: () => void }> = ({ currentPath, onNavigate, onClose }) => {
   const [expanded, setExpanded] = useState('Materials')
@@ -282,7 +287,7 @@ const AssignmentBuilder: FC = () => {
     setEditingAssignmentId(assignment.id)
     setAssessmentId(assignment.assessmentId)
     setClassName(assignment.className)
-    setDueDate(assignment.dueDate.slice(0, 16))
+    setDueDate(localDateTimeValue(assignment.dueDate))
     setTimeLimitMinutes(String(assignment.timeLimitMinutes))
     setNotice('Edit the assignment details and save your changes.')
     setError('')
@@ -317,9 +322,9 @@ const AssignmentBuilder: FC = () => {
     setError('')
     try {
       if (editingAssignmentId) {
-        await api.patch(`/api/teacher/assessments/assignments/${editingAssignmentId}`, { assessmentId, className, dueDate, timeLimitMinutes: Number(timeLimitMinutes) }, { withCredentials: true })
+        await api.patch(`/api/teacher/assessments/assignments/${editingAssignmentId}`, { assessmentId, className, dueDate: new Date(dueDate).toISOString(), timeLimitMinutes: Number(timeLimitMinutes) }, { withCredentials: true })
       } else {
-        await api.post(`/api/teacher/assessments/${assessmentId}/assign`, { className, dueDate, timeLimitMinutes: Number(timeLimitMinutes) }, { withCredentials: true })
+        await api.post(`/api/teacher/assessments/${assessmentId}/assign`, { className, dueDate: new Date(dueDate).toISOString(), timeLimitMinutes: Number(timeLimitMinutes) }, { withCredentials: true })
       }
       const { data } = await api.get<{ assignments: { id: string; assessmentId: string; assessment: string; className: string; dueDate: string; timeLimitMinutes: number; startsAt: string; endsAt: string; status: string }[] }>('/api/teacher/assessments/assignments', { withCredentials: true })
       setAssignedAssessments(data.assignments)
