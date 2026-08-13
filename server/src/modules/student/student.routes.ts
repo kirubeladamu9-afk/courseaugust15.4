@@ -33,6 +33,7 @@ type AssessmentQuestion = {
   type?: 'single' | 'multiple' | 'true-false' | 'fill-blank'
   prompt?: unknown
   options?: unknown
+  correctAnswer?: unknown
   points?: unknown
 }
 
@@ -180,7 +181,20 @@ router.get('/assessments', async (_req, res, next) => {
           subjectName: typeof data.subjectName === 'string' ? data.subjectName : null,
           score: typeof submission.score === 'number' ? submission.score : null,
           totalPoints,
+          status: 'Auto-Graded',
           submittedAt: typeof submission.submittedAt === 'string' ? submission.submittedAt : null,
+          questions: (data.questions || []).map((question) => {
+            const options = Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === 'string') : []
+            const correctAnswer = question.correctAnswer
+            return {
+              prompt: typeof question.prompt === 'string' ? question.prompt : '',
+              correctAnswer: Array.isArray(correctAnswer)
+                ? correctAnswer.map((answer) => options[Number(answer)]).filter((answer): answer is string => Boolean(answer))
+                : question.type === 'fill-blank'
+                  ? typeof correctAnswer === 'string' ? correctAnswer : ''
+                  : typeof correctAnswer === 'string' ? options[Number(correctAnswer)] || '' : '',
+            }
+          }),
         }))
     }).sort((left, right) => (right.submittedAt || '').localeCompare(left.submittedAt || ''))
 
