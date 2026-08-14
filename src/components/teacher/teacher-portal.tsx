@@ -121,7 +121,7 @@ const SidebarContent: FC<{ currentPath: string; onNavigate: (path: string) => vo
 
 const StatCard: FC<{ label: string; value: string; tone?: 'primary' | 'secondary' }> = ({ label, value, tone = 'primary' }) => <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, height: '100%' }}><Typography variant="subtitle2" color="text.secondary">{label}</Typography><Typography variant="h3" color={`${tone}.main`} sx={{ mt: 1, fontSize: { xs: 26, md: 30 } }}>{value}</Typography></Paper>
 
-type TeacherDashboardChartDatum = { label: string; value: number }
+type TeacherDashboardChartDatum = { label: string; value: number; hasSubmission?: boolean }
 
 const DashboardBarChart: FC<{ data: TeacherDashboardChartDatum[]; color: string; ariaLabel: string }> = ({ data, color, ariaLabel }) => {
   if (!data.length) return <Typography color="text.secondary" sx={{ py: 4 }}>No data available yet.</Typography>
@@ -139,8 +139,8 @@ const DashboardLineChart: FC<{ data: TeacherDashboardChartDatum[]; color: string
   const chartWidth = 600
   const chartPoints = data.map((item, index) => `${data.length === 1 ? chartWidth / 2 : index * (chartWidth / (data.length - 1))},${205 - (item.value / 100) * 170}`).join(' ')
   return <Box sx={{ mt: 2 }}>
-    <Box sx={{ height: 220 }}><svg width="100%" height="100%" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label={ariaLabel}><g color="currentColor"><line x1="0" x2="600" y1="35" y2="35" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="90" y2="90" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="145" y2="145" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="205" y2="205" stroke="currentColor" strokeOpacity="0.12" /><polyline points={chartPoints} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />{data.map((item, index) => { const x = data.length === 1 ? chartWidth / 2 : index * (chartWidth / (data.length - 1)); const y = 205 - (item.value / 100) * 170; return <circle key={item.label} cx={x} cy={y} r="5" fill={color} /> })}</g></svg></Box>
-    <Stack direction="row" spacing={1} justifyContent="space-around" sx={{ mt: -1 }}>{data.map((item) => <Box key={item.label} sx={{ minWidth: 0, textAlign: 'center', flex: 1 }}><Typography variant="caption" color="text.secondary" noWrap title={item.label}>{item.label}</Typography><Typography variant="subtitle2">{item.value}%</Typography></Box>)}</Stack>
+    <Box sx={{ height: 220 }}><svg width="100%" height="100%" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label={ariaLabel}><g color="currentColor"><line x1="0" x2="600" y1="35" y2="35" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="90" y2="90" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="145" y2="145" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="205" y2="205" stroke="currentColor" strokeOpacity="0.12" /><polyline points={chartPoints} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />{data.map((item, index) => { const x = data.length === 1 ? chartWidth / 2 : index * (chartWidth / (data.length - 1)); const y = 205 - (item.value / 100) * 170; return <circle key={item.label} cx={x} cy={y} r="5" fill={item.hasSubmission === false ? '#9AA4B2' : color} /> })}</g></svg></Box>
+    <Stack direction="row" spacing={1} justifyContent="space-around" sx={{ mt: -1 }}>{data.map((item) => <Box key={item.label} sx={{ minWidth: 0, textAlign: 'center', flex: 1 }}><Typography variant="caption" color="text.secondary" noWrap title={item.label}>{item.label}</Typography><Typography variant="subtitle2">{item.hasSubmission === false ? 'No submission' : `${item.value}%`}</Typography></Box>)}</Stack>
   </Box>
 }
 

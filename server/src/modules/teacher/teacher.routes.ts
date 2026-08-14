@@ -146,7 +146,7 @@ router.get('/dashboard', async (_req, res, next) => {
           const submission = (data.submissions || []).find((item) => item.studentId === userId)
           return submission && typeof submission.score === 'number' && totalPoints > 0 ? [Math.round((submission.score / totalPoints) * 100)] : []
         })
-        return { label: student.fullName, value: scores.length ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length) : 0 }
+        return { label: student.fullName, value: scores.length ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length) : 0, hasSubmission: scores.length > 0 }
       })
       .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label))
     const materialCounts = teacherMaterials.reduce<Record<string, number>>((counts, material) => {
