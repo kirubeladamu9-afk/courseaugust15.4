@@ -389,15 +389,17 @@ router.get('/student-grades', async (req, res, next) => {
     const subjectName = typeof req.query.subjectName === 'string' ? req.query.subjectName.trim() : ''
     const gradeLevel = z.string().trim().min(1).parse(req.query.gradeLevel)
     const classSection = z.string().trim().min(1).parse(req.query.classSection)
-    const [students, users, quizzes] = await Promise.all([
+    const [students, users, teachers, quizzes] = await Promise.all([
       prisma.student.findMany({ where: { academicYear, gradeLevel, classSection, status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true } }),
       prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+      prisma.user.findMany({ where: { role: 'TEACHER' }, select: { id: true, name: true } }),
       prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } }),
     ])
     const studentUserIds = new Map(users.map((user) => [user.name.toLowerCase(), user.id]))
+    const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
     const assessments = quizzes
       .map((quiz) => {
-        const data = quiz.data as { className?: string; subjectName?: string; questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
+        const data = quiz.data as { teacherId?: string; className?: string; subjectName?: string; questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown; submittedAt?: unknown }[] }
         const assignedClass = (data.className || '').toLowerCase()
         const selectedClass = classSection.toLowerCase()
         const combinedClass = `${gradeLevel} ${classSection}`.toLowerCase()
@@ -408,9 +410,9 @@ router.get('/student-grades', async (req, res, next) => {
           const userId = studentUserIds.get(student.fullName.toLowerCase())
           const submission = (data.submissions || []).find((item) => item.studentId === userId)
           const earnedPoints = submission && typeof submission.score === 'number' ? submission.score : null
-          return { ...student, earnedPoints, totalPoints, grade: earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null }
+          return { ...student, earnedPoints, totalPoints, grade: earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null, takenAt: submission && typeof submission.submittedAt === 'string' ? submission.submittedAt : null }
         })
-        return { id: quiz.id, title: quiz.title, assessmentType: quiz.assessmentType, status: quiz.status, results }
+        return { id: quiz.id, title: quiz.title, assessmentType: quiz.assessmentType, subjectName: data.subjectName || 'Subject not specified', teacherName: data.teacherId ? teacherNames.get(data.teacherId) || 'Teacher not specified' : 'Teacher not specified', timeLimitMinutes: quiz.timeLimitMinutes, status: quiz.status, results }
       })
       .filter((assessment): assessment is NonNullable<typeof assessment> => Boolean(assessment))
     return res.json({ students, assessments })
