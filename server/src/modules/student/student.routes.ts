@@ -88,6 +88,33 @@ const visibleMaterialsForStudent = async (student: { id: string; gradeLevel: str
 
 router.use(requireAuth, requireRole('STUDENT'))
 
+router.get('/profile', async (_req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: res.locals.auth.sub }, select: { name: true, username: true, email: true, status: true, lastLoginAt: true } })
+    const student = user ? await prisma.student.findFirst({
+      where: { fullName: { equals: user.name, mode: 'insensitive' } },
+      select: {
+        fullName: true,
+        dateOfBirth: true,
+        gender: true,
+        admissionNumber: true,
+        photoName: true,
+        academicYear: true,
+        gradeLevel: true,
+        classSection: true,
+        enrollmentDate: true,
+        address: true,
+        status: true,
+        guardianLinks: { select: { relationshipType: true, guardian: { select: { name: true, email: true, phone: true, address: true } } } },
+      },
+    }) : null
+    if (!user || !student) return res.status(404).json({ message: 'Student profile not found.' })
+    return res.json({ profile: { user, student: { ...student, dateOfBirth: student.dateOfBirth.toISOString(), enrollmentDate: student.enrollmentDate.toISOString() }, guardians: student.guardianLinks.map(({ relationshipType, guardian }) => ({ ...guardian, relationshipType })) } })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/materials', async (_req, res, next) => {
   try {
     const student = await getAuthenticatedStudent(res.locals.auth.sub)
