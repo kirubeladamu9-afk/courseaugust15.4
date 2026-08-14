@@ -386,6 +386,7 @@ router.get('/students', async (_req, res, next) => {
 router.get('/student-grades', async (req, res, next) => {
   try {
     const academicYear = z.string().trim().min(1).parse(req.query.academicYear)
+    const subjectName = typeof req.query.subjectName === 'string' ? req.query.subjectName.trim() : ''
     const gradeLevel = z.string().trim().min(1).parse(req.query.gradeLevel)
     const classSection = z.string().trim().min(1).parse(req.query.classSection)
     const [students, users, quizzes] = await Promise.all([
@@ -396,12 +397,12 @@ router.get('/student-grades', async (req, res, next) => {
     const studentUserIds = new Map(users.map((user) => [user.name.toLowerCase(), user.id]))
     const assessments = quizzes
       .map((quiz) => {
-        const data = quiz.data as { className?: string; questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
+        const data = quiz.data as { className?: string; subjectName?: string; questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
         const assignedClass = (data.className || '').toLowerCase()
         const selectedClass = classSection.toLowerCase()
         const combinedClass = `${gradeLevel} ${classSection}`.toLowerCase()
         const hyphenatedClass = `${gradeLevel} - ${classSection}`.toLowerCase()
-        if (![selectedClass, combinedClass, hyphenatedClass].includes(assignedClass)) return null
+        if (![selectedClass, combinedClass, hyphenatedClass].includes(assignedClass) || (subjectName && data.subjectName !== subjectName)) return null
         const totalPoints = (data.questions || []).reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
         const results = students.map((student) => {
           const userId = studentUserIds.get(student.fullName.toLowerCase())
@@ -708,8 +709,8 @@ router.get('/all-assessments', async (_req, res, next) => {
     const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
     const records = quizzes.map((quiz) => {
-      const data = quiz.data as { teacherId?: string; className?: string; questions?: unknown[] }
-      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, 'Assessment Type': quiz.assessmentType, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—' }, questions: data.questions || [], status: quiz.status }
+      const data = quiz.data as { teacherId?: string; className?: string; subjectName?: string; questions?: unknown[] }
+      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, 'Assessment Type': quiz.assessmentType, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—', Subject: data.subjectName || '—' }, questions: data.questions || [], status: quiz.status }
     })
     return res.json({ records })
   } catch (error) {

@@ -21,6 +21,7 @@ import api from '@/lib/api'
 import { AdminPanelLayout } from './admin-dashboard'
 
 type StudentOption = { id: string; fullName: string; gradeLevel: string; classSection: string; academicYear: string }
+type AssessmentOption = { data: { Class?: string; Subject?: string } }
 type GradeResult = StudentOption & { photoName: string | null; admissionNumber: string; academicYear: string; earnedPoints: number | null; totalPoints: number; grade: number | null }
 type AssessmentGrade = { id: string; title: string; assessmentType: string; status: string; results: GradeResult[] }
 
@@ -36,6 +37,8 @@ const AdminStudentGrades: FC = () => {
   const [gradeLevel, setGradeLevel] = useState('')
   const [classSection, setClassSection] = useState('')
   const [academicYear, setAcademicYear] = useState('')
+  const [subjectName, setSubjectName] = useState('')
+  const [assessmentOptions, setAssessmentOptions] = useState<AssessmentOption[]>([])
   const [assessments, setAssessments] = useState<AssessmentGrade[]>([])
   const [expandedAssessment, setExpandedAssessment] = useState('')
   const [loadingOptions, setLoadingOptions] = useState(true)
@@ -43,8 +46,11 @@ const AdminStudentGrades: FC = () => {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.get<{ students: StudentOption[] }>('/api/admin/students', { withCredentials: true })
-      .then(({ data }) => setStudents(data.students))
+    Promise.all([
+      api.get<{ students: StudentOption[] }>('/api/admin/students', { withCredentials: true }),
+      api.get<{ records: AssessmentOption[] }>('/api/admin/all-assessments', { withCredentials: true }),
+    ])
+      .then(([studentResponse, assessmentResponse]) => { setStudents(studentResponse.data.students); setAssessmentOptions(assessmentResponse.data.records) })
       .catch(() => setError('Unable to load grade and section options.'))
       .finally(() => setLoadingOptions(false))
   }, [])
@@ -57,14 +63,18 @@ const AdminStudentGrades: FC = () => {
     }
     setLoadingGrades(true)
     setError('')
-    api.get<{ assessments: AssessmentGrade[] }>('/api/admin/student-grades', { params: { gradeLevel, classSection, academicYear }, withCredentials: true })
+    api.get<{ assessments: AssessmentGrade[] }>('/api/admin/student-grades', { params: { gradeLevel, classSection, academicYear, ...(subjectName ? { subjectName } : {}) }, withCredentials: true })
       .then(({ data }) => setAssessments(data.assessments))
       .catch(() => setError('Unable to load student grades.'))
       .finally(() => setLoadingGrades(false))
-  }, [gradeLevel, classSection, academicYear])
+  }, [gradeLevel, classSection, academicYear, subjectName])
 
   const academicYears = useMemo(() => [...new Set(students.map((student) => student.academicYear).filter(Boolean))].sort((left, right) => right.localeCompare(left)), [students])
   const gradeLevels = useMemo(() => [...new Set(students.map((student) => student.gradeLevel).filter(Boolean))].sort(), [students])
+  const subjects = useMemo(() => {
+    const selectedClassNames = [classSection, `${gradeLevel} ${classSection}`, `${gradeLevel} - ${classSection}`].map((value) => value.toLowerCase())
+    return [...new Set(assessmentOptions.filter((assessment) => assessment.data.Subject && selectedClassNames.includes((assessment.data.Class || '').toLowerCase())).map((assessment) => assessment.data.Subject as string))].sort()
+  }, [assessmentOptions, classSection, gradeLevel])
   const sections = useMemo(() => [...new Set(students.filter((student) => student.gradeLevel === gradeLevel).map((student) => student.classSection).filter(Boolean))].sort(), [students, gradeLevel])
   const selectedStudents = students.filter((student) => student.academicYear === academicYear && student.gradeLevel === gradeLevel && student.classSection === classSection)
 
@@ -72,12 +82,13 @@ const AdminStudentGrades: FC = () => {
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
       <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="primary.main">Student Grades</Typography></Breadcrumbs>
       <Stack spacing={3}>
-        <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>Student Grades</Typography><Typography color="text.secondary">Choose an academic year, grade, and section to review students and their assessment results.</Typography></Box>
+        <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>Student Grades</Typography><Typography color="text.secondary">Choose an academic year, grade, and section, then optionally filter by subject.</Typography></Box>
         <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={4}><TextField fullWidth select required label="Academic Year" value={academicYear} disabled={loadingOptions} onChange={(event) => setAcademicYear(event.target.value)}><MenuItem value="">Select academic year</MenuItem>{academicYears.map((year) => <MenuItem key={year} value={year}>{year}</MenuItem>)}</TextField></Grid>
-            <Grid item xs={12} sm={4}><TextField fullWidth select required label="Grade" value={gradeLevel} disabled={loadingOptions} onChange={(event) => { setGradeLevel(event.target.value); setClassSection('') }}><MenuItem value="">Select grade</MenuItem>{gradeLevels.map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}</TextField></Grid>
-            <Grid item xs={12} sm={4}><TextField fullWidth select required label="Section" value={classSection} disabled={!gradeLevel || loadingOptions} onChange={(event) => setClassSection(event.target.value)}><MenuItem value="">Select section</MenuItem>{sections.map((section) => <MenuItem key={section} value={section}>{section}</MenuItem>)}</TextField></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth select required label="Grade" value={gradeLevel} disabled={loadingOptions} onChange={(event) => { setGradeLevel(event.target.value); setClassSection(''); setSubjectName('') }}><MenuItem value="">Select grade</MenuItem>{gradeLevels.map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}</TextField></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth select required label="Section" value={classSection} disabled={!gradeLevel || loadingOptions} onChange={(event) => { setClassSection(event.target.value); setSubjectName('') }}><MenuItem value="">Select section</MenuItem>{sections.map((section) => <MenuItem key={section} value={section}>{section}</MenuItem>)}</TextField></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth select label="Subject" value={subjectName} disabled={!gradeLevel || !classSection || loadingOptions} onChange={(event) => setSubjectName(event.target.value)}><MenuItem value="">All subjects</MenuItem>{subjects.map((subject) => <MenuItem key={subject} value={subject}>{subject}</MenuItem>)}</TextField></Grid>
           </Grid>
         </Paper>
         {error && <Alert severity="error">{error}</Alert>}
