@@ -385,10 +385,11 @@ router.get('/students', async (_req, res, next) => {
 
 router.get('/student-grades', async (req, res, next) => {
   try {
+    const academicYear = z.string().trim().min(1).parse(req.query.academicYear)
     const gradeLevel = z.string().trim().min(1).parse(req.query.gradeLevel)
     const classSection = z.string().trim().min(1).parse(req.query.classSection)
     const [students, users, quizzes] = await Promise.all([
-      prisma.student.findMany({ where: { gradeLevel, classSection, status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true } }),
+      prisma.student.findMany({ where: { academicYear, gradeLevel, classSection, status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true } }),
       prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
       prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } }),
     ])

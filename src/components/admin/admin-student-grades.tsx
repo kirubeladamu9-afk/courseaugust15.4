@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState, type FC } from 'react'
 import api from '@/lib/api'
 import { AdminPanelLayout } from './admin-dashboard'
 
-type StudentOption = { id: string; fullName: string; gradeLevel: string; classSection: string }
+type StudentOption = { id: string; fullName: string; gradeLevel: string; classSection: string; academicYear: string }
 type GradeResult = StudentOption & { photoName: string | null; admissionNumber: string; academicYear: string; earnedPoints: number | null; totalPoints: number; grade: number | null }
 type AssessmentGrade = { id: string; title: string; assessmentType: string; status: string; results: GradeResult[] }
 
@@ -35,6 +35,7 @@ const AdminStudentGrades: FC = () => {
   const [students, setStudents] = useState<StudentOption[]>([])
   const [gradeLevel, setGradeLevel] = useState('')
   const [classSection, setClassSection] = useState('')
+  const [academicYear, setAcademicYear] = useState('')
   const [assessments, setAssessments] = useState<AssessmentGrade[]>([])
   const [expandedAssessment, setExpandedAssessment] = useState('')
   const [loadingOptions, setLoadingOptions] = useState(true)
@@ -49,37 +50,39 @@ const AdminStudentGrades: FC = () => {
   }, [])
 
   useEffect(() => {
-    if (!gradeLevel || !classSection) {
+    if (!gradeLevel || !classSection || !academicYear) {
       setAssessments([])
       setExpandedAssessment('')
       return
     }
     setLoadingGrades(true)
     setError('')
-    api.get<{ assessments: AssessmentGrade[] }>('/api/admin/student-grades', { params: { gradeLevel, classSection }, withCredentials: true })
+    api.get<{ assessments: AssessmentGrade[] }>('/api/admin/student-grades', { params: { gradeLevel, classSection, academicYear }, withCredentials: true })
       .then(({ data }) => setAssessments(data.assessments))
       .catch(() => setError('Unable to load student grades.'))
       .finally(() => setLoadingGrades(false))
-  }, [gradeLevel, classSection])
+  }, [gradeLevel, classSection, academicYear])
 
+  const academicYears = useMemo(() => [...new Set(students.map((student) => student.academicYear).filter(Boolean))].sort((left, right) => right.localeCompare(left)), [students])
   const gradeLevels = useMemo(() => [...new Set(students.map((student) => student.gradeLevel).filter(Boolean))].sort(), [students])
   const sections = useMemo(() => [...new Set(students.filter((student) => student.gradeLevel === gradeLevel).map((student) => student.classSection).filter(Boolean))].sort(), [students, gradeLevel])
-  const selectedStudents = students.filter((student) => student.gradeLevel === gradeLevel && student.classSection === classSection)
+  const selectedStudents = students.filter((student) => student.academicYear === academicYear && student.gradeLevel === gradeLevel && student.classSection === classSection)
 
   return <AdminPanelLayout title="Student Grades">
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
       <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography variant="subtitle2" color="text.secondary">Admin</Typography><Typography variant="subtitle2" color="primary.main">Student Grades</Typography></Breadcrumbs>
       <Stack spacing={3}>
-        <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>Student Grades</Typography><Typography color="text.secondary">Choose a grade and section to review students and their assessment results.</Typography></Box>
+        <Box><Typography component="h1" variant="h1" sx={{ fontSize: { xs: 30, md: 38 }, mb: 0.5 }}>Student Grades</Typography><Typography color="text.secondary">Choose an academic year, grade, and section to review students and their assessment results.</Typography></Box>
         <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}><TextField fullWidth select required label="Grade" value={gradeLevel} disabled={loadingOptions} onChange={(event) => { setGradeLevel(event.target.value); setClassSection('') }}><MenuItem value="">Select grade</MenuItem>{gradeLevels.map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}</TextField></Grid>
-            <Grid item xs={12} sm={6}><TextField fullWidth select required label="Section" value={classSection} disabled={!gradeLevel || loadingOptions} onChange={(event) => setClassSection(event.target.value)}><MenuItem value="">Select section</MenuItem>{sections.map((section) => <MenuItem key={section} value={section}>{section}</MenuItem>)}</TextField></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth select required label="Academic Year" value={academicYear} disabled={loadingOptions} onChange={(event) => setAcademicYear(event.target.value)}><MenuItem value="">Select academic year</MenuItem>{academicYears.map((year) => <MenuItem key={year} value={year}>{year}</MenuItem>)}</TextField></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth select required label="Grade" value={gradeLevel} disabled={loadingOptions} onChange={(event) => { setGradeLevel(event.target.value); setClassSection('') }}><MenuItem value="">Select grade</MenuItem>{gradeLevels.map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}</TextField></Grid>
+            <Grid item xs={12} sm={4}><TextField fullWidth select required label="Section" value={classSection} disabled={!gradeLevel || loadingOptions} onChange={(event) => setClassSection(event.target.value)}><MenuItem value="">Select section</MenuItem>{sections.map((section) => <MenuItem key={section} value={section}>{section}</MenuItem>)}</TextField></Grid>
           </Grid>
         </Paper>
         {error && <Alert severity="error">{error}</Alert>}
-        {!gradeLevel || !classSection ? <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, textAlign: 'center' }}><Typography variant="h6">Select a grade and section first</Typography><Typography color="text.secondary" sx={{ mt: 0.75 }}>Student grades and assessment results will appear after both selections are made.</Typography></Paper> : loadingGrades ? <LinearProgress /> : <Stack spacing={2}>
-          <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}><Box><Typography variant="h5">{gradeLevel} · {classSection}</Typography><Typography color="text.secondary">{selectedStudents.length} active student{selectedStudents.length === 1 ? '' : 's'}</Typography></Box><Chip label={`${assessments.length} assessment${assessments.length === 1 ? '' : 's'}`} color="primary" variant="outlined" /></Stack></Paper>
+        {!academicYear || !gradeLevel || !classSection ? <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, textAlign: 'center' }}><Typography variant="h6">Select an academic year, grade, and section first</Typography><Typography color="text.secondary" sx={{ mt: 0.75 }}>Student grades and assessment results will appear after all three selections are made.</Typography></Paper> : loadingGrades ? <LinearProgress /> : <Stack spacing={2}>
+          <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}><Box><Typography variant="h5">{academicYear} · {gradeLevel} · {classSection}</Typography><Typography color="text.secondary">{selectedStudents.length} active student{selectedStudents.length === 1 ? '' : 's'}</Typography></Box><Chip label={`${assessments.length} assessment${assessments.length === 1 ? '' : 's'}`} color="primary" variant="outlined" /></Stack></Paper>
           {assessments.length ? assessments.map((assessment) => { const expanded = expandedAssessment === assessment.id; return <Accordion key={assessment.id} expanded={expanded} onChange={() => setExpandedAssessment(expanded ? '' : assessment.id)} elevation={0} sx={{ borderRadius: 3, '&:before': { display: 'none' } }}><AccordionSummary expandIcon={<ExpandMoreRounded />}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ width: '100%', pr: 1 }}><Box><Typography variant="h6">{assessment.title}</Typography><Typography variant="body2" color="text.secondary">{assessment.assessmentType} · {assessment.results.length} students</Typography></Box><Chip label={assessment.status} size="small" /></Stack></AccordionSummary><AccordionDetails><Stack spacing={1.25}>{assessment.results.map((result) => { const status = gradeStatus(result.grade); return <Paper key={result.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}><Stack direction="row" alignItems="center" spacing={1.5}><Avatar src={result.photoName || undefined} alt={`${result.fullName} profile photo`}>{result.fullName.slice(0, 1)}</Avatar><Box sx={{ flex: 1, minWidth: 0 }}><Typography fontWeight={700}>{result.fullName}</Typography><Typography variant="caption" color="text.secondary">{result.admissionNumber} · {result.academicYear}</Typography></Box><Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>{result.earnedPoints === null ? '—' : `${result.earnedPoints} / ${result.totalPoints}`}</Typography><Chip label={result.grade === null ? '—' : `${result.grade}%`} size="small" color={status.color} /><Chip label={status.label} size="small" color={status.color} variant="outlined" /></Stack></Paper> })}</Stack></AccordionDetails></Accordion> }) : <Paper elevation={0} sx={{ p: 4, borderRadius: 3, textAlign: 'center' }}><Typography color="text.secondary">No assessments are assigned to this grade and section.</Typography></Paper>}
         </Stack>}
       </Stack>
