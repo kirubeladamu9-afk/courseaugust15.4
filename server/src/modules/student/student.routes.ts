@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../config/prisma'
@@ -87,6 +88,23 @@ const visibleMaterialsForStudent = async (student: { id: string; gradeLevel: str
 }
 
 router.use(requireAuth, requireRole('STUDENT'))
+
+const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(8).max(200) }).superRefine(({ currentPassword, newPassword }, context) => {
+  if (currentPassword === newPassword) context.addIssue({ code: 'custom', path: ['newPassword'], message: 'Your new password must be different from your current password.' })
+})
+
+router.post('/change-password', async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body)
+    const user = await prisma.user.findUnique({ where: { id: res.locals.auth.sub }, select: { passwordHash: true } })
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) return res.status(400).json({ message: 'Current password is incorrect.' })
+    const passwordHash = await bcrypt.hash(newPassword, 12)
+    await prisma.user.update({ where: { id: res.locals.auth.sub }, data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null } })
+    return res.json({ message: 'Password updated successfully.' })
+  } catch (error) {
+    return next(error)
+  }
+})
 
 router.get('/profile', async (_req, res, next) => {
   try {
