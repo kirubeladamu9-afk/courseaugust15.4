@@ -148,11 +148,11 @@ router.get('/assessments', async (_req, res, next) => {
     const assignments = await prisma.assessmentAssignment.findMany({
       where: { status: { not: 'Completed' }, ...classFilter },
       orderBy: { dueDate: 'asc' },
-      select: { id: true, dueDate: true, startsAt: true, timeLimitMinutes: true, endsAt: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
+      select: { id: true, dueDate: true, startsAt: true, timeLimitMinutes: true, endsAt: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, status: true, data: true } } },
     })
-    const quizzes = await prisma.quiz.findMany({ select: { id: true, title: true, assessmentType: true, data: true } })
+    const quizzes = await prisma.quiz.findMany({ where: { status: 'Published' }, select: { id: true, title: true, assessmentType: true, data: true } })
 
-    const assessments = assignments.map(({ quiz, ...assignment }) => {
+    const assessments = assignments.filter(({ quiz }) => quiz.status === 'Published').map(({ quiz, ...assignment }) => {
       const data = quiz.data as AssessmentData
       const submitted = (data.submissions || []).some((submission) => submission.studentId === res.locals.auth.sub)
       return {
