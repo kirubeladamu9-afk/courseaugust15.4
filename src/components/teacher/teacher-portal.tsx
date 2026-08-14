@@ -620,6 +620,7 @@ const AssessmentResultsPage: FC = () => {
   const [academicYears, setAcademicYears] = useState<string[]>([])
   const [academicYear, setAcademicYear] = useState('')
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('')
+  const [assessmentPage, setAssessmentPage] = useState(0)
   const [resultPages, setResultPages] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -630,6 +631,7 @@ const AssessmentResultsPage: FC = () => {
       .then(({ data }) => {
         setAcademicYears(data.academicYears)
         setAssessments(data.assessments)
+        setAssessmentPage(0)
         setResultPages({})
         setSelectedAssessmentId((current) => data.assessments.some((assessment) => assessment.id === current) ? current : data.assessments[0]?.id || '')
       })
@@ -694,7 +696,7 @@ const AssessmentResultsPage: FC = () => {
     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
     {!loading && !error && <>
       <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>Assessments</Typography>
-      {assessments.length ? <Stack spacing={1.25} sx={{ mb: 3 }}>{assessments.map((assessment) => {
+      {assessments.length ? <><Stack spacing={1.25} sx={{ mb: 1.5 }}>{assessments.slice(assessmentPage * 10, assessmentPage * 10 + 10).map((assessment) => {
         const isExpanded = selectedAssessmentId === assessment.id
         return <Box key={assessment.id} sx={{ border: 1, borderColor: isExpanded ? 'primary.main' : 'divider', borderRadius: 2, overflow: 'hidden' }}>
           <ButtonBase onClick={() => setSelectedAssessmentId(isExpanded ? '' : assessment.id)} aria-expanded={isExpanded} aria-controls={`assessment-results-${assessment.id}`} sx={{ width: '100%', p: 2, backgroundColor: isExpanded ? 'action.selected' : 'background.default', textAlign: 'left' }}>
@@ -711,7 +713,7 @@ const AssessmentResultsPage: FC = () => {
             </Box>
           </Collapse>
         </Box>
-      })}</Stack> : <Typography color="text.secondary" sx={{ py: 2, mb: 2 }}>No assigned assessments are available.</Typography>}
+      })}</Stack><TablePagination component="div" count={assessments.length} page={assessmentPage} onPageChange={(_, page) => setAssessmentPage(page)} rowsPerPage={10} rowsPerPageOptions={[10]} sx={{ mb: 2 }} /></> : <Typography color="text.secondary" sx={{ py: 2, mb: 2 }}>No assigned assessments are available.</Typography>}
     </>}
   </Paper>
 }
