@@ -186,20 +186,16 @@ router.get('/assessments', async (_req, res, next) => {
           submittedAt: typeof submission.submittedAt === 'string' ? submission.submittedAt : null,
           questions: (data.questions || []).map((question, questionIndex) => {
             const options = Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === 'string') : []
-            const correctAnswer = question.correctAnswer
-            const submittedAnswer = submission.answers?.[questionIndex]
+            const displayAnswer = (answer: unknown): string => {
+              if (Array.isArray(answer)) return answer.length ? answer.map((value) => displayAnswer(value)).filter((value) => value !== 'Not answered').join(', ') || 'Not answered' : 'Not answered'
+              if (typeof answer !== 'string' || !answer.trim()) return 'Not answered'
+              const optionIndex = Number(answer)
+              return Number.isInteger(optionIndex) && String(optionIndex) === answer && options[optionIndex] !== undefined ? options[optionIndex] : answer
+            }
             return {
               prompt: typeof question.prompt === 'string' ? question.prompt : '',
-              studentAnswer: Array.isArray(submittedAnswer)
-                ? submittedAnswer.map((answer) => options[Number(answer)]).filter((answer): answer is string => Boolean(answer))
-                : question.type === 'fill-blank'
-                  ? typeof submittedAnswer === 'string' ? submittedAnswer : ''
-                  : typeof submittedAnswer === 'string' ? options[Number(submittedAnswer)] || '' : '',
-              correctAnswer: Array.isArray(correctAnswer)
-                ? correctAnswer.map((answer) => options[Number(answer)]).filter((answer): answer is string => Boolean(answer))
-                : question.type === 'fill-blank'
-                  ? typeof correctAnswer === 'string' ? correctAnswer : ''
-                  : typeof correctAnswer === 'string' ? options[Number(correctAnswer)] || '' : '',
+              studentAnswer: displayAnswer(submission.answers?.[questionIndex]),
+              correctAnswer: displayAnswer(question.correctAnswer),
             }
           }),
         }))

@@ -6,11 +6,28 @@ import { requireAuth, requireRole } from '../../middleware/auth'
 const router = Router()
 const submissionSchema = z.object({ answers: z.array(z.union([z.string(), z.array(z.string())])), automatic: z.boolean().optional().default(false) })
 const draftSchema = z.object({ answers: z.array(z.union([z.string(), z.array(z.string())])) })
-type StoredQuestion = { type: 'single' | 'multiple' | 'true-false' | 'fill-blank'; correctAnswer: string | string[]; points: number }
+type StoredQuestion = { type: 'single' | 'multiple' | 'true-false' | 'fill-blank'; options?: string[]; correctAnswer: string | string[]; points: number }
 type AssessmentData = { questions?: StoredQuestion[]; drafts?: { studentId: string; answers: (string | string[])[]; updatedAt: string }[]; submissions?: { studentId: string; answers: (string | string[])[]; score: number; submittedAt: string }[] }
 
 const normalizeText = (value: string) => value.trim().toLowerCase()
-const sameSet = (left: string[], right: string[]) => left.length === right.length && left.every((value, index) => value === right[index])
+const normalizeChoice = (question: StoredQuestion, value: unknown) => {
+  const text = String(value ?? '').trim()
+  const index = Number(text)
+  return Number.isInteger(index) && String(index) === text && question.options?.[index] !== undefined ? normalizeText(question.options[index]) : normalizeText(text)
+}
+const sameSet = (question: StoredQuestion, left: string[], right: string[]) => {
+  const normalizedLeft = left.map((value) => normalizeChoice(question, value)).sort()
+  const normalizedRight = right.map((value) => normalizeChoice(question, value)).sort()
+  return normalizedLeft.length === normalizedRight.length && normalizedLeft.every((value, index) => value === normalizedRight[index])
+}
+const gradeAssessment = (questions: StoredQuestion[], answers: (string | string[])[]) => questions.reduce((score, question, index) => {
+  const answer = answers[index]
+  const correct = question.correctAnswer
+  const isCorrect = question.type === 'multiple'
+    ? Array.isArray(answer) && Array.isArray(correct) && sameSet(question, answer, correct)
+    : typeof answer === 'string' && !Array.isArray(correct) && normalizeChoice(question, answer) === normalizeChoice(question, correct)
+  return isCorrect ? score + question.points : score
+}, 0)
 export const finishExpiredAssessmentAssignments = async () => {
   const expiredAssignments = await prisma.assessmentAssignment.findMany({
     where: { endsAt: { lte: new Date() }, status: { notIn: ['Completed', 'Finished'] } },
@@ -26,7 +43,10 @@ export const finishExpiredAssessmentAssignments = async () => {
     const users = studentNames.length ? await prisma.user.findMany({ where: { role: 'STUDENT', name: { in: studentNames, mode: 'insensitive' } }, select: { id: true } }) : []
     const submittedStudentIds = new Set((data.submissions || []).map((submission) => submission.studentId))
     const unanswered = (data.questions || []).map((question) => question.type === 'multiple' ? [] : '')
-    const submissions = [...(data.submissions || []), ...users.filter((user) => !submittedStudentIds.has(user.id)).map((user) => ({ studentId: user.id, answers: unanswered, score: 0, submittedAt: new Date().toISOString() }))]
+    const submissions = [...(data.submissions || []), ...users.filter((user) => !submittedStudentIds.has(user.id)).map((user) => {
+      const answers = data.drafts?.find((draft) => draft.studentId === user.id)?.answers || unanswered
+      return { studentId: user.id, answers, score: gradeAssessment(data.questions || [], answers), submittedAt: new Date().toISOString() }
+    })]
 
     await prisma.$transaction([
       prisma.quiz.update({ where: { id: assignment.quiz.id }, data: { data: { ...data, drafts: (data.drafts || []).filter((draft) => !users.some((user) => user.id === draft.studentId)), submissions } } }),
@@ -86,17 +106,7 @@ router.post('/:id/submissions', requireAuth, requireRole('STUDENT'), async (req,
     if (existingSubmission) return res.status(409).json({ message: 'This assessment has already been submitted.' })
     if (!automatic && answers.length !== questions.length) return res.status(400).json({ message: 'An answer is required for each question.' })
 
-    let score = 0
-    questions.forEach((question, index) => {
-      const answer = answers[index]
-      const correct = question.correctAnswer
-      const isCorrect = question.type === 'fill-blank'
-        ? typeof answer === 'string' && typeof correct === 'string' && normalizeText(answer) === normalizeText(correct)
-        : question.type === 'multiple'
-          ? Array.isArray(answer) && Array.isArray(correct) && sameSet([...answer].sort(), [...correct].sort())
-          : typeof answer === 'string' && typeof correct === 'string' && answer === correct
-      if (isCorrect) score += question.points
-    })
+    const score = gradeAssessment(questions, answers)
 
     const submission = { studentId: res.locals.auth.sub, answers, score, submittedAt: new Date().toISOString() }
     await prisma.quiz.update({ where: { id: assessment.id }, data: { data: { ...data, drafts: (data.drafts || []).filter((draft) => draft.studentId !== res.locals.auth.sub), submissions: [...(data.submissions || []), submission] }, status: 'Auto-Graded' } })
