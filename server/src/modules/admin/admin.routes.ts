@@ -383,6 +383,40 @@ router.get('/students', async (_req, res, next) => {
   }
 })
 
+router.get('/student-grades', async (req, res, next) => {
+  try {
+    const gradeLevel = z.string().trim().min(1).parse(req.query.gradeLevel)
+    const classSection = z.string().trim().min(1).parse(req.query.classSection)
+    const [students, users, quizzes] = await Promise.all([
+      prisma.student.findMany({ where: { gradeLevel, classSection, status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true } }),
+      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+      prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } }),
+    ])
+    const studentUserIds = new Map(users.map((user) => [user.name.toLowerCase(), user.id]))
+    const assessments = quizzes
+      .map((quiz) => {
+        const data = quiz.data as { className?: string; questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
+        const assignedClass = (data.className || '').toLowerCase()
+        const selectedClass = classSection.toLowerCase()
+        const combinedClass = `${gradeLevel} ${classSection}`.toLowerCase()
+        const hyphenatedClass = `${gradeLevel} - ${classSection}`.toLowerCase()
+        if (![selectedClass, combinedClass, hyphenatedClass].includes(assignedClass)) return null
+        const totalPoints = (data.questions || []).reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
+        const results = students.map((student) => {
+          const userId = studentUserIds.get(student.fullName.toLowerCase())
+          const submission = (data.submissions || []).find((item) => item.studentId === userId)
+          const earnedPoints = submission && typeof submission.score === 'number' ? submission.score : null
+          return { ...student, earnedPoints, totalPoints, grade: earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null }
+        })
+        return { id: quiz.id, title: quiz.title, assessmentType: quiz.assessmentType, status: quiz.status, results }
+      })
+      .filter((assessment): assessment is NonNullable<typeof assessment> => Boolean(assessment))
+    return res.json({ students, assessments })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/students/:id', async (req, res, next) => {
   try {
     const id = z.string().min(1).parse(req.params.id)

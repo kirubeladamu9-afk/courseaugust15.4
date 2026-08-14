@@ -153,7 +153,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [expandedMenu, setExpandedMenu] = useState('User Management')
   const itemRoutes: Record<string, string> = {
     'User Accounts': '/admin/user-accounts',
-    Students: '/admin/students',
+    Students: '/admin/student-grades',
     Teachers: '/admin/teachers',
     'Class & Teacher Assignments': '/admin/teacher-assignments',
     'Guardian List': '/admin/guardians',
