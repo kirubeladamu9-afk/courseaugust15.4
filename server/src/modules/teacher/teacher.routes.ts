@@ -192,8 +192,9 @@ router.get('/assessment-results', async (req, res, next) => {
           .map((student) => {
             const userId = studentUserIds.get(student.fullName.toLowerCase())
             const submission = (data.submissions || []).find((item) => item.studentId === userId)
-            const grade = submission && typeof submission.score === 'number' && totalPoints > 0 ? Math.round((submission.score / totalPoints) * 100) : null
-            return { id: student.id, fullName: student.fullName, photoName: student.photoName, admissionNumber: student.admissionNumber, academicYear: student.academicYear, classSection: `${student.gradeLevel} ${student.classSection}`, grade }
+            const earnedPoints = submission && typeof submission.score === 'number' ? submission.score : null
+            const grade = earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null
+            return { id: student.id, fullName: student.fullName, photoName: student.photoName, admissionNumber: student.admissionNumber, academicYear: student.academicYear, classSection: `${student.gradeLevel} ${student.classSection}`, earnedPoints, totalPoints, grade }
           })
           .sort((left, right) => (right.grade ?? -1) - (left.grade ?? -1) || left.fullName.localeCompare(right.fullName))
         return { id: assignment.id, title: assignment.quiz.title, assessmentType: assignment.quiz.assessmentType, className: assignment.className, dueDate: assignment.dueDate.toISOString(), status: assignment.status, results }

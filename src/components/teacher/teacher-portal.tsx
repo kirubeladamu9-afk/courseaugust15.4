@@ -43,7 +43,6 @@ import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutl
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined'
 import AddRounded from '@mui/icons-material/AddRounded'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
-import DownloadOutlined from '@mui/icons-material/DownloadOutlined'
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined'
 import EditOutlined from '@mui/icons-material/EditOutlined'
 import PictureAsPdfOutlined from '@mui/icons-material/PictureAsPdfOutlined'
@@ -613,7 +612,7 @@ const TeacherDashboard: FC = () => {
   </>
 }
 
-type AssessmentResult = { id: string; fullName: string; photoName: string | null; admissionNumber: string; academicYear: string; classSection: string; grade: number | null }
+type AssessmentResult = { id: string; fullName: string; photoName: string | null; admissionNumber: string; academicYear: string; classSection: string; earnedPoints: number | null; totalPoints: number; grade: number | null }
 type AssessmentResultAssessment = { id: string; title: string; assessmentType: string; className: string; dueDate: string; status: string; results: AssessmentResult[] }
 
 const AssessmentResultsPage: FC = () => {
@@ -644,21 +643,38 @@ const AssessmentResultsPage: FC = () => {
   }
 
   const downloadGradeReport = (assessment: AssessmentResultAssessment) => {
-    const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
-    const rows = [
-      ['Assessment', assessment.title],
-      ['Assessment type', assessment.assessmentType],
-      ['Class', assessment.className],
-      ['Academic year', academicYear || 'All academic years'],
-      [],
-      ['Student', 'Student ID', 'Academic year', 'Class & section', 'Grade', 'Result'],
-      ...assessment.results.map((student) => [student.fullName, student.admissionNumber, student.academicYear, student.classSection, student.grade === null ? 'No grade' : `${student.grade}%`, gradeStatus(student.grade).label]),
-    ]
-    const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+    const pdfText = (value: unknown) => String(value ?? '').replace(/[\\()]/g, '\\$&').replace(/[^\x20-\x7E]/g, '?')
+    const studentLines = assessment.results.flatMap((student, index) => {
+      const status = gradeStatus(student.grade)
+      const points = student.earnedPoints === null ? 'Not submitted' : `${student.earnedPoints}/${student.totalPoints}`
+      return [`${index + 1}. ${student.fullName}`, `   Student ID: ${student.admissionNumber}`, `   Class & section: ${student.classSection}   Academic year: ${student.academicYear}`, `   Points: ${points}   Grade: ${student.grade === null ? 'No grade' : `${student.grade}%`}   Result: ${status.label}`, '']
+    })
+    const reportLines = ['Student Grade Report', '', `Assessment: ${assessment.title}`, `Assessment type: ${assessment.assessmentType}`, `Class: ${assessment.className}`, `Academic year: ${academicYear || 'All academic years'}`, '', 'Student grades', '', ...(studentLines.length ? studentLines : ['No students match this academic year for this assessment.'])]
+    const pages = Array.from({ length: Math.max(1, Math.ceil(reportLines.length / 42)) }, (_, index) => reportLines.slice(index * 42, (index + 1) * 42))
+    const pageObjectNumbers = pages.map((_, index) => 3 + index * 2)
+    const fontObjectNumber = 3 + pages.length * 2
+    const objects: string[] = []
+    objects[1] = '<< /Type /Catalog /Pages 2 0 R >>'
+    objects[2] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((number) => `${number} 0 R`).join(' ')}] /Count ${pages.length} >>`
+    pages.forEach((page, index) => {
+      const pageObjectNumber = pageObjectNumbers[index]
+      const content = `BT\n/F1 11 Tf\n15 TL\n48 750 Td\n${page.map((line) => `(${pdfText(line)}) Tj\nT*`).join('\n')}\nET`
+      objects[pageObjectNumber] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectNumber} 0 R >> >> /Contents ${pageObjectNumber + 1} 0 R >>`
+      objects[pageObjectNumber + 1] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+    })
+    objects[fontObjectNumber] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+    let pdf = '%PDF-1.4\n'
+    const offsets = [0]
+    for (let index = 1; index < objects.length; index += 1) {
+      offsets[index] = pdf.length
+      pdf += `${index} 0 obj\n${objects[index]}\nendobj\n`
+    }
+    const xrefOffset = pdf.length
+    pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n `).join('\n')}\ntrailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+    const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = `${[assessment.title, academicYear || 'all-academic-years', 'grade-report'].join('-').replace(/[^a-z0-9-]+/gi, '-').toLowerCase()}.csv`
+    link.download = `${[assessment.title, academicYear || 'all-academic-years', 'grade-report'].join('-').replace(/[^a-z0-9-]+/gi, '-').toLowerCase()}.pdf`
     document.body.appendChild(link)
     link.click()
     link.remove()
@@ -684,11 +700,11 @@ const AssessmentResultsPage: FC = () => {
           </ButtonBase>
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
             <Box id={`assessment-results-${assessment.id}`} sx={{ p: { xs: 2, md: 3 }, borderTop: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1} sx={{ mb: 1.5 }}><Box><Typography variant="h6">Student grades</Typography><Typography variant="body2" color="text.secondary">{assessment.className}{academicYear ? ` · ${academicYear}` : ''}</Typography></Box><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack><Button variant="outlined" size="small" startIcon={<DownloadOutlined />} onClick={() => downloadGradeReport(assessment)} aria-label={`Download ${assessment.title} grade report`}>Download report</Button></Stack>
-              <TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Academic year', 'Class & section', 'Grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assessment.results.map((student) => {
+              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1} sx={{ mb: 1.5 }}><Box><Typography variant="h6">Student grades</Typography><Typography variant="body2" color="text.secondary">{assessment.className}{academicYear ? ` · ${academicYear}` : ''}</Typography></Box><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack><Button variant="outlined" size="small" startIcon={<PictureAsPdfOutlined />} onClick={() => downloadGradeReport(assessment)} aria-label={`Download ${assessment.title} grade report as PDF`}>Download PDF report</Button></Stack>
+              <TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Academic year', 'Class & section', 'Points', 'Grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assessment.results.map((student) => {
                 const status = gradeStatus(student.grade)
                 const photoSource = student.photoName?.startsWith('data:image/') || student.photoName?.startsWith('https://') ? student.photoName : undefined
-                return <TableRow key={student.id}><TableCell><Stack direction="row" spacing={1.25} alignItems="center"><Avatar src={photoSource} alt={`${student.fullName} profile photo`} sx={{ width: 40, height: 40 }}>{student.fullName.charAt(0).toUpperCase()}</Avatar><Typography fontWeight={600}>{student.fullName}</Typography></Stack></TableCell><TableCell>{student.admissionNumber}</TableCell><TableCell>{student.academicYear}</TableCell><TableCell>{student.classSection}</TableCell><TableCell><Typography color={student.grade === null ? 'text.secondary' : status.color === 'success' ? 'success.main' : status.color === 'error' ? 'error.main' : 'warning.main'} fontWeight={700}>{student.grade === null ? '—' : `${student.grade}%`}</Typography></TableCell><TableCell><Chip label={status.label} color={status.color} size="small" /></TableCell></TableRow>
+                return <TableRow key={student.id}><TableCell><Stack direction="row" spacing={1.25} alignItems="center"><Avatar src={photoSource} alt={`${student.fullName} profile photo`} sx={{ width: 40, height: 40 }}>{student.fullName.charAt(0).toUpperCase()}</Avatar><Typography fontWeight={600}>{student.fullName}</Typography></Stack></TableCell><TableCell>{student.admissionNumber}</TableCell><TableCell>{student.academicYear}</TableCell><TableCell>{student.classSection}</TableCell><TableCell><Typography color={student.earnedPoints === null ? 'text.secondary' : 'text.primary'} fontWeight={700}>{student.earnedPoints === null ? '—' : `${student.earnedPoints}/${student.totalPoints}`}</Typography></TableCell><TableCell><Typography color={student.grade === null ? 'text.secondary' : status.color === 'success' ? 'success.main' : status.color === 'error' ? 'error.main' : 'warning.main'} fontWeight={700}>{student.grade === null ? '—' : `${student.grade}%`}</Typography></TableCell><TableCell><Chip label={status.label} color={status.color} size="small" /></TableCell></TableRow>
               })}</TableBody></Table></TableContainer>{!assessment.results.length && <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No students match this academic year for this assessment.</Typography>}
             </Box>
           </Collapse>
