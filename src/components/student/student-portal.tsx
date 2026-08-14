@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FC } from 'react'
+import { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
@@ -135,16 +135,25 @@ const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmit
   const [submissionResult, setSubmissionResult] = useState<AssessmentSubmissionResult | null>(null)
   const [error, setError] = useState('')
   const storageKey = 'student-assessment-draft-' + assignmentId
+  const latestAnswers = useRef<Record<number, string | string[]>>({})
+  const draftSave = useRef<Promise<void>>(Promise.resolve())
+  const expiryStarted = useRef(false)
 
   useEffect(() => {
     api.get<{ assessment: StudentAssessmentDetail }>('/api/student/assessments/' + assignmentId, { withCredentials: true })
       .then(({ data }) => {
         setAssessment(data.assessment)
-        if (data.assessment.draftAnswers?.length) setAnswers(Object.fromEntries(data.assessment.draftAnswers.map((answer, index) => [index, answer])))
+        const draftAnswers = data.assessment.draftAnswers?.length ? Object.fromEntries(data.assessment.draftAnswers.map((answer, index) => [index, answer])) : {}
+        setAnswers(draftAnswers)
+        latestAnswers.current = draftAnswers
         setRemainingSeconds(Math.max(0, Math.min(data.assessment.timeLimitMinutes * 60, Math.floor((new Date(data.assessment.endsAt).getTime() - Date.now()) / 1000))))
         try {
           const saved = sessionStorage.getItem(storageKey)
-          if (saved) setAnswers(JSON.parse(saved) as Record<number, string | string[]>)
+          if (saved) {
+            const savedAnswers = JSON.parse(saved) as Record<number, string | string[]>
+            setAnswers(savedAnswers)
+            latestAnswers.current = savedAnswers
+          }
         } catch { /* Ignore unavailable or malformed browser storage. */ }
       })
       .catch(() => setError('Unable to load this assessment. Please return to your assessment list and try again.'))
@@ -156,34 +165,54 @@ const AssessmentPlayer: FC<{ assignmentId: string; onClose: () => void; onSubmit
     const timer = window.setInterval(() => {
       const next = Math.max(0, Math.min(assessment.timeLimitMinutes * 60, Math.floor((new Date(assessment.endsAt).getTime() - Date.now()) / 1000)))
       setRemainingSeconds(next)
-      if (next <= 0) setLocked(true)
+      if (next <= 0 && !expiryStarted.current) {
+        expiryStarted.current = true
+        void submit(true)
+      }
     }, 1000)
     return () => window.clearInterval(timer)
   }, [assessment, locked])
 
-  useEffect(() => {
-    if (!assessment || !Object.keys(answers).length || locked) return
-    try { sessionStorage.setItem(storageKey, JSON.stringify(answers)) } catch { /* Ignore unavailable browser storage. */ }
-    void api.post('/api/assessments/' + assessment.id + '/draft', { answers: assessment.questions.map((question, index) => answers[index] ?? (question.type === 'multiple' ? [] : '')) }, { withCredentials: true }).catch(() => undefined)
-  }, [answers, currentQuestion, assessment, storageKey, locked])
-
-  const updateAnswer = (questionIndex: number, answer: string | string[]) => setAnswers((current) => ({ ...current, [questionIndex]: answer }))
-  const updateMultipleAnswer = (questionIndex: number, optionIndex: string, checked: boolean) => {
-    const selected = Array.isArray(answers[questionIndex]) ? answers[questionIndex] as string[] : []
-    updateAnswer(questionIndex, checked ? [...selected, optionIndex] : selected.filter((item) => item !== optionIndex))
+  const saveAnswers = (nextAnswers: Record<number, string | string[]>) => {
+    latestAnswers.current = nextAnswers
+    try { sessionStorage.setItem(storageKey, JSON.stringify(nextAnswers)) } catch { /* Ignore unavailable or malformed browser storage. */ }
+    const request = draftSave.current.catch(() => undefined).then(() => {
+      if (!assessment) return
+      return api.post("/api/assessments/" + assessment.id + "/draft", { answers: assessment.questions.map((question, index) => nextAnswers[index] ?? (question.type === "multiple" ? [] : "")) }, { withCredentials: true }).then(() => undefined)
+    })
+    draftSave.current = request
+    return request
   }
 
+  const updateAnswer = (questionIndex: number, answer: string | string[]) => {
+    const nextAnswers = { ...latestAnswers.current, [questionIndex]: answer }
+    setAnswers(nextAnswers)
+    void saveAnswers(nextAnswers).catch(() => undefined)
+  }
+  const updateMultipleAnswer = (questionIndex: number, optionIndex: string, checked: boolean) => {
+    const selected = Array.isArray(latestAnswers.current[questionIndex]) ? latestAnswers.current[questionIndex] as string[] : []
+    updateAnswer(questionIndex, checked ? [...selected, optionIndex] : selected.filter((item) => item !== optionIndex))
+  }
   const submit = async (automatic = false) => {
     if (!assessment || submitting) return
-    const submittedAnswers = assessment.questions.map((question, index) => answers[index] ?? (question.type === 'multiple' ? [] : ''))
-    if (!automatic && submittedAnswers.some((answer) => Array.isArray(answer) ? !answer.length : !answer.trim())) {
+    if (!automatic && assessment.questions.some((question, index) => {
+      const answer = latestAnswers.current[index] ?? (question.type === 'multiple' ? [] : '')
+      return Array.isArray(answer) ? !answer.length : !answer.trim()
+    })) {
       setError('Answer every question before submitting.')
       return
     }
     setSubmitting(true)
-    setLocked(true)
     setError('')
     try {
+      let pendingSave = draftSave.current
+      while (true) {
+        await pendingSave.catch(() => undefined)
+        if (pendingSave === draftSave.current) break
+        pendingSave = draftSave.current
+      }
+      const submittedAnswers = assessment.questions.map((question, index) => latestAnswers.current[index] ?? (question.type === 'multiple' ? [] : ''))
+      setLocked(true)
       const { data } = await api.post<AssessmentSubmissionResult>('/api/assessments/' + assessment.id + '/submissions', { answers: submittedAnswers, automatic }, { withCredentials: true })
       setSubmissionResult(data)
       setMessage(automatic ? 'Time’s up — your answers were submitted automatically.' : 'Assessment submitted successfully.')
