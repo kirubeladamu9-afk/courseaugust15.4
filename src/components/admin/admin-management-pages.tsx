@@ -288,7 +288,7 @@ const AdminManagementPage: FC = () => {
   }, [section, config, isBackendSection, navigate])
 
   const filteredRecords = useMemo(() => records.filter((record) => config.columns.some((column) => column !== 'Actions' && (record.data[column] ?? record.title).toLowerCase().includes(query.toLowerCase()))), [records, config.columns, query])
-  const isPaginatedSection = section === 'students' || section === 'teachers' || section === 'guardians' || section === 'user-accounts'
+  const isPaginatedSection = ['students', 'teachers', 'guardians', 'user-accounts', 'all-assessments', 'learning-materials', 'classes-sections', 'subjects', 'grade-levels'].includes(section)
   const visibleRecords = isPaginatedSection ? filteredRecords.slice(listPage * listRowsPerPage, listPage * listRowsPerPage + listRowsPerPage) : filteredRecords
   const metrics = getLiveMetrics(section, records, isLoading) ?? config.metrics
 
