@@ -43,6 +43,7 @@ import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutl
 import PeopleAltOutlined from '@mui/icons-material/PeopleAltOutlined'
 import AddRounded from '@mui/icons-material/AddRounded'
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded'
+import DownloadOutlined from '@mui/icons-material/DownloadOutlined'
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined'
 import EditOutlined from '@mui/icons-material/EditOutlined'
 import PictureAsPdfOutlined from '@mui/icons-material/PictureAsPdfOutlined'
@@ -642,6 +643,28 @@ const AssessmentResultsPage: FC = () => {
     return { label: 'Developing', color: 'warning' as const }
   }
 
+  const downloadGradeReport = (assessment: AssessmentResultAssessment) => {
+    const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const rows = [
+      ['Assessment', assessment.title],
+      ['Assessment type', assessment.assessmentType],
+      ['Class', assessment.className],
+      ['Academic year', academicYear || 'All academic years'],
+      [],
+      ['Student', 'Student ID', 'Academic year', 'Class & section', 'Grade', 'Result'],
+      ...assessment.results.map((student) => [student.fullName, student.admissionNumber, student.academicYear, student.classSection, student.grade === null ? 'No grade' : `${student.grade}%`, gradeStatus(student.grade).label]),
+    ]
+    const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${[assessment.title, academicYear || 'all-academic-years', 'grade-report'].join('-').replace(/[^a-z0-9-]+/gi, '-').toLowerCase()}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} sx={{ mb: 3 }}>
       <Box><Typography variant="h5">Assessment results</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Select an assessment to view each student's grade and result.</Typography></Box>
@@ -661,7 +684,7 @@ const AssessmentResultsPage: FC = () => {
           </ButtonBase>
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
             <Box id={`assessment-results-${assessment.id}`} sx={{ p: { xs: 2, md: 3 }, borderTop: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1} sx={{ mb: 1.5 }}><Box><Typography variant="h6">Student grades</Typography><Typography variant="body2" color="text.secondary">{assessment.className}{academicYear ? ` · ${academicYear}` : ''}</Typography></Box><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack></Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1} sx={{ mb: 1.5 }}><Box><Typography variant="h6">Student grades</Typography><Typography variant="body2" color="text.secondary">{assessment.className}{academicYear ? ` · ${academicYear}` : ''}</Typography></Box><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack><Button variant="outlined" size="small" startIcon={<DownloadOutlined />} onClick={() => downloadGradeReport(assessment)} aria-label={`Download ${assessment.title} grade report`}>Download report</Button></Stack>
               <TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Academic year', 'Class & section', 'Grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assessment.results.map((student) => {
                 const status = gradeStatus(student.grade)
                 const photoSource = student.photoName?.startsWith('data:image/') || student.photoName?.startsWith('https://') ? student.photoName : undefined
