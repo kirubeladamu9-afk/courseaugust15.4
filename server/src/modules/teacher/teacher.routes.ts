@@ -167,6 +167,37 @@ router.get('/dashboard', async (_req, res, next) => {
   }
 })
 
+router.get('/assessment-results', async (_req, res, next) => {
+  try {
+    await finishExpiredAssessmentAssignments()
+    const teacherId = res.locals.auth.sub
+    const [assignments, students, studentUsers, teacherScope] = await Promise.all([
+      prisma.assessmentAssignment.findMany({ where: { teacherId }, select: { className: true, quiz: { select: { data: true } } } }),
+      prisma.student.findMany({ where: { status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, gradeLevel: true, classSection: true } }),
+      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+      getTeacherAssignments(teacherId),
+    ])
+    const studentUserIds = new Map(studentUsers.map((student) => [student.name.toLowerCase(), student.id]))
+    const records = students
+      .filter((student) => teacherScope.classes.some((className) => matchesClass(student, className)))
+      .map((student) => {
+        const userId = studentUserIds.get(student.fullName.toLowerCase())
+        const grades = assignments.flatMap((assignment) => {
+          if (!matchesClass(student, assignment.className)) return []
+          const data = assignment.quiz.data as { questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
+          const totalPoints = (data.questions || []).reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
+          const submission = (data.submissions || []).find((item) => item.studentId === userId)
+          return submission && typeof submission.score === 'number' && totalPoints > 0 ? [Math.round((submission.score / totalPoints) * 100)] : []
+        })
+        return { id: student.id, fullName: student.fullName, photoName: student.photoName, admissionNumber: student.admissionNumber, classSection: `${student.gradeLevel} ${student.classSection}`, completedAssessments: grades.length, averageGrade: grades.length ? Math.round(grades.reduce((total, grade) => total + grade, 0) / grades.length) : null }
+      })
+      .sort((left, right) => (right.averageGrade ?? -1) - (left.averageGrade ?? -1) || left.fullName.localeCompare(right.fullName))
+    return res.json({ students: records })
+  } catch (error) {
+    return next(error)
+  }
+})
+
 router.get('/students', async (_req, res, next) => {
   try {
     const students = await prisma.student.findMany({ orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, gradeLevel: true, classSection: true, academicYear: true, status: true } })

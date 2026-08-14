@@ -71,7 +71,7 @@ const portalItems = [
 
 const portalGroups = [
   { label: 'Materials', icon: <FolderOutlined fontSize="small" />, items: [{ label: 'Upload Material', path: '/teacher/materials/upload' }, { label: 'Material List', path: '/teacher/materials' }] },
-  { label: 'Assessments', icon: <AssessmentOutlined fontSize="small" />, items: [{ label: 'Create Assessment', path: '/teacher/assessments/create' }, { label: 'Assign Assessment', path: '/teacher/assessments/assign' }, { label: 'My Assessments', path: '/teacher/assessments' }] },
+  { label: 'Assessments', icon: <AssessmentOutlined fontSize="small" />, items: [{ label: 'Create Assessment', path: '/teacher/assessments/create' }, { label: 'Assign Assessment', path: '/teacher/assessments/assign' }, { label: 'My Assessments', path: '/teacher/assessments' }, { label: 'Student Results', path: '/teacher/assessments/results' }] },
 ]
 
 const pageDetails: Record<string, { title: string; description: string }> = {
@@ -81,6 +81,7 @@ const pageDetails: Record<string, { title: string; description: string }> = {
   materials: { title: 'Material List', description: 'Manage the learning materials shared with your classes.' },
   'materials/upload': { title: 'Upload Material', description: 'Add a PDF, Word, PowerPoint, or Excel file for your students.' },
   assessments: { title: 'My Assessments', description: 'Review assessments and monitor student submissions.' },
+  'assessments/results': { title: 'Student Results', description: 'Review student assessment grades across your assigned classes.' },
   'assessments/create': { title: 'Create Assessment', description: 'Build an assessment for one of your classes.' },
   'assessments/assign': { title: 'Assign Assessment', description: 'Choose classes and due dates for an assessment.' },
   profile: { title: 'My Profile', description: 'Update your teacher profile information.' },
@@ -611,6 +612,43 @@ const TeacherDashboard: FC = () => {
   </>
 }
 
+type AssessmentResult = { id: string; fullName: string; photoName: string | null; admissionNumber: string; classSection: string; completedAssessments: number; averageGrade: number | null }
+
+const AssessmentResultsPage: FC = () => {
+  const [results, setResults] = useState<AssessmentResult[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get<{ students: AssessmentResult[] }>('/api/teacher/assessment-results', { withCredentials: true })
+      .then(({ data }) => setResults(data.students))
+      .catch(() => setError('Unable to load student results. Please try again.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const gradeStatus = (averageGrade: number | null) => {
+    if (averageGrade === null) return { label: 'Did not take', color: 'default' as const }
+    if (averageGrade >= 75) return { label: 'High grade', color: 'success' as const }
+    if (averageGrade < 50) return { label: 'Lower grade', color: 'error' as const }
+    return { label: 'Developing', color: 'warning' as const }
+  }
+
+  return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} sx={{ mb: 3 }}>
+      <Box><Typography variant="h5">All student results</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Average grades from assessments assigned to each student's class.</Typography></Box>
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack>
+    </Stack>
+    {loading && <LinearProgress sx={{ mb: 2 }} />}
+    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    {!loading && !error && <TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Class & section', 'Assessments taken', 'Average grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{results.map((student) => {
+      const status = gradeStatus(student.averageGrade)
+      const photoSource = student.photoName?.startsWith('data:image/') || student.photoName?.startsWith('https://') ? student.photoName : undefined
+      return <TableRow key={student.id}><TableCell><Stack direction="row" spacing={1.25} alignItems="center"><Avatar src={photoSource} alt={`${student.fullName} profile photo`} sx={{ width: 40, height: 40 }}>{student.fullName.charAt(0).toUpperCase()}</Avatar><Typography fontWeight={600}>{student.fullName}</Typography></Stack></TableCell><TableCell>{student.admissionNumber}</TableCell><TableCell>{student.classSection}</TableCell><TableCell>{student.completedAssessments}</TableCell><TableCell><Typography color={student.averageGrade === null ? 'text.secondary' : status.color === 'success' ? 'success.main' : status.color === 'error' ? 'error.main' : 'warning.main'} fontWeight={700}>{student.averageGrade === null ? '—' : `${student.averageGrade}%`}</Typography></TableCell><TableCell><Chip label={status.label} color={status.color} size="small" /></TableCell></TableRow>
+    })}</TableBody></Table></TableContainer>}
+    {!loading && !error && !results.length && <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No students are assigned to your classes.</Typography>}
+  </Paper>
+}
+
 type TeacherTimetableEntry = { id: string; academicYear: string; classSection: string; day: string; period: string; startTime: string; endTime: string; subject: string; teacher: string; room: string | null }
 
 const TeacherTimetable: FC = () => {
@@ -726,6 +764,7 @@ const TeacherPageContent: FC<{ pageKey: string }> = ({ pageKey }) => {
   if (pageKey === 'materials') return <MaterialListPage />
   if (pageKey === 'assessments/create') return <AssessmentBuilder />
   if (pageKey === 'assessments/assign') return <AssignmentBuilder />
+  if (pageKey === 'assessments/results') return <AssessmentResultsPage />
   if (pageKey === 'students') return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
     <Typography variant="h5">{details.title}</Typography><Typography color="text.secondary" sx={{ mt: 0.5, mb: 3 }}>{details.description}</Typography>
     {studentsLoading && <LinearProgress sx={{ mb: 2 }} />}{studentsError && <Typography color="error" sx={{ mb: 2 }}>{studentsError}</Typography>}
