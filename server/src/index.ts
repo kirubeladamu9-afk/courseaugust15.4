@@ -1,5 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import authRoutes from './modules/auth/auth.routes'
@@ -23,6 +25,13 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/teacher', teacherRoutes)
 app.use('/api/assessments', assessmentRoutes)
 app.use('/api/student', studentRoutes)
+
+const distPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist')
+app.use(express.static(distPath))
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api/')) return next()
+  return res.sendFile(path.join(distPath, 'index.html'))
+})
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (error instanceof Error && error.name === 'ZodError') return res.status(400).json({ message: 'Invalid request.' })
