@@ -78,7 +78,7 @@ const additionalSections: Record<string, SectionConfig> = {
   timetable: makeSection('Timetable', 'Build weekly periods for each class and section.', 'Add Period', ['Class', 'Subject', 'Teacher', 'Schedule'], 'Grade 5 - A'),
   'grading-scale': makeSection('Grading Scale', 'Define score-to-letter-grade rules for result calculation.', 'Add Grade Rule', ['Grade', 'Minimum score', 'Maximum score', 'Status'], 'A'),
   'assessment-policy': makeSection('Assessment Policy', 'Set grading rules and weights for each assessment type.', 'Add Policy Rule', ['Assessment type', 'Weight', 'Term', 'Status'], 'Quiz'),
-  'all-assessments': makeSection('All Assessments', 'Overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Assessment Type', 'Teacher', 'Class', 'Status', 'Actions'], 'No assessments yet'),
+  'all-assessments': makeSection('All Assessments', 'Overview of assessments created by teachers.', 'Export Assessments', ['Assessment', 'Assessment Type', 'Teacher', 'Class', 'Highest grader', 'Status', 'Actions'], 'No assessments yet'),
   'result-approval': makeSection('Result Approval', 'Review and approve results before they are finalized.', 'Review Results', ['Assessment', 'Submissions', 'Submitted on', 'Status'], 'No pending results'),
   'report-cards': makeSection('Report Cards', 'Generate and publish final report cards for students and guardians.', 'Generate Report Cards', ['Term', 'Students', 'Published', 'Status'], 'No report cards yet'),
   announcements: makeSection('Announcements', 'Publish school-wide notices to the community.', 'Create Announcement', ['Announcement', 'Audience', 'Published on', 'Status'], 'No announcements yet'),

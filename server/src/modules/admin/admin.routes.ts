@@ -708,11 +708,17 @@ router.get('/all-assessments', async (_req, res, next) => {
   try {
     const quizzes = await prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } })
     const teacherIds = quizzes.map((quiz) => (quiz.data as { teacherId?: string }).teacherId).filter((id): id is string => Boolean(id))
-    const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } })
+    const [teachers, studentUsers] = await Promise.all([
+      prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } }),
+      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+    ])
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
+    const studentNames = new Map(studentUsers.map((student) => [student.id, student.name]))
     const records = quizzes.map((quiz) => {
-      const data = quiz.data as { teacherId?: string; className?: string; subjectName?: string; questions?: unknown[] }
-      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, 'Assessment Type': quiz.assessmentType, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—', Subject: data.subjectName || '—' }, questions: data.questions || [], status: quiz.status }
+      const data = quiz.data as { teacherId?: string; className?: string; subjectName?: string; questions?: unknown[]; submissions?: { studentId?: unknown; score?: unknown }[] }
+      const highestSubmission = (data.submissions || []).filter((submission): submission is { studentId: string; score: number } => typeof submission.studentId === 'string' && typeof submission.score === 'number').sort((left, right) => right.score - left.score)[0]
+      const highestGrader = highestSubmission ? studentNames.get(highestSubmission.studentId) || 'Student not found' : 'Upcoming'
+      return { id: quiz.id, title: quiz.title, data: { Assessment: quiz.title, 'Assessment Type': quiz.assessmentType, Teacher: data.teacherId ? teacherNames.get(data.teacherId) || '—' : '—', Class: data.className || '—', Subject: data.subjectName || '—', 'Highest grader': highestGrader }, questions: data.questions || [], status: quiz.status }
     })
     return res.json({ records })
   } catch (error) {
