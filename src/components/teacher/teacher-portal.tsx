@@ -81,7 +81,7 @@ const pageDetails: Record<string, { title: string; description: string }> = {
   materials: { title: 'Material List', description: 'Manage the learning materials shared with your classes.' },
   'materials/upload': { title: 'Upload Material', description: 'Add a PDF, Word, PowerPoint, or Excel file for your students.' },
   assessments: { title: 'My Assessments', description: 'Review assessments and monitor student submissions.' },
-  'assessments/results': { title: 'Student Results', description: 'Review student assessment grades across your assigned classes.' },
+  'assessments/results': { title: 'Student Results', description: 'Choose an assessment and academic year to review student grades.' },
   'assessments/create': { title: 'Create Assessment', description: 'Build an assessment for one of your classes.' },
   'assessments/assign': { title: 'Assign Assessment', description: 'Choose classes and due dates for an assessment.' },
   profile: { title: 'My Profile', description: 'Update your teacher profile information.' },
@@ -612,40 +612,56 @@ const TeacherDashboard: FC = () => {
   </>
 }
 
-type AssessmentResult = { id: string; fullName: string; photoName: string | null; admissionNumber: string; classSection: string; completedAssessments: number; averageGrade: number | null }
+type AssessmentResult = { id: string; fullName: string; photoName: string | null; admissionNumber: string; academicYear: string; classSection: string; grade: number | null }
+type AssessmentResultAssessment = { id: string; title: string; assessmentType: string; className: string; dueDate: string; status: string; results: AssessmentResult[] }
 
 const AssessmentResultsPage: FC = () => {
-  const [results, setResults] = useState<AssessmentResult[]>([])
+  const [assessments, setAssessments] = useState<AssessmentResultAssessment[]>([])
+  const [academicYears, setAcademicYears] = useState<string[]>([])
+  const [academicYear, setAcademicYear] = useState('')
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const selectedAssessment = assessments.find((assessment) => assessment.id === selectedAssessmentId) || null
 
   useEffect(() => {
-    api.get<{ students: AssessmentResult[] }>('/api/teacher/assessment-results', { withCredentials: true })
-      .then(({ data }) => setResults(data.students))
-      .catch(() => setError('Unable to load student results. Please try again.'))
+    setLoading(true)
+    setError('')
+    api.get<{ academicYears: string[]; assessments: AssessmentResultAssessment[] }>('/api/teacher/assessment-results', { params: academicYear ? { academicYear } : undefined, withCredentials: true })
+      .then(({ data }) => {
+        setAcademicYears(data.academicYears)
+        setAssessments(data.assessments)
+        setSelectedAssessmentId((current) => data.assessments.some((assessment) => assessment.id === current) ? current : data.assessments[0]?.id || '')
+      })
+      .catch(() => setError('Unable to load assessment results. Please try again.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [academicYear])
 
-  const gradeStatus = (averageGrade: number | null) => {
-    if (averageGrade === null) return { label: 'Did not take', color: 'default' as const }
-    if (averageGrade >= 75) return { label: 'High grade', color: 'success' as const }
-    if (averageGrade < 50) return { label: 'Lower grade', color: 'error' as const }
+  const gradeStatus = (grade: number | null) => {
+    if (grade === null) return { label: 'Did not take', color: 'default' as const }
+    if (grade >= 75) return { label: 'High grade', color: 'success' as const }
+    if (grade < 50) return { label: 'Lower grade', color: 'error' as const }
     return { label: 'Developing', color: 'warning' as const }
   }
 
   return <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={2} sx={{ mb: 3 }}>
-      <Box><Typography variant="h5">All student results</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Average grades from assessments assigned to each student's class.</Typography></Box>
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack>
+      <Box><Typography variant="h5">Assessment results</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Select an assessment to view each student's grade and result.</Typography></Box>
+      <TextField select size="small" label="Academic year" value={academicYear} onChange={(event) => setAcademicYear(event.target.value)} sx={{ minWidth: 180 }}>
+        <MenuItem value="">All academic years</MenuItem>{academicYears.map((year) => <MenuItem key={year} value={year}>{year}</MenuItem>)}
+      </TextField>
     </Stack>
     {loading && <LinearProgress sx={{ mb: 2 }} />}
     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-    {!loading && !error && <TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Class & section', 'Assessments taken', 'Average grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{results.map((student) => {
-      const status = gradeStatus(student.averageGrade)
-      const photoSource = student.photoName?.startsWith('data:image/') || student.photoName?.startsWith('https://') ? student.photoName : undefined
-      return <TableRow key={student.id}><TableCell><Stack direction="row" spacing={1.25} alignItems="center"><Avatar src={photoSource} alt={`${student.fullName} profile photo`} sx={{ width: 40, height: 40 }}>{student.fullName.charAt(0).toUpperCase()}</Avatar><Typography fontWeight={600}>{student.fullName}</Typography></Stack></TableCell><TableCell>{student.admissionNumber}</TableCell><TableCell>{student.classSection}</TableCell><TableCell>{student.completedAssessments}</TableCell><TableCell><Typography color={student.averageGrade === null ? 'text.secondary' : status.color === 'success' ? 'success.main' : status.color === 'error' ? 'error.main' : 'warning.main'} fontWeight={700}>{student.averageGrade === null ? '—' : `${student.averageGrade}%`}</Typography></TableCell><TableCell><Chip label={status.label} color={status.color} size="small" /></TableCell></TableRow>
-    })}</TableBody></Table></TableContainer>}
-    {!loading && !error && !results.length && <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No students are assigned to your classes.</Typography>}
+    {!loading && !error && <>
+      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>Assessments</Typography>
+      {assessments.length ? <Stack spacing={1.25} sx={{ mb: 3 }}>{assessments.map((assessment) => <ButtonBase key={assessment.id} onClick={() => setSelectedAssessmentId(assessment.id)} aria-pressed={selectedAssessmentId === assessment.id} sx={{ width: '100%', p: 2, border: 1, borderColor: selectedAssessmentId === assessment.id ? 'primary.main' : 'divider', borderRadius: 2, backgroundColor: selectedAssessmentId === assessment.id ? 'action.selected' : 'background.default', textAlign: 'left' }}><Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 2 }} alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ width: '100%' }}><Box sx={{ flex: 1, minWidth: 0 }}><Typography fontWeight={700} noWrap>{assessment.title}</Typography><Typography variant="body2" color="text.secondary">{assessment.assessmentType} · {assessment.className}</Typography></Box><Typography variant="body2" color="text.secondary">Due {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(assessment.dueDate))}</Typography><Chip label={assessment.status} size="small" /></Stack></ButtonBase>)}</Stack> : <Typography color="text.secondary" sx={{ py: 2, mb: 2 }}>No assigned assessments are available.</Typography>}
+      {selectedAssessment && <><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1} sx={{ mb: 1.5 }}><Box><Typography variant="h6">{selectedAssessment.title}</Typography><Typography variant="body2" color="text.secondary">Student grades for {selectedAssessment.className}{academicYear ? ` · ${academicYear}` : ''}</Typography></Box><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack></Stack><TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Academic year', 'Class & section', 'Grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{selectedAssessment.results.map((student) => {
+        const status = gradeStatus(student.grade)
+        const photoSource = student.photoName?.startsWith('data:image/') || student.photoName?.startsWith('https://') ? student.photoName : undefined
+        return <TableRow key={student.id}><TableCell><Stack direction="row" spacing={1.25} alignItems="center"><Avatar src={photoSource} alt={`${student.fullName} profile photo`} sx={{ width: 40, height: 40 }}>{student.fullName.charAt(0).toUpperCase()}</Avatar><Typography fontWeight={600}>{student.fullName}</Typography></Stack></TableCell><TableCell>{student.admissionNumber}</TableCell><TableCell>{student.academicYear}</TableCell><TableCell>{student.classSection}</TableCell><TableCell><Typography color={student.grade === null ? 'text.secondary' : status.color === 'success' ? 'success.main' : status.color === 'error' ? 'error.main' : 'warning.main'} fontWeight={700}>{student.grade === null ? '—' : `${student.grade}%`}</Typography></TableCell><TableCell><Chip label={status.label} color={status.color} size="small" /></TableCell></TableRow>
+      })}</TableBody></Table></TableContainer>{!selectedAssessment.results.length && <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No students match this academic year for the selected assessment.</Typography>}</>}
+    </>}
   </Paper>
 }
 
