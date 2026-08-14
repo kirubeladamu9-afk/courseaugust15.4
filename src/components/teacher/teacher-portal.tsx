@@ -121,6 +121,19 @@ const SidebarContent: FC<{ currentPath: string; onNavigate: (path: string) => vo
 
 const StatCard: FC<{ label: string; value: string; tone?: 'primary' | 'secondary' }> = ({ label, value, tone = 'primary' }) => <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, height: '100%' }}><Typography variant="subtitle2" color="text.secondary">{label}</Typography><Typography variant="h3" color={`${tone}.main`} sx={{ mt: 1, fontSize: { xs: 26, md: 30 } }}>{value}</Typography></Paper>
 
+type TeacherDashboardChartDatum = { label: string; value: number }
+
+const DashboardBarChart: FC<{ data: TeacherDashboardChartDatum[]; color: string; ariaLabel: string }> = ({ data, color, ariaLabel }) => {
+  if (!data.length) return <Typography color="text.secondary" sx={{ py: 4 }}>No data available yet.</Typography>
+  const max = Math.max(...data.map((item) => item.value), 1)
+  const chartWidth = 600
+  const barWidth = chartWidth / data.length
+  return <Box sx={{ mt: 2 }}>
+    <Box sx={{ height: 220 }}><svg width="100%" height="100%" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label={ariaLabel}><g color="currentColor"><line x1="0" x2="600" y1="55" y2="55" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="110" y2="110" stroke="currentColor" strokeOpacity="0.12" /><line x1="0" x2="600" y1="165" y2="165" stroke="currentColor" strokeOpacity="0.12" />{data.map((item, index) => { const height = item.value ? Math.max(4, (item.value / max) * 170) : 2; return <rect key={item.label} x={index * barWidth + barWidth * 0.22} y={205 - height} width={barWidth * 0.56} height={height} rx="8" fill={color} /> })}</g></svg></Box>
+    <Stack direction="row" spacing={1} justifyContent="space-around" sx={{ mt: -1 }}>{data.map((item) => <Box key={item.label} sx={{ minWidth: 0, textAlign: 'center', flex: 1 }}><Typography variant="caption" color="text.secondary" noWrap>{item.label}</Typography><Typography variant="subtitle2">{item.value.toLocaleString()}</Typography></Box>)}</Stack>
+  </Box>
+}
+
 type QuestionType = 'single' | 'multiple' | 'true-false' | 'fill-blank'
 type AssessmentType = 'Quiz' | 'Assignment' | 'Midterm Exam' | 'Final Exam' | 'Project'
 type AssessmentQuestion = { type: QuestionType; prompt: string; options: string[]; correctAnswer: string | string[]; points: number }
@@ -568,21 +581,22 @@ const ChangePasswordPage: FC = () => {
 }
 
 const TeacherDashboard: FC = () => {
-  const [dashboard, setDashboard] = useState<{ assignedStudents: number; activeMaterials: number; pendingGrades: number; upcomingAssignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[] } | null>(null)
+  const [dashboard, setDashboard] = useState<{ assignedStudents: number; activeMaterials: number; pendingGrades: number; upcomingAssignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[]; assessmentChart: TeacherDashboardChartDatum[]; materialChart: TeacherDashboardChartDatum[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.get<{ assignedStudents: number; activeMaterials: number; pendingGrades: number; upcomingAssignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[] }>('/api/teacher/dashboard', { withCredentials: true })
+    api.get<{ assignedStudents: number; activeMaterials: number; pendingGrades: number; upcomingAssignments: { id: string; assessment: string; className: string; dueDate: string; status: string }[]; assessmentChart: TeacherDashboardChartDatum[]; materialChart: TeacherDashboardChartDatum[] }>('/api/teacher/dashboard', { withCredentials: true })
       .then(({ data }) => setDashboard(data))
       .catch(() => setError('Unable to load your dashboard data. Please try again.'))
       .finally(() => setLoading(false))
   }, [])
 
-  const stats = dashboard || { assignedStudents: 0, activeMaterials: 0, pendingGrades: 0, upcomingAssignments: [] }
+  const stats = dashboard || { assignedStudents: 0, activeMaterials: 0, pendingGrades: 0, upcomingAssignments: [], assessmentChart: [], materialChart: [] }
   return <>
     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
     <Grid container spacing={2} sx={{ mb: 3 }}><Grid item xs={12} sm={4}><StatCard label="Assigned students" value={loading ? '—' : stats.assignedStudents.toLocaleString()} /></Grid><Grid item xs={12} sm={4}><StatCard label="Active materials" value={loading ? '—' : stats.activeMaterials.toLocaleString()} tone="secondary" /></Grid><Grid item xs={12} sm={4}><StatCard label="Pending grades" value={loading ? '—' : stats.pendingGrades.toLocaleString()} /></Grid></Grid>
+    <Grid container spacing={2} sx={{ mb: 3 }}><Grid item xs={12} md={6}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Assessment activity</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Assignments and student submissions across your classes.</Typography>{loading ? <LinearProgress sx={{ mt: 3 }} /> : <DashboardBarChart data={stats.assessmentChart} color="#127C71" ariaLabel="Assessment activity chart" />}</Paper></Grid><Grid item xs={12} md={6}><Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Materials by subject</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Published learning materials shared with students.</Typography>{loading ? <LinearProgress sx={{ mt: 3 }} /> : <DashboardBarChart data={stats.materialChart} color="#F5B82E" ariaLabel="Published materials by subject chart" />}</Paper></Grid></Grid>
     <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}><Typography variant="h5">Upcoming assignments</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Assignments scheduled for your classes.</Typography>{loading ? <LinearProgress sx={{ mt: 3 }} /> : stats.upcomingAssignments.length ? <Stack spacing={1.5} sx={{ mt: 2 }}>{stats.upcomingAssignments.map((assignment) => <Stack key={assignment.id} direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 2 }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'background.default' }}><Typography fontWeight={700}>{assignment.assessment}</Typography><Typography>{assignment.className}</Typography><Typography variant="body2" color="text.secondary">Due {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(assignment.dueDate))}</Typography><Chip label={assignment.status} size="small" /></Stack>)}</Stack> : <Typography color="text.secondary" sx={{ mt: 3 }}>No upcoming assignments.</Typography>}</Paper>
   </>
 }
