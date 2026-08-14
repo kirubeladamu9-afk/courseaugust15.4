@@ -39,24 +39,29 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   return res.status(500).json({ message: 'Internal server error.' })
 })
 
-const startServer = async () => {
+const initializeDatabase = async () => {
   await prisma.$executeRawUnsafe(`ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "assessmentType" TEXT NOT NULL DEFAULT 'Quiz'`)
   await prisma.$executeRawUnsafe(`ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "time_limit_minutes" INTEGER NOT NULL DEFAULT 30`)
   await prisma.$executeRawUnsafe(`ALTER TABLE "assessment_assignments" ADD COLUMN IF NOT EXISTS "time_limit_minutes" INTEGER NOT NULL DEFAULT 30, ADD COLUMN IF NOT EXISTS "starts_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, ADD COLUMN IF NOT EXISTS "ends_at" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 minutes')`)
   await prisma.$executeRawUnsafe(`UPDATE "assessment_assignments" SET "ends_at" = "starts_at" + ("time_limit_minutes" * INTERVAL '1 minute') WHERE "ends_at" = "starts_at" + INTERVAL '30 minutes'`)
   await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "timetable_entries" ("id" TEXT PRIMARY KEY, "academic_year" TEXT NOT NULL, "class_section" TEXT NOT NULL, "day" TEXT NOT NULL, "period" TEXT NOT NULL, "start_time" TEXT NOT NULL, "end_time" TEXT NOT NULL, "subject" TEXT NOT NULL, "teacher" TEXT NOT NULL, "room" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "timetable_entries_schedule_key" UNIQUE ("academic_year", "class_section", "day", "period"))`)
   await prisma.$executeRawUnsafe(`UPDATE "subjects" SET "data" = "data" - 'Chapters' WHERE "data" ? 'Chapters'`)
-  return app.listen(env.PORT, () => {
-    console.log(`API server listening on port ${env.PORT}`)
-  })
 }
 
-const server = await startServer()
-const assessmentExpiryTimer = setInterval(() => { void finishExpiredAssessmentAssignments().catch(console.error) }, 1000)
-void finishExpiredAssessmentAssignments().catch(console.error)
+const server = app.listen(env.PORT, '0.0.0.0', () => {
+  console.log(`API server listening on port ${env.PORT}`)
+})
+
+let assessmentExpiryTimer: ReturnType<typeof setInterval> | undefined
+void initializeDatabase()
+  .then(() => {
+    assessmentExpiryTimer = setInterval(() => { void finishExpiredAssessmentAssignments().catch(console.error) }, 1000)
+    void finishExpiredAssessmentAssignments().catch(console.error)
+  })
+  .catch(console.error)
 
 const shutdown = async () => {
-  clearInterval(assessmentExpiryTimer)
+  if (assessmentExpiryTimer) clearInterval(assessmentExpiryTimer)
   server.close()
   await prisma.$disconnect()
 }

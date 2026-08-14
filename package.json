@@ -8,7 +8,7 @@
     "dev:client": "vite --host 0.0.0.0",
     "dev:server": "npm run db:generate && tsx watch server/src/index.ts",
     "server": "tsx server/src/index.ts",
-    "start": "npm run db:push && npm run server",
+    "start": "npm run server",
     "build": "prisma generate && tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
