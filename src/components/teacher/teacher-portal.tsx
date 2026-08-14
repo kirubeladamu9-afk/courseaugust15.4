@@ -620,6 +620,7 @@ const AssessmentResultsPage: FC = () => {
   const [academicYears, setAcademicYears] = useState<string[]>([])
   const [academicYear, setAcademicYear] = useState('')
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('')
+  const [resultPages, setResultPages] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -629,6 +630,7 @@ const AssessmentResultsPage: FC = () => {
       .then(({ data }) => {
         setAcademicYears(data.academicYears)
         setAssessments(data.assessments)
+        setResultPages({})
         setSelectedAssessmentId((current) => data.assessments.some((assessment) => assessment.id === current) ? current : data.assessments[0]?.id || '')
       })
       .catch(() => setError('Unable to load assessment results. Please try again.'))
@@ -701,11 +703,11 @@ const AssessmentResultsPage: FC = () => {
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
             <Box id={`assessment-results-${assessment.id}`} sx={{ p: { xs: 2, md: 3 }, borderTop: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1} sx={{ mb: 1.5 }}><Box><Typography variant="h6">Student grades</Typography><Typography variant="body2" color="text.secondary">{assessment.className}{academicYear ? ` · ${academicYear}` : ''}</Typography></Box><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap><Chip label="High grade" color="success" size="small" /><Chip label="Lower grade" color="error" size="small" /><Chip label="Did not take" size="small" /></Stack><Button variant="outlined" size="small" startIcon={<PictureAsPdfOutlined />} onClick={() => downloadGradeReport(assessment)} aria-label={`Download ${assessment.title} grade report as PDF`}>Download PDF report</Button></Stack>
-              <TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Academic year', 'Class & section', 'Points', 'Grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assessment.results.map((student) => {
+              <TableContainer><Table><TableHead><TableRow>{['Student', 'Student ID', 'Academic year', 'Class & section', 'Points', 'Grade', 'Result'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 700 }}>{heading}</TableCell>)}</TableRow></TableHead><TableBody>{assessment.results.slice((resultPages[assessment.id] || 0) * 10, (resultPages[assessment.id] || 0) * 10 + 10).map((student) => {
                 const status = gradeStatus(student.grade)
                 const photoSource = student.photoName?.startsWith('data:image/') || student.photoName?.startsWith('https://') ? student.photoName : undefined
                 return <TableRow key={student.id}><TableCell><Stack direction="row" spacing={1.25} alignItems="center"><Avatar src={photoSource} alt={`${student.fullName} profile photo`} sx={{ width: 40, height: 40 }}>{student.fullName.charAt(0).toUpperCase()}</Avatar><Typography fontWeight={600}>{student.fullName}</Typography></Stack></TableCell><TableCell>{student.admissionNumber}</TableCell><TableCell>{student.academicYear}</TableCell><TableCell>{student.classSection}</TableCell><TableCell><Typography color={student.earnedPoints === null ? 'text.secondary' : 'text.primary'} fontWeight={700}>{student.earnedPoints === null ? '—' : `${student.earnedPoints}/${student.totalPoints}`}</Typography></TableCell><TableCell><Typography color={student.grade === null ? 'text.secondary' : status.color === 'success' ? 'success.main' : status.color === 'error' ? 'error.main' : 'warning.main'} fontWeight={700}>{student.grade === null ? '—' : `${student.grade}%`}</Typography></TableCell><TableCell><Chip label={status.label} color={status.color} size="small" /></TableCell></TableRow>
-              })}</TableBody></Table></TableContainer>{!assessment.results.length && <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No students match this academic year for this assessment.</Typography>}
+              })}</TableBody></Table></TableContainer>{assessment.results.length > 0 && <TablePagination component="div" count={assessment.results.length} page={resultPages[assessment.id] || 0} onPageChange={(_, page) => setResultPages((current) => ({ ...current, [assessment.id]: page }))} rowsPerPage={10} rowsPerPageOptions={[10]} />}{!assessment.results.length && <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No students match this academic year for this assessment.</Typography>}
             </Box>
           </Collapse>
         </Box>
