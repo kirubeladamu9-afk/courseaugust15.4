@@ -123,17 +123,32 @@ router.get('/dashboard', async (_req, res, next) => {
   try {
     await finishExpiredAssessmentAssignments()
     const teacherId = res.locals.auth.sub
-    const [assignedStudents, activeMaterials, pendingGrades, upcomingAssignments, teacherAssignments, teacherMaterials] = await Promise.all([
+    const [assignedStudents, activeMaterials, pendingGrades, upcomingAssignments, teacherAssignments, teacherMaterials, teacherStudents, studentUsers, teacherScope] = await Promise.all([
       prisma.student.count({ where: { status: 'Active' } }),
       prisma.learningMaterial.count({ where: { status: 'Published' } }),
       prisma.assessmentAssignment.count({ where: { teacherId, status: { not: 'Completed' } } }),
       prisma.assessmentAssignment.findMany({ where: { teacherId, dueDate: { gte: new Date() } }, orderBy: { dueDate: 'asc' }, take: 4, select: { id: true, className: true, dueDate: true, status: true, quiz: { select: { title: true } } } }),
-      prisma.assessmentAssignment.findMany({ where: { teacherId }, select: { quiz: { select: { data: true } } } }),
+      prisma.assessmentAssignment.findMany({ where: { teacherId }, select: { className: true, quiz: { select: { data: true } } } }),
       prisma.learningMaterial.findMany({ where: { status: 'Published' }, select: { data: true } }),
+      prisma.student.findMany({ where: { status: 'Active' }, select: { fullName: true, gradeLevel: true, classSection: true } }),
+      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+      getTeacherAssignments(teacherId),
     ])
-    const assessmentSubmissions = teacherAssignments.flatMap((assignment) => (assignment.quiz.data as { submissions?: { score?: unknown }[] }).submissions || [])
-    const submittedAssessments = assessmentSubmissions.length
-    const gradedAssessments = assessmentSubmissions.filter((submission) => typeof submission.score === 'number').length
+    const studentUserIds = new Map(studentUsers.map((student) => [student.name.toLowerCase(), student.id]))
+    const studentGradeChart = teacherStudents
+      .filter((student) => teacherScope.classes.some((className) => matchesClass(student, className)))
+      .map((student) => {
+        const userId = studentUserIds.get(student.fullName.toLowerCase())
+        const scores = teacherAssignments.flatMap((assignment) => {
+          if (!matchesClass(student, assignment.className)) return []
+          const data = assignment.quiz.data as { questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
+          const totalPoints = (data.questions || []).reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
+          const submission = (data.submissions || []).find((item) => item.studentId === userId)
+          return submission && typeof submission.score === 'number' && totalPoints > 0 ? [Math.round((submission.score / totalPoints) * 100)] : []
+        })
+        return { label: student.fullName, value: scores.length ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length) : 0 }
+      })
+      .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label))
     const materialCounts = teacherMaterials.reduce<Record<string, number>>((counts, material) => {
       const subject = (material.data as { teacherId?: string; subjectName?: string }).teacherId === teacherId ? (material.data as { subjectName?: string }).subjectName || 'Uncategorized' : null
       if (subject) counts[subject] = (counts[subject] || 0) + 1
@@ -144,7 +159,7 @@ router.get('/dashboard', async (_req, res, next) => {
       activeMaterials,
       pendingGrades,
       upcomingAssignments: upcomingAssignments.map(({ quiz, ...assignment }) => ({ ...assignment, assessment: quiz.title, dueDate: assignment.dueDate.toISOString() })),
-      assessmentChart: [{ label: 'Assignments', value: teacherAssignments.length }, { label: 'Submissions', value: submittedAssessments }, { label: 'Graded', value: gradedAssessments }, { label: 'Awaiting grading', value: Math.max(0, submittedAssessments - gradedAssessments) }],
+      studentGradeChart,
       materialChart: Object.entries(materialCounts).map(([label, value]) => ({ label, value })),
     })
   } catch (error) {
