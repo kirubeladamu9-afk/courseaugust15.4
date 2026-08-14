@@ -153,7 +153,8 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [expandedMenu, setExpandedMenu] = useState('User Management')
   const itemRoutes: Record<string, string> = {
     'User Accounts': '/admin/user-accounts',
-    Students: '/admin/student-grades',
+    Students: '/admin/students',
+    'Student Grades': '/admin/student-grades',
     Teachers: '/admin/teachers',
     'Class & Teacher Assignments': '/admin/teacher-assignments',
     'Guardian List': '/admin/guardians',
@@ -175,7 +176,7 @@ const SidebarContent: FC<{ onClose?: () => void }> = ({ onClose }) => {
   }
   const menuGroups = [
     { label: 'User Management', parent: 'All Users', icon: <ManageAccountsOutlined fontSize="small" />, items: ['User Accounts'] },
-    { label: 'Students', parent: 'Students', icon: <PeopleAltOutlined fontSize="small" />, items: [] },
+    { label: 'Students', parent: 'Students', icon: <PeopleAltOutlined fontSize="small" />, items: ['Student Grades'] },
     { label: 'Teachers', parent: 'Teachers', icon: <SchoolOutlined fontSize="small" />, items: [] },
     { label: 'Parents / Guardians', parent: 'Guardian List', icon: <FamilyRestroomOutlined fontSize="small" />, items: [] },
     { label: 'Academic Structure', parent: 'Grade Levels', icon: <MenuBookOutlined fontSize="small" />, items: ['Classes & Sections', 'Subjects'] },
