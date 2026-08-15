@@ -276,7 +276,7 @@ const Assessments: FC = () => {
       .finally(() => setLoading(false))
   }, [reloadKey])
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
-  const upcomingAssessments = assessments.filter((item) => item.status === 'Assigned')
+  const upcomingAssessments = assessments.filter((item) => item.status === 'Assigned' || item.status === 'Submitted')
 
   if (selectedAssignmentId) return <AssessmentPlayer assignmentId={selectedAssignmentId} onClose={() => setSelectedAssignmentId(null)} onSubmitted={() => { setSelectedAssignmentId(null); setReloadKey((current) => current + 1) }} />
 
