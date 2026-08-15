@@ -123,22 +123,20 @@ router.get('/dashboard', async (_req, res, next) => {
   try {
     await finishExpiredAssessmentAssignments()
     const teacherId = res.locals.auth.sub
-    const [assignedStudents, activeMaterials, pendingGrades, upcomingAssignments, teacherAssignments, teacherMaterials, teacherStudents, studentUsers, teacherScope] = await Promise.all([
+    const [assignedStudents, activeMaterials, pendingGrades, upcomingAssignments, teacherAssignments, teacherMaterials, teacherStudents, teacherScope] = await Promise.all([
       prisma.student.count({ where: { status: 'Active' } }),
       prisma.learningMaterial.count({ where: { status: 'Published' } }),
       prisma.assessmentAssignment.count({ where: { teacherId, status: { not: 'Completed' } } }),
       prisma.assessmentAssignment.findMany({ where: { teacherId, dueDate: { gte: new Date() } }, orderBy: { dueDate: 'asc' }, take: 4, select: { id: true, className: true, dueDate: true, status: true, quiz: { select: { title: true } } } }),
       prisma.assessmentAssignment.findMany({ where: { teacherId }, select: { className: true, quiz: { select: { data: true } } } }),
       prisma.learningMaterial.findMany({ where: { status: 'Published' }, select: { data: true } }),
-      prisma.student.findMany({ where: { status: 'Active' }, select: { fullName: true, gradeLevel: true, classSection: true } }),
-      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+      prisma.student.findMany({ where: { status: 'Active' }, select: { fullName: true, gradeLevel: true, classSection: true, account: { select: { id: true } } } }),
       getTeacherAssignments(teacherId),
     ])
-    const studentUserIds = new Map(studentUsers.map((student) => [student.name.toLowerCase(), student.id]))
     const studentGradeChart = teacherStudents
       .filter((student) => teacherScope.classes.some((className) => matchesClass(student, className)))
       .map((student) => {
-        const userId = studentUserIds.get(student.fullName.toLowerCase())
+        const userId = student.account?.id
         const scores = teacherAssignments.flatMap((assignment) => {
           if (!matchesClass(student, assignment.className)) return []
           const data = assignment.quiz.data as { questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
@@ -172,16 +170,14 @@ router.get('/assessment-results', async (req, res, next) => {
     await finishExpiredAssessmentAssignments()
     const teacherId = res.locals.auth.sub
     const requestedAcademicYear = typeof req.query.academicYear === 'string' ? req.query.academicYear : ''
-    const [assignments, students, studentUsers, teacherScope] = await Promise.all([
+    const [assignments, students, teacherScope] = await Promise.all([
       prisma.assessmentAssignment.findMany({ where: { teacherId }, orderBy: { createdAt: 'desc' }, select: { id: true, className: true, dueDate: true, status: true, quiz: { select: { title: true, assessmentType: true, data: true } } } }),
-      prisma.student.findMany({ where: { status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true } }),
-      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+      prisma.student.findMany({ where: { status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true, account: { select: { id: true } } } }),
       getTeacherAssignments(teacherId),
     ])
     const scopedStudents = students.filter((student) => teacherScope.classes.some((className) => matchesClass(student, className)))
     const filteredStudents = requestedAcademicYear ? scopedStudents.filter((student) => student.academicYear === requestedAcademicYear) : scopedStudents
     const academicYears = [...new Set(scopedStudents.map((student) => student.academicYear))].sort((left, right) => right.localeCompare(left))
-    const studentUserIds = new Map(studentUsers.map((student) => [student.name.toLowerCase(), student.id]))
     const assessmentRecords = assignments
       .filter((assignment) => assignment.quiz.data && (assignment.quiz.data as { teacherId?: string }).teacherId === teacherId)
       .map((assignment) => {
@@ -190,8 +186,7 @@ router.get('/assessment-results', async (req, res, next) => {
         const results = filteredStudents
           .filter((student) => matchesClass(student, assignment.className))
           .map((student) => {
-            const userId = studentUserIds.get(student.fullName.toLowerCase())
-            const submission = (data.submissions || []).find((item) => item.studentId === userId)
+            const submission = (data.submissions || []).find((item) => item.studentId === student.account?.id)
             const earnedPoints = submission && typeof submission.score === 'number' ? submission.score : null
             const grade = earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null
             return { id: student.id, fullName: student.fullName, photoName: student.photoName, admissionNumber: student.admissionNumber, academicYear: student.academicYear, classSection: `${student.gradeLevel} ${student.classSection}`, earnedPoints, totalPoints, grade }

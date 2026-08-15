@@ -57,13 +57,11 @@ const classNamesForStudent = (student: { gradeLevel: string; classSection: strin
 const finishExpiredAssessmentAssignments = () => prisma.assessmentAssignment.updateMany({ where: { endsAt: { lte: new Date() }, status: { notIn: ['Completed', 'Finished'] } }, data: { status: 'Finished' } })
 
 const getAuthenticatedStudent = async (userId: string) => {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
-  return user
-    ? prisma.student.findFirst({
-        where: { fullName: { equals: user.name, mode: 'insensitive' } },
-        select: { id: true, gradeLevel: true, classSection: true },
-      })
-    : null
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { student: { select: { id: true, gradeLevel: true, classSection: true } } },
+  })
+  return user?.student || null
 }
 
 const visibleMaterialsForStudent = async (student: { id: string; gradeLevel: string; classSection: string }, materialId?: string) => {
@@ -108,26 +106,36 @@ router.post('/change-password', async (req, res, next) => {
 
 router.get('/profile', async (_req, res, next) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: res.locals.auth.sub }, select: { name: true, username: true, email: true, status: true, lastLoginAt: true } })
-    const student = user ? await prisma.student.findFirst({
-      where: { fullName: { equals: user.name, mode: 'insensitive' } },
+    const user = await prisma.user.findUnique({
+      where: { id: res.locals.auth.sub },
       select: {
-        fullName: true,
-        dateOfBirth: true,
-        gender: true,
-        admissionNumber: true,
-        photoName: true,
-        academicYear: true,
-        gradeLevel: true,
-        classSection: true,
-        enrollmentDate: true,
-        address: true,
+        name: true,
+        username: true,
+        email: true,
         status: true,
-        guardianLinks: { select: { relationshipType: true, guardian: { select: { name: true, email: true, phone: true, address: true } } } },
+        lastLoginAt: true,
+        student: {
+          select: {
+            fullName: true,
+            dateOfBirth: true,
+            gender: true,
+            admissionNumber: true,
+            photoName: true,
+            academicYear: true,
+            gradeLevel: true,
+            classSection: true,
+            enrollmentDate: true,
+            address: true,
+            status: true,
+            guardianLinks: { select: { relationshipType: true, guardian: { select: { name: true, email: true, phone: true, address: true } } } },
+          },
+        },
       },
-    }) : null
+    })
+    const student = user?.student
     if (!user || !student) return res.status(404).json({ message: 'Student profile not found.' })
-    return res.json({ profile: { user, student: { ...student, dateOfBirth: student.dateOfBirth.toISOString(), enrollmentDate: student.enrollmentDate.toISOString() }, guardians: student.guardianLinks.map(({ relationshipType, guardian }) => ({ ...guardian, relationshipType })) } })
+    const { student: _student, ...profileUser } = user
+    return res.json({ profile: { user: profileUser, student: { ...student, dateOfBirth: student.dateOfBirth.toISOString(), enrollmentDate: student.enrollmentDate.toISOString() }, guardians: student.guardianLinks.map(({ relationshipType, guardian }) => ({ ...guardian, relationshipType })) } })
   } catch (error) {
     return next(error)
   }
@@ -303,14 +311,9 @@ router.get('/dashboard', async (_req, res, next) => {
     await finishExpiredAssessmentAssignments()
     const user = await prisma.user.findUnique({
       where: { id: res.locals.auth.sub },
-      select: { name: true },
+      select: { student: { select: { fullName: true, photoName: true, academicYear: true, gradeLevel: true, classSection: true } } },
     })
-    const student = user
-      ? await prisma.student.findFirst({
-          where: { fullName: { equals: user.name, mode: 'insensitive' } },
-          select: { fullName: true, photoName: true, academicYear: true, gradeLevel: true, classSection: true },
-        })
-      : null
+    const student = user?.student
 
     if (!student) return res.status(404).json({ message: 'Student record not found.' })
 

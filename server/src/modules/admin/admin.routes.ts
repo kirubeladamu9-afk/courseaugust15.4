@@ -245,7 +245,7 @@ router.get('/dashboard', async (_req, res, next) => {
 router.get('/user-accounts', async (_req, res, next) => {
   try {
     const [users, teachers, students, guardians] = await Promise.all([
-      prisma.user.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true } }),
+      prisma.user.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true, studentId: true } }),
       prisma.teacher.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, fullName: true } }),
       prisma.student.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, fullName: true } }),
       prisma.guardian.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, email: true } }),
@@ -259,7 +259,7 @@ router.get('/user-accounts', async (_req, res, next) => {
     for (const { type, records: sourceRecords } of sources) {
       for (const source of sourceRecords) {
         const role = sourceRole[type]
-        const matchingUser = users.find((user) => user.role === role && (user.name.toLowerCase() === sourceName(source).toLowerCase() || (source.email && user.email.toLowerCase() === source.email.toLowerCase())))
+        const matchingUser = users.find((user) => user.role === role && (type === 'student' ? user.studentId === source.id : user.name.toLowerCase() === sourceName(source).toLowerCase() || (source.email && user.email.toLowerCase() === source.email.toLowerCase())))
         if (!matchingUser) records.push(toSourceRecord(type, source))
       }
     }
@@ -298,22 +298,29 @@ router.post('/user-accounts/:sourceType/:sourceId/reset-password', async (req, r
     const source = sourceType === 'teacher'
       ? await prisma.teacher.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true } })
       : sourceType === 'student'
-        ? await prisma.student.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true } })
+        ? await prisma.student.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true, userId: true } })
         : await prisma.guardian.findUnique({ where: { id: sourceId }, select: { id: true, name: true, email: true } })
     if (!source) return res.status(404).json({ message: 'Source record not found.' })
 
     const role = sourceRole[sourceType]
     const name = sourceName(source)
     const email = 'email' in source && source.email ? source.email.toLowerCase() : `${sourceUsername(name, sourceId)}@coursespace.local`
-    const matchingUser = await prisma.user.findFirst({ where: { role, OR: [{ name: { equals: name, mode: 'insensitive' } }, { email }] } })
+    const linkedUserId = sourceType === 'student' && 'userId' in source ? source.userId : null
+    const matchingUser = linkedUserId
+      ? await prisma.user.findUnique({ where: { id: linkedUserId } })
+      : await prisma.user.findFirst({ where: { role, OR: [{ name: { equals: name, mode: 'insensitive' } }, { email }] } })
     const password = temporaryPassword()
     if (matchingUser) {
-      await prisma.user.update({ where: { id: matchingUser.id }, data: { passwordHash: await bcrypt.hash(password, 12) } })
-      return res.json({ record: toUserAccountRecord(matchingUser), temporaryPassword: password, created: false })
+      const user = await prisma.user.update({
+        where: { id: matchingUser.id },
+        data: { passwordHash: await bcrypt.hash(password, 12), ...(sourceType === 'student' ? { name, student: { connect: { id: source.id } } } : {}) },
+        select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+      })
+      return res.json({ record: toUserAccountRecord(user), temporaryPassword: password, created: false })
     }
 
     const user = await prisma.user.create({
-      data: { name, username: sourceUsername(name, sourceId), email, passwordHash: await bcrypt.hash(password, 12), role, status: AccountStatus.ACTIVE },
+      data: { name, username: sourceUsername(name, sourceId), email, passwordHash: await bcrypt.hash(password, 12), role, status: AccountStatus.ACTIVE, ...(sourceType === 'student' ? { student: { connect: { id: source.id } } } : {}) },
       select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
     })
     return res.status(201).json({ record: toUserAccountRecord(user), temporaryPassword: password, created: true })
@@ -389,13 +396,11 @@ router.get('/student-grades', async (req, res, next) => {
     const subjectName = typeof req.query.subjectName === 'string' ? req.query.subjectName.trim() : ''
     const gradeLevel = z.string().trim().min(1).parse(req.query.gradeLevel)
     const classSection = z.string().trim().min(1).parse(req.query.classSection)
-    const [students, users, teachers, quizzes] = await Promise.all([
-      prisma.student.findMany({ where: { academicYear, gradeLevel, classSection, status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true } }),
-      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+    const [students, teachers, quizzes] = await Promise.all([
+      prisma.student.findMany({ where: { academicYear, gradeLevel, classSection, status: 'Active' }, orderBy: { fullName: 'asc' }, select: { id: true, fullName: true, photoName: true, admissionNumber: true, academicYear: true, gradeLevel: true, classSection: true, account: { select: { id: true } } } }),
       prisma.user.findMany({ where: { role: 'TEACHER' }, select: { id: true, name: true } }),
       prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } }),
     ])
-    const studentUserIds = new Map(users.map((user) => [user.name.toLowerCase(), user.id]))
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
     const assessments = quizzes
       .map((quiz) => {
@@ -407,8 +412,7 @@ router.get('/student-grades', async (req, res, next) => {
         if (![selectedClass, combinedClass, hyphenatedClass].includes(assignedClass) || (subjectName && data.subjectName !== subjectName)) return null
         const totalPoints = (data.questions || []).reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
         const results = students.map((student) => {
-          const userId = studentUserIds.get(student.fullName.toLowerCase())
-          const submission = (data.submissions || []).find((item) => item.studentId === userId)
+          const submission = (data.submissions || []).find((item) => item.studentId === student.account?.id)
           const earnedPoints = submission && typeof submission.score === 'number' ? submission.score : null
           return { ...student, earnedPoints, totalPoints, grade: earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null, takenAt: submission && typeof submission.submittedAt === 'string' ? submission.submittedAt : null }
         })
@@ -578,13 +582,17 @@ router.patch('/students/:id', async (req, res, next) => {
     const { guardianSearch, relationshipType, ...studentData } = studentUpdateSchema.parse(req.body)
     const guardian = guardianSearch ? await prisma.guardian.findFirst({ where: { OR: [{ email: { contains: guardianSearch, mode: 'insensitive' } }, { name: { contains: guardianSearch, mode: 'insensitive' } }] } }) : null
     if (guardianSearch && !guardian) return res.status(400).json({ message: 'No existing guardian matched the search.' })
-    const student = await prisma.student.update({
-      where: { id },
-      data: {
-        ...studentData,
-        ...(guardian ? { guardianLinks: { deleteMany: {}, create: { guardianId: guardian.id, relationshipType: relationshipType || 'Guardian' } } } : {}),
-      },
-      include: { guardianLinks: { include: { guardian: true } } },
+    const currentStudent = await prisma.student.findUnique({ where: { id }, select: { account: { select: { id: true } } } })
+    const student = await prisma.$transaction(async (transaction) => {
+      if (studentData.fullName && currentStudent?.account) await transaction.user.update({ where: { id: currentStudent.account.id }, data: { name: studentData.fullName } })
+      return transaction.student.update({
+        where: { id },
+        data: {
+          ...studentData,
+          ...(guardian ? { guardianLinks: { deleteMany: {}, create: { guardianId: guardian.id, relationshipType: relationshipType || 'Guardian' } } } : {}),
+        },
+        include: { guardianLinks: { include: { guardian: true } } },
+      })
     })
     return res.json({ record: { id: student.id, title: student.fullName, data: { Student: student.fullName, Grade: student.gradeLevel, Guardians: student.guardianLinks.map(({ guardian }) => guardian.name).join(', ') || '—' }, status: student.status } })
   } catch (error) {

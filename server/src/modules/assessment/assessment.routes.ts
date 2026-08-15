@@ -36,11 +36,11 @@ export const finishExpiredAssessmentAssignments = async () => {
 
   for (const assignment of expiredAssignments) {
     const data = assignment.quiz.data as AssessmentData
-    const students = (await prisma.student.findMany({ select: { fullName: true, gradeLevel: true, classSection: true } })).filter((student) =>
+    const students = (await prisma.student.findMany({ select: { id: true, gradeLevel: true, classSection: true } })).filter((student) =>
       student.classSection.toLowerCase() === assignment.className.toLowerCase() || `${student.gradeLevel} ${student.classSection}`.toLowerCase() === assignment.className.toLowerCase(),
     )
-    const studentNames = students.map((student) => student.fullName)
-    const users = studentNames.length ? await prisma.user.findMany({ where: { role: 'STUDENT', name: { in: studentNames, mode: 'insensitive' } }, select: { id: true } }) : []
+    const studentIds = students.map((student) => student.id)
+    const users = studentIds.length ? await prisma.user.findMany({ where: { role: 'STUDENT', studentId: { in: studentIds } }, select: { id: true } }) : []
     const submittedStudentIds = new Set((data.submissions || []).map((submission) => submission.studentId))
     const unanswered = (data.questions || []).map((question) => question.type === 'multiple' ? [] : '')
     const submissions = [...(data.submissions || []), ...users.filter((user) => !submittedStudentIds.has(user.id)).map((user) => {
@@ -56,8 +56,8 @@ export const finishExpiredAssessmentAssignments = async () => {
 }
 
 const studentCanSubmitAssessment = async (userId: string, assessmentId: string) => {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
-  const student = user ? await prisma.student.findFirst({ where: { fullName: { equals: user.name, mode: 'insensitive' } }, select: { gradeLevel: true, classSection: true } }) : null
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { student: { select: { gradeLevel: true, classSection: true } } } })
+  const student = user?.student
   if (!student) return false
   const classNames = [student.classSection, `${student.gradeLevel} ${student.classSection}`]
   return Boolean(await prisma.assessmentAssignment.findFirst({

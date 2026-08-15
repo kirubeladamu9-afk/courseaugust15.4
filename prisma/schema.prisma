@@ -31,8 +31,10 @@ model User {
   failedLoginAttempts Int           @default(0)
   lockedUntil        DateTime?
   lastLoginAt        DateTime?
+  studentId          String?       @unique @map("student_id")
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+  student            Student?      @relation("StudentAccount", fields: [studentId], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([username])
@@ -243,6 +245,7 @@ model Student {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   guardianLinks StudentGuardian[]
+  account User? @relation("StudentAccount")
   @@index([fullName])
   @@index([academicYear, gradeLevel, classSection])
   @@map("students")
