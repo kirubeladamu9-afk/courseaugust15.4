@@ -39,9 +39,22 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   return res.status(500).json({ message: 'Internal server error.' })
 })
 
+const linkLegacyStudentAccounts = async () => {
+  const [accounts, students] = await Promise.all([
+    prisma.user.findMany({ where: { role: 'STUDENT', studentId: null }, select: { id: true, username: true } }),
+    prisma.student.findMany({ select: { id: true, fullName: true, account: { select: { id: true } } } }),
+  ])
+  for (const account of accounts) {
+    const student = students.find((candidate) => !candidate.account && account.username.toLowerCase().endsWith(`.${candidate.id.slice(-6).toLowerCase()}`))
+    if (!student) continue
+    await prisma.user.update({ where: { id: account.id }, data: { studentId: student.id, name: student.fullName } })
+  }
+}
+
 const initializeDatabase = async () => {
   await prisma.$executeRawUnsafe(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "student_id" TEXT`)
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "users_student_id_key" ON "users"("student_id")`)
+  await linkLegacyStudentAccounts()
   await prisma.$executeRawUnsafe(`ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "assessmentType" TEXT NOT NULL DEFAULT 'Quiz'`)
   await prisma.$executeRawUnsafe(`ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "time_limit_minutes" INTEGER NOT NULL DEFAULT 30`)
   await prisma.$executeRawUnsafe(`ALTER TABLE "assessment_assignments" ADD COLUMN IF NOT EXISTS "time_limit_minutes" INTEGER NOT NULL DEFAULT 30, ADD COLUMN IF NOT EXISTS "starts_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, ADD COLUMN IF NOT EXISTS "ends_at" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 minutes')`)

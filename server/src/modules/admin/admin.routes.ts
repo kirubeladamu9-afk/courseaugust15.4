@@ -20,6 +20,14 @@ const userAccountSchema = z.object({
   password: z.string().min(8).max(200),
   role: z.enum(['ADMIN', 'TEACHER', 'STUDENT', 'PARENT']),
   status: z.enum(['ACTIVE', 'INACTIVE']),
+  studentId: z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional()),
+}).superRefine((input, context) => {
+  if (input.role === 'STUDENT' && !input.studentId) context.addIssue({ code: 'custom', path: ['studentId'], message: 'Student accounts must be linked to a student record.' })
+  if (input.role !== 'STUDENT' && input.studentId) context.addIssue({ code: 'custom', path: ['studentId'], message: 'Only student accounts can be linked to a student record.' })
+})
+const userAccountUpdateSchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+  studentId: z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional()),
 })
 const timetableEntrySchema = z.object({
   day: z.enum(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']),
@@ -43,9 +51,9 @@ const changePasswordSchema = z.object({
 })
 
 type UserAccountSource = 'teacher' | 'student' | 'guardian'
-type UserAccountRecord = { id: string; title: string; data: Record<string, string>; status: string; sourceType: UserAccountSource | 'user'; sourceId: string; userId?: string }
+type UserAccountRecord = { id: string; title: string; data: Record<string, string>; status: string; sourceType: UserAccountSource | 'user'; sourceId: string; userId?: string; studentId?: string }
 
-const toUserAccountRecord = (user: { id: string; name: string; username: string; email: string; role: UserRole; lastLoginAt: Date | null; status: AccountStatus }): UserAccountRecord => ({
+const toUserAccountRecord = (user: { id: string; name: string; username: string; email: string; role: UserRole; lastLoginAt: Date | null; status: AccountStatus; studentId?: string | null }): UserAccountRecord => ({
   id: user.id,
   title: user.name,
   data: { User: user.name, Username: user.username, Role: user.role.charAt(0) + user.role.slice(1).toLowerCase(), Email: user.email, 'Last login': user.lastLoginAt?.toISOString() || 'Never' },
@@ -53,6 +61,7 @@ const toUserAccountRecord = (user: { id: string; name: string; username: string;
   sourceType: 'user',
   sourceId: user.id,
   userId: user.id,
+  ...(user.studentId ? { studentId: user.studentId } : {}),
 })
 
 const sourceRole: Record<UserAccountSource, UserRole> = { teacher: UserRole.TEACHER, student: UserRole.STUDENT, guardian: UserRole.PARENT }
@@ -272,11 +281,21 @@ router.get('/user-accounts', async (_req, res, next) => {
 router.patch('/user-accounts/:id', async (req, res, next) => {
   try {
     const id = z.string().min(1).parse(req.params.id)
-    const status = z.enum(['ACTIVE', 'INACTIVE']).parse(req.body.status)
+    const input = userAccountUpdateSchema.parse(req.body)
+    const currentUser = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true } })
+    if (!currentUser) return res.status(404).json({ message: 'User account not found.' })
+    if (input.studentId && currentUser.role !== UserRole.STUDENT) return res.status(400).json({ message: 'Only student accounts can be linked to a student record.' })
+    let linkedStudent: { id: string; fullName: string } | null = null
+    if (input.studentId) {
+      linkedStudent = await prisma.student.findUnique({ where: { id: input.studentId }, select: { id: true, fullName: true } })
+      if (!linkedStudent) return res.status(404).json({ message: 'Student record not found.' })
+      const linkedUser = await prisma.user.findFirst({ where: { studentId: input.studentId, id: { not: id } }, select: { id: true } })
+      if (linkedUser) return res.status(409).json({ message: 'That student record is already linked to another account.' })
+    }
     const user = await prisma.user.update({
       where: { id },
-      data: { status: AccountStatus[status] },
-      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+      data: { status: AccountStatus[input.status], ...(linkedStudent ? { name: linkedStudent.fullName, student: { connect: { id: linkedStudent.id } } } : {}) },
+      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true, studentId: true },
     })
     return res.json({ record: toUserAccountRecord(user) })
   } catch (error) {
@@ -289,7 +308,7 @@ router.post('/user-accounts/:sourceType/:sourceId/reset-password', async (req, r
     const sourceType = z.enum(['user', 'teacher', 'student', 'guardian']).parse(req.params.sourceType)
     const sourceId = z.string().min(1).parse(req.params.sourceId)
     if (sourceType === 'user') {
-      const user = await prisma.user.findUnique({ where: { id: sourceId }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true } })
+      const user = await prisma.user.findUnique({ where: { id: sourceId }, select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true, studentId: true } })
       if (!user) return res.status(404).json({ message: 'User account not found.' })
       const password = temporaryPassword()
       await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(password, 12) } })
@@ -298,30 +317,32 @@ router.post('/user-accounts/:sourceType/:sourceId/reset-password', async (req, r
     const source = sourceType === 'teacher'
       ? await prisma.teacher.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true } })
       : sourceType === 'student'
-        ? await prisma.student.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true, userId: true } })
+        ? await prisma.student.findUnique({ where: { id: sourceId }, select: { id: true, fullName: true, account: { select: { id: true } } } })
         : await prisma.guardian.findUnique({ where: { id: sourceId }, select: { id: true, name: true, email: true } })
     if (!source) return res.status(404).json({ message: 'Source record not found.' })
 
     const role = sourceRole[sourceType]
     const name = sourceName(source)
     const email = 'email' in source && source.email ? source.email.toLowerCase() : `${sourceUsername(name, sourceId)}@coursespace.local`
-    const linkedUserId = sourceType === 'student' && 'userId' in source ? source.userId : null
+    const linkedUserId = sourceType === 'student' ? (source as unknown as { account: { id: string } | null }).account?.id || null : null
     const matchingUser = linkedUserId
       ? await prisma.user.findUnique({ where: { id: linkedUserId } })
-      : await prisma.user.findFirst({ where: { role, OR: [{ name: { equals: name, mode: 'insensitive' } }, { email }] } })
+      : sourceType === 'student'
+        ? null
+        : await prisma.user.findFirst({ where: { role, OR: [{ name: { equals: name, mode: 'insensitive' } }, { email }] } })
     const password = temporaryPassword()
     if (matchingUser) {
       const user = await prisma.user.update({
         where: { id: matchingUser.id },
         data: { passwordHash: await bcrypt.hash(password, 12), ...(sourceType === 'student' ? { name, student: { connect: { id: source.id } } } : {}) },
-        select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+        select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true, studentId: true },
       })
       return res.json({ record: toUserAccountRecord(user), temporaryPassword: password, created: false })
     }
 
     const user = await prisma.user.create({
       data: { name, username: sourceUsername(name, sourceId), email, passwordHash: await bcrypt.hash(password, 12), role, status: AccountStatus.ACTIVE, ...(sourceType === 'student' ? { student: { connect: { id: source.id } } } : {}) },
-      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true, studentId: true },
     })
     return res.status(201).json({ record: toUserAccountRecord(user), temporaryPassword: password, created: true })
   } catch (error) {
@@ -332,6 +353,12 @@ router.post('/user-accounts/:sourceType/:sourceId/reset-password', async (req, r
 router.post('/user-accounts', async (req, res, next) => {
   try {
     const input = userAccountSchema.parse(req.body)
+    if (input.studentId) {
+      const student = await prisma.student.findUnique({ where: { id: input.studentId }, select: { id: true } })
+      if (!student) return res.status(404).json({ message: 'Student record not found.' })
+      const linkedUser = await prisma.user.findUnique({ where: { studentId: input.studentId }, select: { id: true } })
+      if (linkedUser) return res.status(409).json({ message: 'That student record is already linked to another account.' })
+    }
     const user = await prisma.user.create({
       data: {
         name: input.name,
@@ -340,8 +367,9 @@ router.post('/user-accounts', async (req, res, next) => {
         passwordHash: await bcrypt.hash(input.password, 12),
         role: UserRole[input.role],
         status: AccountStatus[input.status],
+        ...(input.studentId ? { student: { connect: { id: input.studentId } } } : {}),
       },
-      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true },
+      select: { id: true, name: true, username: true, email: true, role: true, lastLoginAt: true, status: true, studentId: true },
     })
     return res.status(201).json({ record: toUserAccountRecord(user) })
   } catch (error) {
@@ -383,7 +411,7 @@ router.post('/guardians', async (req, res, next) => {
 
 router.get('/students', async (_req, res, next) => {
   try {
-    const students = await prisma.student.findMany({ orderBy: { createdAt: 'asc' }, include: { guardianLinks: { include: { guardian: true } } } })
+    const students = await prisma.student.findMany({ orderBy: { createdAt: 'asc' }, include: { account: { select: { id: true } }, guardianLinks: { include: { guardian: true } } } })
     return res.json({ students })
   } catch (error) {
     return next(error)
@@ -412,7 +440,7 @@ router.get('/student-grades', async (req, res, next) => {
         if (![selectedClass, combinedClass, hyphenatedClass].includes(assignedClass) || (subjectName && data.subjectName !== subjectName)) return null
         const totalPoints = (data.questions || []).reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
         const results = students.map((student) => {
-          const submission = (data.submissions || []).find((item) => item.studentId === student.account?.id)
+          const submission = (data.submissions || []).find((item) => item.studentId === student.id || item.studentId === student.account?.id)
           const earnedPoints = submission && typeof submission.score === 'number' ? submission.score : null
           return { ...student, earnedPoints, totalPoints, grade: earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null, takenAt: submission && typeof submission.submittedAt === 'string' ? submission.submittedAt : null }
         })
@@ -716,12 +744,15 @@ router.get('/all-assessments', async (_req, res, next) => {
   try {
     const quizzes = await prisma.quiz.findMany({ orderBy: { createdAt: 'desc' } })
     const teacherIds = quizzes.map((quiz) => (quiz.data as { teacherId?: string }).teacherId).filter((id): id is string => Boolean(id))
-    const [teachers, studentUsers] = await Promise.all([
+    const [teachers, students] = await Promise.all([
       prisma.user.findMany({ where: { id: { in: teacherIds } }, select: { id: true, name: true } }),
-      prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, name: true } }),
+      prisma.student.findMany({ select: { id: true, fullName: true, account: { select: { id: true } } } }),
     ])
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name]))
-    const studentNames = new Map(studentUsers.map((student) => [student.id, student.name]))
+    const studentNames = new Map(students.flatMap((student) => [
+      [student.id, student.fullName] as const,
+      ...(student.account ? [[student.account.id, student.fullName] as const] : []),
+    ]))
     const records = quizzes.map((quiz) => {
       const data = quiz.data as { teacherId?: string; className?: string; subjectName?: string; questions?: unknown[]; submissions?: { studentId?: unknown; score?: unknown }[] }
       const highestSubmission = (data.submissions || []).filter((submission): submission is { studentId: string; score: number } => typeof submission.studentId === 'string' && typeof submission.score === 'number').sort((left, right) => right.score - left.score)[0]

@@ -52,6 +52,9 @@ type AssessmentData = {
   drafts?: { studentId?: unknown; answers?: (string | string[])[]; updatedAt?: unknown }[]
 }
 
+type StudentIdentity = { id: string; account?: { id: string } | null }
+const submissionBelongsToStudent = (studentId: unknown, student: StudentIdentity) => studentId === student.id || studentId === student.account?.id
+
 const materialFileExtension = (fileName: string) => fileName.trim().split('.').pop()?.toLowerCase() || ''
 const classNamesForStudent = (student: { gradeLevel: string; classSection: string }) => [student.classSection, `${student.gradeLevel} ${student.classSection}`]
 const finishExpiredAssessmentAssignments = () => prisma.assessmentAssignment.updateMany({ where: { endsAt: { lte: new Date() }, status: { notIn: ['Completed', 'Finished'] } }, data: { status: 'Finished' } })
@@ -59,7 +62,7 @@ const finishExpiredAssessmentAssignments = () => prisma.assessmentAssignment.upd
 const getAuthenticatedStudent = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { student: { select: { id: true, gradeLevel: true, classSection: true } } },
+    select: { student: { select: { id: true, gradeLevel: true, classSection: true, account: { select: { id: true } } } } },
   })
   return user?.student || null
 }
@@ -207,7 +210,7 @@ router.get('/assessments', async (_req, res, next) => {
 
     const assessments = assignments.filter(({ quiz }) => quiz.status === 'Published').map(({ quiz, ...assignment }) => {
       const data = quiz.data as AssessmentData
-      const submitted = (data.submissions || []).some((submission) => submission.studentId === res.locals.auth.sub)
+      const submitted = (data.submissions || []).some((submission) => submissionBelongsToStudent(submission.studentId, student))
       return {
         id: assignment.id,
         assessmentId: quiz.id,
@@ -227,7 +230,7 @@ router.get('/assessments', async (_req, res, next) => {
       const data = quiz.data as AssessmentData
       const totalPoints = Array.isArray(data.questions) ? data.questions.reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0) : 0
       return (data.submissions || [])
-        .filter((submission) => submission.studentId === res.locals.auth.sub)
+        .filter((submission) => submissionBelongsToStudent(submission.studentId, student))
         .map((submission) => ({
           id: quiz.id,
           title: quiz.title,
@@ -281,7 +284,7 @@ router.get('/assessments/:assignmentId', async (req, res, next) => {
     if (!assignment) return res.status(404).json({ message: 'Assessment not found.' })
 
     const data = assignment.quiz.data as AssessmentData
-    if ((data.submissions || []).some((submission) => submission.studentId === res.locals.auth.sub)) return res.status(409).json({ message: 'This assessment has already been submitted.' })
+    if ((data.submissions || []).some((submission) => submissionBelongsToStudent(submission.studentId, student))) return res.status(409).json({ message: 'This assessment has already been submitted.' })
     const questions = Array.isArray(data.questions) ? data.questions.map((question) => ({
       type: question.type,
       prompt: typeof question.prompt === 'string' ? question.prompt : '',
@@ -299,7 +302,7 @@ router.get('/assessments/:assignmentId', async (req, res, next) => {
       timeLimitMinutes: assignment.timeLimitMinutes,
       endsAt: assignment.endsAt.toISOString(),
       questions,
-      draftAnswers: (Array.isArray(data.drafts) ? data.drafts.find((draft) => draft.studentId === res.locals.auth.sub)?.answers : undefined) || [],
+      draftAnswers: (Array.isArray(data.drafts) ? data.drafts.find((draft) => submissionBelongsToStudent(draft.studentId, student))?.answers : undefined) || [],
     } })
   } catch (error) {
     return next(error)
@@ -311,7 +314,7 @@ router.get('/dashboard', async (_req, res, next) => {
     await finishExpiredAssessmentAssignments()
     const user = await prisma.user.findUnique({
       where: { id: res.locals.auth.sub },
-      select: { student: { select: { fullName: true, photoName: true, academicYear: true, gradeLevel: true, classSection: true } } },
+      select: { student: { select: { id: true, fullName: true, photoName: true, academicYear: true, gradeLevel: true, classSection: true, account: { select: { id: true } } } } },
     })
     const student = user?.student
 
@@ -375,7 +378,7 @@ router.get('/dashboard', async (_req, res, next) => {
         ? data.questions.reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
         : 0
       return (Array.isArray(data.submissions) ? data.submissions : [])
-        .filter((submission) => submission.studentId === res.locals.auth.sub)
+        .filter((submission) => submissionBelongsToStudent(submission.studentId, student))
         .map((submission) => ({
           id: quiz.id,
           title: quiz.title,

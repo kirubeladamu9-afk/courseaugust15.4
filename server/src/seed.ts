@@ -22,11 +22,23 @@ for (const user of users) {
   })
 }
 
-await prisma.guardian.upsert({
+const guardian = await prisma.guardian.upsert({
   where: { email: 'parent@coursespace.com' },
   update: { name: 'Parent User' },
   create: { name: 'Parent User', email: 'parent@coursespace.com' },
 })
+
+const student = await prisma.student.upsert({
+  where: { admissionNumber: 'ID-001' },
+  update: { fullName: 'Student User', academicYear: '2026/2027', gradeLevel: 'Grade 8', classSection: 'A', status: 'Active' },
+  create: { fullName: 'Student User', dateOfBirth: new Date('2010-04-15T00:00:00Z'), gender: 'Prefer not to say', admissionNumber: 'ID-001', academicYear: '2026/2027', gradeLevel: 'Grade 8', classSection: 'A', enrollmentDate: new Date('2026-01-15T00:00:00Z'), status: 'Active' },
+})
+await prisma.studentGuardian.upsert({
+  where: { studentId_guardianId: { studentId: student.id, guardianId: guardian.id } },
+  update: { relationshipType: 'Guardian' },
+  create: { studentId: student.id, guardianId: guardian.id, relationshipType: 'Guardian' },
+})
+await prisma.user.update({ where: { username: 'student' }, data: { studentId: student.id, name: student.fullName } })
 
 const adminRecords = [
   ['roles-permissions', 'Administrator', { Role: 'Administrator', Users: '8', Permissions: 'Full access' }, 'Active'],

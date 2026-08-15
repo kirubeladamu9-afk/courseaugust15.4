@@ -130,18 +130,18 @@ router.get('/dashboard', async (_req, res, next) => {
       prisma.assessmentAssignment.findMany({ where: { teacherId, dueDate: { gte: new Date() } }, orderBy: { dueDate: 'asc' }, take: 4, select: { id: true, className: true, dueDate: true, status: true, quiz: { select: { title: true } } } }),
       prisma.assessmentAssignment.findMany({ where: { teacherId }, select: { className: true, quiz: { select: { data: true } } } }),
       prisma.learningMaterial.findMany({ where: { status: 'Published' }, select: { data: true } }),
-      prisma.student.findMany({ where: { status: 'Active' }, select: { fullName: true, gradeLevel: true, classSection: true, account: { select: { id: true } } } }),
+      prisma.student.findMany({ where: { status: 'Active' }, select: { id: true, fullName: true, gradeLevel: true, classSection: true, account: { select: { id: true } } } }),
       getTeacherAssignments(teacherId),
     ])
     const studentGradeChart = teacherStudents
       .filter((student) => teacherScope.classes.some((className) => matchesClass(student, className)))
       .map((student) => {
-        const userId = student.account?.id
+        const studentId = student.id
         const scores = teacherAssignments.flatMap((assignment) => {
           if (!matchesClass(student, assignment.className)) return []
           const data = assignment.quiz.data as { questions?: { points?: unknown }[]; submissions?: { studentId?: unknown; score?: unknown }[] }
           const totalPoints = (data.questions || []).reduce((total, question) => total + (typeof question.points === 'number' ? question.points : 0), 0)
-          const submission = (data.submissions || []).find((item) => item.studentId === userId)
+          const submission = (data.submissions || []).find((item) => item.studentId === studentId || item.studentId === student.account?.id)
           return submission && typeof submission.score === 'number' && totalPoints > 0 ? [Math.round((submission.score / totalPoints) * 100)] : []
         })
         return { label: student.fullName, value: scores.length ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length) : 0, hasSubmission: scores.length > 0 }
@@ -186,7 +186,7 @@ router.get('/assessment-results', async (req, res, next) => {
         const results = filteredStudents
           .filter((student) => matchesClass(student, assignment.className))
           .map((student) => {
-            const submission = (data.submissions || []).find((item) => item.studentId === student.account?.id)
+            const submission = (data.submissions || []).find((item) => item.studentId === student.id || item.studentId === student.account?.id)
             const earnedPoints = submission && typeof submission.score === 'number' ? submission.score : null
             const grade = earnedPoints !== null && totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : null
             return { id: student.id, fullName: student.fullName, photoName: student.photoName, admissionNumber: student.admissionNumber, academicYear: student.academicYear, classSection: `${student.gradeLevel} ${student.classSection}`, earnedPoints, totalPoints, grade }
