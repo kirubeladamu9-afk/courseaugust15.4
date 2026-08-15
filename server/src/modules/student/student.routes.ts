@@ -207,7 +207,7 @@ router.get('/assessments', async (_req, res, next) => {
       orderBy: { dueDate: 'asc' },
       select: { id: true, dueDate: true, startsAt: true, timeLimitMinutes: true, endsAt: true, status: true, quiz: { select: { id: true, title: true, assessmentType: true, data: true } } },
     })
-    const quizzes = await prisma.quiz.findMany({ where: { status: 'Published' }, select: { id: true, title: true, assessmentType: true, data: true } })
+    const quizzes = await prisma.quiz.findMany({ select: { id: true, title: true, assessmentType: true, data: true } })
 
     const assessments = assignments.map(({ quiz, ...assignment }) => {
       const data = quiz.data as AssessmentData
