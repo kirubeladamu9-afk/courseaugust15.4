@@ -162,10 +162,13 @@ const assessmentRules: Record<AssessmentType, { description: string; allowedQues
 
 const newQuestion = (type: QuestionType): AssessmentQuestion => ({ type, prompt: '', options: type === 'true-false' ? ['True', 'False'] : type === 'fill-blank' ? [] : ['', '', '', ''], correctAnswer: type === 'multiple' ? [] : type === 'true-false' ? '0' : '', points: 1 })
 const isQuestionComplete = (question: AssessmentQuestion) => {
-  if (!question.prompt.trim() || !question.points) return false
-  if (question.type === 'fill-blank') return typeof question.correctAnswer === 'string' && Boolean(question.correctAnswer.trim())
-  if (question.options.length < 2 || question.options.some((option) => !option.trim())) return false
-  return Array.isArray(question.correctAnswer) ? question.correctAnswer.length > 0 : Boolean(question.correctAnswer)
+  if (!question.prompt.trim() || !Number.isInteger(question.points) || question.points < 1) return false
+  if (question.type === 'fill-blank') return question.options.length === 0 && typeof question.correctAnswer === 'string' && Boolean(question.correctAnswer.trim())
+  const options = question.options.map((option) => option.trim())
+  if (options.length < 2 || options.some((option) => !option) || new Set(options).size !== options.length) return false
+  if (question.type === 'true-false') return options.join('|') === 'True|False' && typeof question.correctAnswer === 'string' && ['0', '1'].includes(question.correctAnswer)
+  if (question.type === 'single') return typeof question.correctAnswer === 'string' && Number.isInteger(Number(question.correctAnswer)) && options[Number(question.correctAnswer)] !== undefined
+  return Array.isArray(question.correctAnswer) && question.correctAnswer.length > 0 && new Set(question.correctAnswer).size === question.correctAnswer.length && question.correctAnswer.every((answer) => Number.isInteger(Number(answer)) && options[Number(answer)] !== undefined)
 }
 
 const AssessmentBuilder: FC = () => {
@@ -245,8 +248,24 @@ const AssessmentBuilder: FC = () => {
   const addOption = (index: number) => setQuestions((current) => current.map((question, questionIndex) => questionIndex === index ? { ...question, options: [...question.options, ''] } : question))
   const removeQuestion = (index: number) => setQuestions((current) => current.filter((_, questionIndex) => questionIndex !== index))
   const saveAssessment = async () => {
-    if (!title.trim() || !subjectName || !className || !timeLimitMinutes || Number(timeLimitMinutes) < 1 || Number(timeLimitMinutes) > 1440 || (assessmentType !== 'Project' && (!questions.length || questions.length > currentRules.maxQuestions || questions.some((question) => !currentRules.allowedQuestionTypes.includes(question.type) || !isQuestionComplete(question))))) {
-      setError(assessmentType === 'Project' ? 'Add a title, assigned subject, and assigned class before saving.' : `Add a title, assigned subject, assigned class, and valid ${assessmentType} questions before saving.`)
+    const invalidQuestionIndex = questions.findIndex((question) => !currentRules.allowedQuestionTypes.includes(question.type) || !isQuestionComplete(question))
+    const validationError = !title.trim()
+      ? 'Add a title before saving.'
+      : !subjectName
+        ? 'Select an assigned subject before saving.'
+        : !className
+          ? 'Select an assigned class before saving.'
+          : !timeLimitMinutes || Number(timeLimitMinutes) < 1 || Number(timeLimitMinutes) > 1440
+            ? 'Set a time limit between 1 and 1440 minutes.'
+            : assessmentType !== 'Project' && !questions.length
+              ? `Add at least one valid ${assessmentType} question before saving.`
+              : assessmentType !== 'Project' && questions.length > currentRules.maxQuestions
+                ? `${assessmentType} allows up to ${currentRules.maxQuestions} questions.`
+                : invalidQuestionIndex >= 0
+                  ? `Complete question ${invalidQuestionIndex + 1} with valid answers before saving.`
+                  : ''
+    if (validationError) {
+      setError(validationError)
       return
     }
     setSaving(true)

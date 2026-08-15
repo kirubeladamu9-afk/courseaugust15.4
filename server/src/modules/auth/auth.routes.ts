@@ -45,7 +45,7 @@ router.post('/login', async (req, res, next) => {
     await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() } })
     res.locals.sessionToken = createSessionToken({ id: user.id, role: user.role }, remember)
     res.locals.remember = remember
-    return setSessionCookie(req, res, () => res.json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role.toLowerCase(), lastLoginAt: new Date().toISOString() } }))
+    return setSessionCookie(req, res, () => res.json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role.toLowerCase(), status: user.status.toLowerCase(), lastLoginAt: new Date().toISOString() } }))
   } catch (error) {
     next(error)
   }
@@ -64,7 +64,7 @@ router.get('/me', async (req, res) => {
     const payload = jwt.verify(token, env.JWT_SECRET) as { sub: string }
     const user = await prisma.user.findUnique({ where: { id: payload.sub } })
     if (!user || user.status !== 'ACTIVE') return res.status(401).json({ message: 'Authentication required.' })
-    return res.json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role.toLowerCase(), lastLoginAt: user.lastLoginAt?.toISOString() || null } })
+    return res.json({ user: { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role.toLowerCase(), status: user.status.toLowerCase(), lastLoginAt: user.lastLoginAt?.toISOString() || null } })
   } catch {
     return res.status(401).json({ message: 'Authentication required.' })
   }
