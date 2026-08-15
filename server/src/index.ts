@@ -40,6 +40,8 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
 })
 
 const initializeDatabase = async () => {
+  await prisma.$executeRawUnsafe(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "student_id" TEXT`)
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "users_student_id_key" ON "users"("student_id")`)
   await prisma.$executeRawUnsafe(`ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "assessmentType" TEXT NOT NULL DEFAULT 'Quiz'`)
   await prisma.$executeRawUnsafe(`ALTER TABLE "quizzes" ADD COLUMN IF NOT EXISTS "time_limit_minutes" INTEGER NOT NULL DEFAULT 30`)
   await prisma.$executeRawUnsafe(`ALTER TABLE "assessment_assignments" ADD COLUMN IF NOT EXISTS "time_limit_minutes" INTEGER NOT NULL DEFAULT 30, ADD COLUMN IF NOT EXISTS "starts_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, ADD COLUMN IF NOT EXISTS "ends_at" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 minutes')`)
