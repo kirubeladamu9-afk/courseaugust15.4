@@ -111,7 +111,7 @@ router.post('/:id/submissions', requireAuth, requireRole('STUDENT'), async (req,
     const score = gradeAssessment(questions, answers)
 
     const submission = { studentId: student.id, answers, score, submittedAt: new Date().toISOString() }
-    await prisma.quiz.update({ where: { id: assessment.id }, data: { data: { ...data, drafts: (data.drafts || []).filter((draft) => !submissionBelongsToStudent(draft.studentId, student)), submissions: [...(data.submissions || []), submission] }, status: 'Auto-Graded' } })
+    await prisma.quiz.update({ where: { id: assessment.id }, data: { data: { ...data, drafts: (data.drafts || []).filter((draft) => !submissionBelongsToStudent(draft.studentId, student)), submissions: [...(data.submissions || []), submission] } } })
     return res.status(201).json({ score, totalPoints, status: 'Auto-Graded' })
   } catch (error) {
     return next(error)
