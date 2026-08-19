@@ -21,11 +21,16 @@ const HomeTestimonial = loadSection(() => import('@/components/home/testimonial'
 const HomeOurMentors = loadSection(() => import('@/components/home/mentors'))
 const HomeNewsLetter = loadSection(() => import('@/components/home/newsletter'))
 
-const App: React.FC = () => {
+interface AppProps {
+  darkMode: boolean
+  onToggleDarkMode: () => void
+}
+
+const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [showSignIn, setShowSignIn] = useState(false)
 
   if (window.location.pathname.startsWith('/admin')) {
-    return <AdminDashboard />
+    return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   }
 
   return (

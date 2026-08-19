@@ -12,8 +12,6 @@ import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
-import Tab from '@mui/material/Tab'
-import Tabs from '@mui/material/Tabs'
 import Toolbar from '@mui/material/Toolbar'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
@@ -24,9 +22,11 @@ import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import BookOutlinedIcon from '@mui/icons-material/BookOutlined'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
+import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline'
@@ -325,12 +325,16 @@ const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium
   </Box>
 )
 
-const AdminDashboard: FC = () => {
+interface AdminDashboardProps {
+  darkMode: boolean
+  onToggleDarkMode: () => void
+}
+
+const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode }) => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [section, setSection] = useState<Section>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [language, setLanguage] = useState<'EN' | 'AM'>('EN')
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
 
   const selectSection = (next: Section) => {
@@ -385,10 +389,11 @@ const AdminDashboard: FC = () => {
             <Typography variant="h5" sx={{ display: { xs: 'none', sm: 'block' } }}>Admin workspace</Typography>
           </Box>
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Tabs value={language} onChange={(_, value) => setLanguage(value)} aria-label="Language selection" sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, minWidth: 42, px: 1 } }}>
-              <Tab value="EN" label="EN" />
-              <Tab value="AM" label="AM" />
-            </Tabs>
+            <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+                {darkMode ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Admin profile">
               <IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="Open admin profile"><PeopleOutlineIcon /></IconButton>
             </Tooltip>
