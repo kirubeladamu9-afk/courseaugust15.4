@@ -60,7 +60,7 @@ const HomeOurMentors: FC = () => {
           xs: 8,
           md: 12,
         },
-        backgroundColor: '#ecf3f3',
+        backgroundColor: 'background.default',
       }}
     >
       <Container maxWidth="lg">
