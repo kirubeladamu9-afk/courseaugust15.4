@@ -17,6 +17,7 @@ import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import BookOutlinedIcon from '@mui/icons-material/BookOutlined'
@@ -395,7 +396,9 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
               </IconButton>
             </Tooltip>
             <Tooltip title="Admin profile">
-              <IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="Open admin profile"><PeopleOutlineIcon /></IconButton>
+              <IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="Open admin profile">
+                <AccountCircleOutlinedIcon />
+              </IconButton>
             </Tooltip>
             <Menu anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)}>
               <MenuItem onClick={() => setProfileAnchor(null)}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />Admin profile</MenuItem>
