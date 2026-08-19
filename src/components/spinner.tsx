@@ -16,7 +16,7 @@ export function Spinner({ className, ...props }: ComponentProps<'svg'>) {
 export function SpinnerCustom() {
   return (
     <div className="site-load-spinner-group flex items-center gap-4">
-      <Spinner />
+      <Spinner className="page-loading-spinner" />
     </div>
   )
 }

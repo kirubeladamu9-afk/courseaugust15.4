@@ -4,32 +4,40 @@ import { Footer } from '@/components/footer'
 import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
 
-const HomeHero = lazy(() => import('@/components/home/hero'))
-const HomeFeature = lazy(() => import('@/components/home/feature'))
-const HomePopularCourse = lazy(() => import('@/components/home/popular-courses'))
-const HomeTestimonial = lazy(() => import('@/components/home/testimonial'))
-const HomeOurMentors = lazy(() => import('@/components/home/mentors'))
-const HomeNewsLetter = lazy(() => import('@/components/home/newsletter'))
+const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
+  lazy(() =>
+    Promise.all([
+      load(),
+      new Promise<void>((resolve) => setTimeout(resolve, 1200)),
+    ]).then(([module]) => module)
+  )
+
+const HomeHero = loadSection(() => import('@/components/home/hero'))
+const HomeFeature = loadSection(() => import('@/components/home/feature'))
+const HomePopularCourse = loadSection(() => import('@/components/home/popular-courses'))
+const HomeTestimonial = loadSection(() => import('@/components/home/testimonial'))
+const HomeOurMentors = loadSection(() => import('@/components/home/mentors'))
+const HomeNewsLetter = loadSection(() => import('@/components/home/newsletter'))
 
 const App: React.FC = () => {
   return (
     <Box component="main">
-      <Header />
       <Suspense
         fallback={
-          <div className="site-load-fallback">
+          <div className="page-loading-state">
             <SpinnerCustom />
           </div>
         }
       >
+        <Header />
         <HomeHero />
         <HomePopularCourse />
         <HomeFeature />
         <HomeTestimonial />
         <HomeOurMentors />
         <HomeNewsLetter />
+        <Footer />
       </Suspense>
-      <Footer />
     </Box>
   )
 }

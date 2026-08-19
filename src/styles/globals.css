@@ -28,11 +28,12 @@ body {
   background-color: '#fff';
 }
 
-.site-load-fallback {
+.page-loading-state {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 160px;
+  min-height: 100vh;
+  background-color: #fff;
 }
 
 .site-load-spinner-group {
@@ -41,13 +42,13 @@ body {
   gap: 16px;
 }
 
-.site-load-spinner-group .size-4 {
-  width: 16px;
-  height: 16px;
+.site-load-spinner-group .page-loading-spinner {
+  width: 32px;
+  height: 32px;
 }
 
 .site-load-spinner-group .animate-spin {
-  animation: site-load-spin 1s linear infinite;
+  animation: site-load-spin 1.8s linear infinite;
 }
 
 @keyframes site-load-spin {
