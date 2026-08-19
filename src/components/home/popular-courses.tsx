@@ -41,6 +41,7 @@ const HomePopularCourse: FC = () => {
     speed: 300,
     slidesToShow: matchMobileView ? 1 : 3,
     slidesToScroll: 1,
+    arrows: false,
     dots: true,
     appendDots: (dots) => <StyledDots>{dots}</StyledDots>,
     customPaging: () => (
