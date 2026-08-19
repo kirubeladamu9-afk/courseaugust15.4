@@ -4,6 +4,7 @@ import { Footer } from '@/components/footer'
 import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
 import SignInPage from '@/components/auth/sign-in-page'
+import { ToastViewport } from '@/components/ui/toast'
 
 const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
   lazy(() =>
@@ -47,6 +48,7 @@ const App: React.FC = () => {
           </>
         )}
       </Suspense>
+      <ToastViewport />
     </Box>
   )
 }
