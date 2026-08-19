@@ -28,6 +28,34 @@ body {
   background-color: '#fff';
 }
 
+.site-load-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
+.site-load-spinner-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.site-load-spinner-group .size-4 {
+  width: 16px;
+  height: 16px;
+}
+
+.site-load-spinner-group .animate-spin {
+  animation: site-load-spin 1s linear infinite;
+}
+
+@keyframes site-load-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @-webkit-keyframes click_animation {
   from {
     -webkit-transform: scale(1);
