@@ -4,6 +4,7 @@ import { Footer } from '@/components/footer'
 import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
 import SignInPage from '@/components/auth/sign-in-page'
+import AdminDashboard from '@/components/admin/admin-dashboard'
 
 const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
   lazy(() =>
@@ -22,6 +23,10 @@ const HomeNewsLetter = loadSection(() => import('@/components/home/newsletter'))
 
 const App: React.FC = () => {
   const [showSignIn, setShowSignIn] = useState(false)
+
+  if (window.location.pathname.startsWith('/admin')) {
+    return <AdminDashboard />
+  }
 
   return (
     <Box component="main">
