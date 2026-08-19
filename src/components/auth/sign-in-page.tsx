@@ -40,6 +40,7 @@ const SignInPage: FC = () => {
         autoHideDuration={4000}
         onClose={() => setToastOpen(false)}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ top: { xs: '80px !important', md: '104px !important' } }}
       >
         <Alert
           onClose={() => setToastOpen(false)}
