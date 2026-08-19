@@ -8,7 +8,11 @@ import { Navigation, AuthNavigation } from '@/components/navigation'
 import { useTheme } from '@mui/material/styles'
 import { Menu, Close } from '@mui/icons-material'
 
-const Header: FC = () => {
+interface Props {
+  onSignIn: () => void
+}
+
+const Header: FC<Props> = ({ onSignIn }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
@@ -45,7 +49,7 @@ const Header: FC = () => {
           >
             <Box /> {/* Magic space */}
             <Navigation />
-            <AuthNavigation />
+            <AuthNavigation onSignIn={onSignIn} />
             {visibleMenu && matchMobileView && (
               <IconButton
                 sx={{

@@ -1,8 +1,9 @@
-import React, { Suspense, lazy } from 'react'
+import React, { Suspense, lazy, useState } from 'react'
 import Box from '@mui/material/Box'
 import { Footer } from '@/components/footer'
 import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
+import SignInPage from '@/components/auth/sign-in-page'
 
 const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
   lazy(() =>
@@ -20,6 +21,8 @@ const HomeOurMentors = loadSection(() => import('@/components/home/mentors'))
 const HomeNewsLetter = loadSection(() => import('@/components/home/newsletter'))
 
 const App: React.FC = () => {
+  const [showSignIn, setShowSignIn] = useState(false)
+
   return (
     <Box component="main">
       <Suspense
@@ -29,14 +32,20 @@ const App: React.FC = () => {
           </div>
         }
       >
-        <Header />
-        <HomeHero />
-        <HomePopularCourse />
-        <HomeFeature />
-        <HomeTestimonial />
-        <HomeOurMentors />
-        <HomeNewsLetter />
-        <Footer />
+        <Header onSignIn={() => setShowSignIn(true)} />
+        {showSignIn ? (
+          <SignInPage />
+        ) : (
+          <>
+            <HomeHero />
+            <HomePopularCourse />
+            <HomeFeature />
+            <HomeTestimonial />
+            <HomeOurMentors />
+            <HomeNewsLetter />
+            <Footer />
+          </>
+        )}
       </Suspense>
     </Box>
   )
