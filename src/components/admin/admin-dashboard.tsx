@@ -163,6 +163,43 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
   )
 }
 
+const DashboardCharts: FC = () => {
+  const theme = useTheme()
+  const revenuePoints = '20,148 110,132 200,144 290,96 380,112 470,70 560,84'
+  const enrollments = [56, 80, 44, 92, 68]
+  const courseLabels = ['Data', 'Docker', 'React', 'Design', 'Mobile']
+
+  return (
+    <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
+      <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1, minWidth: 0 }}>
+        <Typography variant="h6">Revenue overview</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Monthly revenue performance</Typography>
+        <Box component="svg" viewBox="0 0 580 190" sx={{ width: '100%', height: 220 }} role="img" aria-label="Revenue trend chart">
+          {[35, 75, 115, 155].map((y) => <line key={y} x1="20" x2="560" y1={y} y2={y} stroke={theme.palette.divider} strokeDasharray="4 4" />)}
+          <polyline points={revenuePoints} fill="none" stroke={theme.palette.primary.main} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          {revenuePoints.split(' ').map((point) => {
+            const [cx, cy] = point.split(',')
+            return <circle key={point} cx={cx} cy={cy} r="5" fill={theme.palette.background.paper} stroke={theme.palette.primary.main} strokeWidth="3" />
+          })}
+          {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((label, index) => <text key={label} x={20 + index * 90} y="180" fill={theme.palette.text.secondary} fontSize="12" textAnchor="middle">{label}</text>)}
+        </Box>
+      </Paper>
+      <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1, minWidth: 0 }}>
+        <Typography variant="h6">Course enrollments</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Students enrolled by category</Typography>
+        <Box component="svg" viewBox="0 0 580 190" sx={{ width: '100%', height: 220 }} role="img" aria-label="Course enrollment chart">
+          {[35, 75, 115, 155].map((y) => <line key={y} x1="20" x2="560" y1={y} y2={y} stroke={theme.palette.divider} strokeDasharray="4 4" />)}
+          {enrollments.map((value, index) => {
+            const height = value * 1.25
+            const x = 45 + index * 105
+            return <g key={courseLabels[index]}><rect x={x} y={160 - height} width="48" height={height} rx="5" fill={index % 2 ? theme.palette.secondary.main : theme.palette.primary.main} /><text x={x + 24} y="180" fill={theme.palette.text.secondary} fontSize="12" textAnchor="middle">{courseLabels[index]}</text></g>
+          })}
+        </Box>
+      </Paper>
+    </Stack>
+  )
+}
+
 const OverviewPage: FC = () => (
   <>
     <PageHeading title="Dashboard overview" description="A snapshot of your learning platform." />
@@ -172,15 +209,7 @@ const OverviewPage: FC = () => (
       <StatCard label="Published courses" value="48" detail="6 courses in draft" icon={<SchoolOutlinedIcon />} />
       <StatCard label="Active tutors" value="32" detail="4 pending approvals" icon={<PersonOutlineIcon />} />
     </Stack>
-    <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Recent activity</Typography>
-      {['Ava Johnson enrolled in Data Modeling Fundamentals', 'Maya Chen updated a course module', 'New tutor application from Jhon Dwirian'].map((activity) => (
-        <Box key={activity} sx={{ py: 1.5, borderTop: 1, borderColor: 'divider' }}>
-          <Typography variant="body2">{activity}</Typography>
-          <Typography color="text.secondary" variant="caption">Today</Typography>
-        </Box>
-      ))}
-    </Paper>
+    <DashboardCharts />
   </>
 )
 
