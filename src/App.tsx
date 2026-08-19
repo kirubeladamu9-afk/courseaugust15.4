@@ -6,6 +6,7 @@ import { SpinnerCustom } from '@/components/spinner'
 import SignInPage from '@/components/auth/sign-in-page'
 import AdminDashboard from '@/components/admin/admin-dashboard'
 import TutorDashboard from '@/components/tutor/tutor-dashboard'
+import StudentDashboard from '@/components/dashboard/student-dashboard'
 
 const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
   lazy(() =>
@@ -36,6 +37,10 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
 
   if (window.location.pathname.startsWith('/tutor')) {
     return <TutorDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
+  }
+
+  if (window.location.pathname.startsWith('/dashboard')) {
+    return <StudentDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   }
 
   return (
