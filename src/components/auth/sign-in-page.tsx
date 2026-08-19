@@ -7,7 +7,6 @@ import Alert from '@mui/material/Alert'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
-import { ToastTypes } from '@/components/ui/toast-types'
 
 const SignInPage: FC = () => {
   const [toastOpen, setToastOpen] = useState(false)
@@ -35,7 +34,6 @@ const SignInPage: FC = () => {
             </Box>
           </Box>
         </Paper>
-        <ToastTypes />
       </Container>
       <Snackbar
         open={toastOpen}
