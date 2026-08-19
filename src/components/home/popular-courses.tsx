@@ -26,7 +26,7 @@ const SliderArrow: FC<SliderArrowArrow> = (props) => {
         backgroundColor: 'background.paper',
         color: 'primary.main',
         '&:hover': { backgroundColor: 'primary.main', color: 'primary.contrastText' },
-        bottom: { xs: '-70px !important', md: '-28px !important' },
+        bottom: '-28px !important',
         left: 'unset !important',
         right: type === 'prev' ? '60px !important' : '0 !important',
         zIndex: 10,
