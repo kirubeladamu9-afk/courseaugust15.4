@@ -2,17 +2,20 @@ import React, { FC, useState } from 'react'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { Logo } from '@/components/logo'
 import { Navigation, AuthNavigation } from '@/components/navigation'
 import { useTheme } from '@mui/material/styles'
-import { Menu, Close } from '@mui/icons-material'
+import { Close, DarkModeOutlined, LightModeOutlined, Menu } from '@mui/icons-material'
 
 interface Props {
+  darkMode: boolean
   onSignIn: () => void
+  onToggleDarkMode: () => void
 }
 
-const Header: FC<Props> = ({ onSignIn }) => {
+const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
@@ -49,7 +52,14 @@ const Header: FC<Props> = ({ onSignIn }) => {
           >
             <Box /> {/* Magic space */}
             <Navigation />
-            <AuthNavigation onSignIn={onSignIn} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AuthNavigation onSignIn={onSignIn} />
+              <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+                <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+                  {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
+                </IconButton>
+              </Tooltip>
+            </Box>
             {visibleMenu && matchMobileView && (
               <IconButton
                 sx={{

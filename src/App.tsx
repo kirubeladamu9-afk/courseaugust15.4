@@ -42,7 +42,11 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
           </div>
         }
       >
-        <Header onSignIn={() => setShowSignIn(true)} />
+        <Header
+          darkMode={darkMode}
+          onSignIn={() => setShowSignIn(true)}
+          onToggleDarkMode={onToggleDarkMode}
+        />
         {showSignIn ? (
           <SignInPage />
         ) : (
