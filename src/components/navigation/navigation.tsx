@@ -1,4 +1,4 @@
-import React, { FC } from 'react'
+import React, { FC, useState } from 'react'
 import Box from '@mui/material/Box'
 import { Link as ScrollLink } from 'react-scroll'
 import { navigations } from './navigation.data'
@@ -7,6 +7,7 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
   if (isAdmin) return null
 
   const destinations = navigations
+  const [activeDestination, setActiveDestination] = useState('hero')
 
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
@@ -15,6 +16,8 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
           component={ScrollLink}
           key={destination}
           activeClass="current"
+          onClick={() => setActiveDestination(destination)}
+          onSetActive={(to) => setActiveDestination(to)}
           to={destination}
           href={`#${destination}`}
           spy={true}
@@ -35,8 +38,12 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
             ...(destination === 'hero' && {
               color: 'primary.main',
             }),
+            ...(activeDestination === destination && {
+              color: 'primary.main',
+              '&>div': { display: 'block' },
+            }),
 
-            '& > div': { display: 'none' },
+            '& > div': { display: activeDestination === destination ? 'block' : 'none' },
 
             '&.current': {
               color: 'primary.main',
