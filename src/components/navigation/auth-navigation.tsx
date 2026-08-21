@@ -9,7 +9,7 @@ interface Props {
 
 const AuthNavigation: FC<Props> = ({ onSignIn, onSignUp }) => {
   return (
-    <Box sx={{ '& button:first-child': { mr: 2 } }}>
+    <Box sx={{ '& button:first-of-type': { mr: 2 } }}>
       <StyledButton disableHoverEffect={true} variant="outlined" onClick={onSignIn}>
         Sign In
       </StyledButton>
