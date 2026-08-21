@@ -10,9 +10,11 @@ export interface AuthUser {
 
 interface AuthResponse {
   user: AuthUser
+  sessionToken?: string
 }
 
 const authStorageKey = 'coursespace-auth-user'
+const authSessionTokenKey = 'coursespace-auth-session-token'
 
 const getErrorMessage = async (response: Response) => {
   const body = await response.json().catch(() => null)
@@ -25,14 +27,21 @@ export const getCourses = async (): Promise<Array<Course>> => {
   return response.json()
 }
 
+const requestApi = (url: string, init?: RequestInit) => {
+  const headers = new Headers(init?.headers)
+  const sessionToken = sessionStorage.getItem(authSessionTokenKey)
+  if (sessionToken) headers.set('Authorization', `Bearer ${sessionToken}`)
+  return fetch(url, { ...init, headers })
+}
+
 const requestCourse = async (url: string, init?: RequestInit): Promise<AdminCourse> => {
-  const response = await fetch(url, init)
+  const response = await requestApi(url, init)
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
 
 export const getAdminCourses = async (): Promise<Array<AdminCourse>> => {
-  const response = await fetch('/api/admin/courses')
+  const response = await requestApi('/api/admin/courses')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
@@ -50,7 +59,7 @@ export const updateAdminCourse = (course: AdminCourse) => requestCourse(`/api/ad
 })
 
 export const deleteAdminCourse = async (id: AdminCourse['id']) => {
-  const response = await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' })
+  const response = await requestApi(`/api/admin/courses/${id}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(await getErrorMessage(response))
 }
 
@@ -64,7 +73,9 @@ export const submitCredentials = async (mode: 'sign-in' | 'sign-up', email: stri
   })
 
   if (!response.ok) throw new Error(await getErrorMessage(response))
-  return response.json()
+  const authResponse: AuthResponse = await response.json()
+  if (authResponse.sessionToken) sessionStorage.setItem(authSessionTokenKey, authResponse.sessionToken)
+  return authResponse
 }
 
 export const saveAuthenticatedUser = (user: AuthUser) => {
@@ -84,9 +95,13 @@ export const getAuthenticatedUser = (): AuthUser | null => {
 
 export const clearAuthenticatedUser = () => {
   sessionStorage.removeItem(authStorageKey)
+  sessionStorage.removeItem(authSessionTokenKey)
 }
 
 export const signOut = async () => {
-  clearAuthenticatedUser()
-  await fetch('/api/auth/sign-out', { method: 'POST' })
+  try {
+    await requestApi('/api/auth/sign-out', { method: 'POST' })
+  } finally {
+    clearAuthenticatedUser()
+  }
 }

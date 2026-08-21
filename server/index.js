@@ -170,7 +170,11 @@ const courseColumns = sql.unsafe(`
 
 const parseCourseId = (value) => /^\d+$/.test(value) ? Number(value) : null
 
-const getSessionToken = (request) => request.headers.cookie?.split(';').map((cookie) => cookie.trim()).find((cookie) => cookie.startsWith(`${sessionCookieName}=`))?.slice(sessionCookieName.length + 1)
+const getSessionToken = (request) => {
+  const cookieToken = request.headers.cookie?.split(';').map((cookie) => cookie.trim()).find((cookie) => cookie.startsWith(`${sessionCookieName}=`))?.slice(sessionCookieName.length + 1)
+  const bearerToken = request.headers.authorization?.match(/^Bearer ([a-f0-9]{64})$/i)?.[1]
+  return bearerToken ?? cookieToken
+}
 
 const requireAdmin = async (request, response, next) => {
   const sessionToken = getSessionToken(request)
@@ -361,7 +365,7 @@ app.post('/api/auth/sign-in', async (request, response) => {
     INSERT INTO auth_sessions ${sql({ token: sessionToken, user_id: user.id, expires_at: new Date(Date.now() + sessionDuration) })}
   `
   response.setHeader('Set-Cookie', `${sessionCookieName}=${sessionToken}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${sessionDuration / 1000}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`)
-  return response.json({ user: account })
+  return response.json({ user: account, sessionToken })
 })
 
 app.post('/api/auth/sign-out', async (request, response) => {
