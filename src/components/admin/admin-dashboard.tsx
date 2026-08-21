@@ -25,6 +25,8 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
 import AddIcon from '@mui/icons-material/Add'
+import CheckIcon from '@mui/icons-material/Check'
+import CloseIcon from '@mui/icons-material/Close'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import BookOutlinedIcon from '@mui/icons-material/BookOutlined'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
@@ -97,6 +99,15 @@ const StatCard: FC<{ label: string; value: string; detail: string; icon: ReactNo
 const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) => void }> = ({ course, onChange }) => {
   const [draggedModule, setDraggedModule] = useState<number | null>(null)
   const [draggedLesson, setDraggedLesson] = useState<{ moduleId: number; index: number } | null>(null)
+  const [expandedModuleIds, setExpandedModuleIds] = useState<number[]>(() => course.modules.map((module) => module.id))
+  const [isAddingModule, setIsAddingModule] = useState(false)
+  const [newModuleTitle, setNewModuleTitle] = useState('')
+
+  useEffect(() => {
+    setExpandedModuleIds(course.modules.map((module) => module.id))
+    setIsAddingModule(false)
+    setNewModuleTitle('')
+  }, [course.id])
 
   const moveModule = (targetId: number) => {
     if (draggedModule === null || draggedModule === targetId) return
@@ -122,12 +133,39 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
     setDraggedLesson(null)
   }
 
+  const moveLessonToModule = (sourceModuleId: number, lessonIndex: number, targetModuleId: number) => {
+    if (sourceModuleId === targetModuleId) return
+    const sourceModule = course.modules.find((module) => module.id === sourceModuleId)
+    const lesson = sourceModule?.lessons[lessonIndex]
+    if (!sourceModule || lesson === undefined) return
+
+    const nextModules = course.modules.map((module) => {
+      if (module.id === sourceModuleId) return { ...module, lessons: module.lessons.filter((_, index) => index !== lessonIndex) }
+      if (module.id === targetModuleId) return { ...module, lessons: [...module.lessons, lesson] }
+      return module
+    })
+    onChange({ ...course, modules: nextModules })
+    setExpandedModuleIds((ids) => ids.includes(targetModuleId) ? ids : [...ids, targetModuleId])
+  }
+
   const addLesson = (moduleId: number) => {
     const nextModules = course.modules.map((module) => {
       if (module.id !== moduleId) return module
       return { ...module, lessons: [...module.lessons, `New lesson ${module.lessons.length + 1}`] }
     })
     onChange({ ...course, modules: nextModules })
+  }
+
+  const addModule = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const title = newModuleTitle.trim()
+    if (!title) return
+
+    const nextModuleId = Math.max(0, ...course.modules.map((module) => module.id)) + 1
+    onChange({ ...course, modules: [...course.modules, { id: nextModuleId, title, lessons: [] }] })
+    setExpandedModuleIds((ids) => [...ids, nextModuleId])
+    setNewModuleTitle('')
+    setIsAddingModule(false)
   }
 
   return (
@@ -139,69 +177,110 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
         </Box>
         <StatusChip status={course.status} />
       </Box>
-      <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules or lessons to reorder the course structure.</Typography>
+      <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules to reorder modules. Drag lessons to reorder lessons within the same module.</Typography>
       <Stack spacing={1.5}>
-        {course.modules.map((module) => (
-          <Paper
-            key={module.id}
-            elevation={0}
-            draggable
-            onDragStart={() => setDraggedModule(module.id)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => moveModule(module.id)}
-            sx={{ p: 1.5, backgroundColor: 'background.default', border: 1, borderColor: 'divider' }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <DragIndicatorIcon color="disabled" fontSize="small" />
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{module.title}</Typography>
-            </Box>
-            <Stack spacing={0.5} sx={{ mt: 1, ml: 4 }}>
-              {module.lessons.map((lesson, index) => (
-                <Box
-                  key={`${module.id}-${lesson}-${index}`}
-                  draggable
-                  onDragStart={(event) => {
-                    event.stopPropagation()
-                    setDraggedLesson({ moduleId: module.id, index })
-                  }}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => {
-                    event.stopPropagation()
-                    moveLesson(module.id, index)
-                  }}
-                  sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, px: 1, backgroundColor: 'background.paper', borderRadius: 1 }}
+        {course.modules.map((module) => {
+          const isExpanded = expandedModuleIds.includes(module.id)
+
+          return (
+            <Paper
+              key={module.id}
+              elevation={0}
+              draggable
+              onDragStart={() => setDraggedModule(module.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => moveModule(module.id)}
+              sx={{ p: 1.5, backgroundColor: 'background.default', border: 1, borderColor: 'divider' }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton
+                  size="small"
+                  onClick={() => setExpandedModuleIds((ids) => isExpanded ? ids.filter((id) => id !== module.id) : [...ids, module.id])}
+                  aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${module.title}`}
+                  aria-expanded={isExpanded}
                 >
-                  <DragIndicatorIcon color="disabled" fontSize="small" />
-                  <Typography variant="body2">{lesson}</Typography>
+                  <ChevronRightIcon sx={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 160ms ease' }} fontSize="small" />
+                </IconButton>
+                <DragIndicatorIcon color="disabled" fontSize="small" />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{module.title}</Typography>
+                  <Typography color="text.secondary" variant="caption">{module.lessons.length} {module.lessons.length === 1 ? 'lesson' : 'lessons'}</Typography>
                 </Box>
-              ))}
-              <Box
-                component="button"
-                type="button"
-                onClick={() => addLesson(module.id)}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
-              >
-                <AddIcon fontSize="small" /> Add lesson
               </Box>
-            </Stack>
-          </Paper>
-        ))}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+              {isExpanded && (
+                <Stack spacing={0.5} sx={{ mt: 1, ml: 5 }}>
+                  {module.lessons.map((lesson, index) => (
+                    <Box
+                      key={`${module.id}-${lesson}-${index}`}
+                      draggable
+                      onDragStart={(event) => {
+                        event.stopPropagation()
+                        setDraggedLesson({ moduleId: module.id, index })
+                      }}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.stopPropagation()
+                        moveLesson(module.id, index)
+                      }}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, px: 1, backgroundColor: 'background.paper', borderRadius: 1 }}
+                    >
+                      <DragIndicatorIcon color="disabled" fontSize="small" />
+                      <Typography variant="body2" sx={{ flex: 1 }}>{lesson}</Typography>
+                      {course.modules.length > 1 && (
+                        <Select
+                          value=""
+                          displayEmpty
+                          size="small"
+                          onChange={(event) => moveLessonToModule(module.id, index, Number(event.target.value))}
+                          renderValue={() => 'Move to module'}
+                          inputProps={{ 'aria-label': `Move ${lesson} to module` }}
+                          sx={{ minWidth: 145 }}
+                        >
+                          <MenuItem disabled value="">Move to module</MenuItem>
+                          {course.modules.filter((targetModule) => targetModule.id !== module.id).map((targetModule) => (
+                            <MenuItem key={targetModule.id} value={targetModule.id}>{targetModule.title}</MenuItem>
+                          ))}
+                        </Select>
+                      )}
+                    </Box>
+                  ))}
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => addLesson(module.id)}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
+                  >
+                    <AddIcon fontSize="small" /> Add lesson
+                  </Box>
+                </Stack>
+              )}
+            </Paper>
+          )
+        })}
+        {isAddingModule ? (
+          <Box component="form" onSubmit={addModule} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TextField
+              autoFocus
+              required
+              size="small"
+              fullWidth
+              label="Module title"
+              value={newModuleTitle}
+              onChange={(event) => setNewModuleTitle(event.target.value)}
+            />
+            <IconButton type="submit" color="primary" aria-label="Save module"><CheckIcon /></IconButton>
+            <IconButton type="button" onClick={() => setIsAddingModule(false)} aria-label="Cancel adding module"><CloseIcon /></IconButton>
+          </Box>
+        ) : (
           <Box
             component="button"
             type="button"
-            onClick={() => {
-              const nextModuleId = Math.max(0, ...course.modules.map((module) => module.id)) + 1
-              onChange({
-                ...course,
-                modules: [...course.modules, { id: nextModuleId, title: `New module ${course.modules.length + 1}`, lessons: [] }],
-              })
-            }}
-            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
+            onClick={() => setIsAddingModule(true)}
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
           >
             <AddIcon fontSize="small" /> Add module
           </Box>
-        </Box>
+        )}
       </Stack>
     </Paper>
   )
