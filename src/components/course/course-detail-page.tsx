@@ -7,6 +7,8 @@ import Card from '@mui/material/Card'
 import Chip from '@mui/material/Chip'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
+import IconButton from '@mui/material/IconButton'
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import Grid from '@mui/material/Grid'
 import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined'
@@ -93,8 +95,10 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
     loadCourse
       .then((nextCourse) => {
         if (!isCurrent) return
-        setCourse(nextCourse)
-        setExpandedModules(nextCourse.modules.map((module) => module.id))
+        const fallbackCourse = getFallbackCourse(courseId)
+        const courseWithContent = nextCourse.modules.length || !fallbackCourse ? nextCourse : { ...nextCourse, modules: fallbackCourse.modules }
+        setCourse(courseWithContent)
+        setExpandedModules(courseWithContent.modules.map((module) => module.id))
       })
       .catch((error) => {
         if (!isCurrent) return
@@ -120,10 +124,11 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   }
 
   const lessons = course.modules.flatMap((module) => module.lessons)
+  const downloadableResources = lessons.flatMap((lesson) => lesson.type === 'video' || lesson.type === 'article' ? lesson.resources.map((resource) => ({ lessonTitle: lesson.title, resource })) : [])
   const videoLessons = lessons.filter((lesson) => lesson.type === 'video')
   const totalVideoSeconds = videoLessons.reduce((total, lesson) => total + (lesson.duration ?? 0), 0)
   const totalDurationSeconds = lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0)
-  const resourceCount = lessons.reduce((total, lesson) => total + lesson.resources.length, 0)
+  const resourceCount = downloadableResources.length
   const firstVideo = videoLessons[0]
   const allExpanded = course.modules.length > 0 && expandedModules.length === course.modules.length
 
@@ -150,6 +155,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
               {firstVideo?.videoUrl ? <Box component="video" controls src={firstVideo.videoUrl} poster={firstVideo.thumbnailUrl || course.cover} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Box component="button" type="button" aria-label="Play course preview" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, p: 0, border: 0, borderRadius: '50%', backgroundColor: 'primary.main', color: 'primary.contrastText', cursor: 'pointer', '&:hover': { backgroundColor: 'primary.dark', transform: 'scale(1.04)' }, transition: 'transform 160ms ease' }}><PlayCircleOutlineIcon sx={{ fontSize: 42 }} /></Box>}
             </Box>
           </Box>
+          {firstVideo?.videoUrl && <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}><IconButton component="a" href={firstVideo.videoUrl} download={`${course.title}.mp4`} color="primary" aria-label="Download course video" title="Download course video"><DownloadOutlinedIcon /></IconButton></Box>}
         </Grid>
         <Grid item xs={12} md={4}>
           <Card elevation={2} sx={{ position: { md: 'sticky' }, top: { md: 24 }, p: { xs: 2.5, md: 3 }, borderRadius: 3 }}>
@@ -174,7 +180,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
             <Box><Typography variant="h4" sx={{ mb: 2 }}>What you'll learn</Typography><Stack spacing={1}>{course.learningOutcomes.map((outcome) => <Box key={outcome} sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}><Typography color="primary.main" sx={{ fontSize: 22, lineHeight: 1 }}>✓</Typography><Typography>{outcome}</Typography></Box>)}</Stack></Box>
             <Box><Typography variant="h4" sx={{ mb: 2 }}>Requirements</Typography><Stack spacing={1}>{course.requirements.map((requirement) => <Box key={requirement} sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}><Typography color="primary.main" sx={{ fontSize: 22, lineHeight: 1 }}>✓</Typography><Typography>{requirement}</Typography></Box>)}</Stack></Box>
             <Box><Typography variant="h4" sx={{ mb: 2 }}>Description</Typography><Typography color="text.secondary" sx={{ lineHeight: 1.8 }}>{course.longDescription}</Typography></Box>
-            <Box><Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}><Box><Typography variant="h4">Course content</Typography><Typography color="text.secondary" variant="body2">{course.modules.length} sections · {lessons.length} lectures · {formatDuration(totalDurationSeconds)}</Typography></Box><Button size="small" variant="text" onClick={toggleExpandAll}>{allExpanded ? 'Collapse all' : 'Expand all'}</Button></Box><Stack spacing={1}>{course.modules.map((module) => <Accordion key={module.id} expanded={expandedModules.includes(module.id)} onChange={() => toggleModule(module.id)} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}><AccordionSummary expandIcon={<ExpandMoreIcon />}><Box><Typography sx={{ fontWeight: 600 }}>{module.title}</Typography><Typography variant="caption" color="text.secondary">{module.lessons.length} {module.lessons.length === 1 ? 'lecture' : 'lectures'} · {formatDuration(module.lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0))}</Typography></Box></AccordionSummary><AccordionDetails sx={{ pt: 0 }}>{module.lessons.map((lesson) => <Fragment key={lesson.id}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap' }}><Box sx={{ display: 'flex', color: 'text.secondary' }}><LessonTypeIcon type={lesson.type} /></Box><Typography variant="body2" sx={{ flex: 1 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{getLessonLabel(lesson)}</Typography></Box><Box sx={{ width: '100%', pb: 1 }}><CourseLessonContent lesson={lesson} courseCover={course.cover} /></Box></Fragment>)}</AccordionDetails></Accordion>)}</Stack></Box>
+            <Box><Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}><Box><Typography variant="h4">Course content</Typography><Typography color="text.secondary" variant="body2">{course.modules.length} sections · {lessons.length} lectures · {formatDuration(totalDurationSeconds)}</Typography></Box><Button size="small" variant="text" onClick={toggleExpandAll}>{allExpanded ? 'Collapse all' : 'Expand all'}</Button></Box>{downloadableResources.length > 0 && <Box sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}><Typography variant="h6" sx={{ mb: 1 }}>Downloadable resources</Typography><Stack spacing={0.75}>{downloadableResources.map(({ lessonTitle, resource }) => <Box key={`${lessonTitle}-${resource.id}`} sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}><Typography variant="body2">{resource.name}</Typography><Typography variant="caption" color="text.secondary">{lessonTitle}</Typography></Box>)}</Stack></Box>}<Stack spacing={1}>{course.modules.map((module) => <Accordion key={module.id} expanded={expandedModules.includes(module.id)} onChange={() => toggleModule(module.id)} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}><AccordionSummary expandIcon={<ExpandMoreIcon />}><Box><Typography sx={{ fontWeight: 600 }}>{module.title}</Typography><Typography variant="caption" color="text.secondary">{module.lessons.length} {module.lessons.length === 1 ? 'lecture' : 'lectures'} · {formatDuration(module.lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0))}</Typography></Box></AccordionSummary><AccordionDetails sx={{ pt: 0 }}>{module.lessons.map((lesson) => <Fragment key={lesson.id}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap' }}><Box sx={{ display: 'flex', color: 'text.secondary' }}><LessonTypeIcon type={lesson.type} /></Box><Typography variant="body2" sx={{ flex: 1 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{getLessonLabel(lesson)}</Typography></Box><Box sx={{ width: '100%', pb: 1 }}><CourseLessonContent lesson={lesson} courseCover={course.cover} /></Box></Fragment>)}</AccordionDetails></Accordion>)}</Stack></Box>
           </Stack>
         </Grid>
       </Grid>
