@@ -292,6 +292,22 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
 
   const isVideoProcessing = lessonPanel?.lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100
   const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl))
+  const handleThumbnailFile = (file: File) => {
+    const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif']
+    if (!supportedTypes.includes(file.type)) {
+      toast.add({ title: 'Unsupported thumbnail', description: 'Choose a JPG, PNG, GIF, WebP, or AVIF image.', type: 'error' })
+      return
+    }
+    if (file.size > 6 * 1024 * 1024) {
+      toast.add({ title: 'Thumbnail is too large', description: 'Choose an image smaller than 6 MB.', type: 'error' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') onChange({ ...course, cover: reader.result })
+    }
+    reader.readAsDataURL(file)
+  }
 
   return (
     <Paper id="course-curriculum-editor" elevation={0} sx={{ mt: 3, p: 2.5, border: 1, borderColor: 'divider', scrollMarginTop: 24 }}>
@@ -303,9 +319,13 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
           <TextField required fullWidth label="Course title" value={course.title} onChange={(event) => onChange({ ...course, title: event.target.value })} />
           <FormControl fullWidth required><InputLabel>Program</InputLabel><Select label="Program" value={course.category} onChange={(event) => onChange({ ...course, category: event.target.value })}><MenuItem value="Data">Data</MenuItem><MenuItem value="Development">Development</MenuItem><MenuItem value="Design">Design</MenuItem><MenuItem value="Business">Business</MenuItem></Select></FormControl>
         </Stack>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-start">
-          <TextField required fullWidth label="Thumbnail URL" type="url" value={course.cover} onChange={(event) => onChange({ ...course, cover: event.target.value })} placeholder="/images/courses/thumbnail.jpg" />
-          {course.cover && <Box component="img" src={course.cover} alt={`${course.title || 'Course'} thumbnail`} sx={{ width: { xs: '100%', md: 180 }, height: 100, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }} />}
+        <Stack spacing={1} sx={{ width: '100%' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>Thumbnail</Typography>
+          <Box component="label" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const [file] = Array.from(event.dataTransfer.files); if (file) handleThumbnailFile(file) }} sx={{ minHeight: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, p: 2, border: 1, borderColor: 'divider', borderStyle: 'dashed', borderRadius: 1, cursor: 'pointer', '&:hover': { borderColor: 'primary.main', backgroundColor: 'action.hover' } }}>
+            {course.cover && <Box component="img" src={course.cover} alt={`${course.title || 'Course'} thumbnail`} sx={{ width: 180, height: 100, objectFit: 'cover', borderRadius: 1 }} />}
+            <Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{course.cover ? 'Replace thumbnail' : 'Drop a thumbnail here or browse'}</Typography><Typography color="text.secondary" variant="caption">JPG, PNG, GIF, WebP, or AVIF · 6 MB maximum</Typography></Box>
+            <input hidden type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/avif" onChange={(event) => { const [file] = Array.from(event.target.files ?? []); if (file) handleThumbnailFile(file); event.target.value = '' }} aria-label="Browse for course thumbnail" />
+          </Box>
         </Stack>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <FormControl fullWidth><InputLabel>Level</InputLabel><Select label="Level" value={course.level} onChange={(event) => onChange({ ...course, level: event.target.value })}><MenuItem value="Beginner">Beginner</MenuItem><MenuItem value="Intermediate">Intermediate</MenuItem><MenuItem value="Advanced">Advanced</MenuItem></Select></FormControl>

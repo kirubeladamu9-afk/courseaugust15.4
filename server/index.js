@@ -320,6 +320,8 @@ const requireAdmin = async (request, response, next) => {
   return next()
 }
 
+const isValidCourseCover = (cover) => cover.length <= 10 * 1024 * 1024 && (cover.startsWith('/') || /^https?:\/\//i.test(cover) || /^data:image\/(?:avif|gif|jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(cover))
+
 const parseCoursePayload = (body) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null
 
@@ -335,7 +337,7 @@ const parseCoursePayload = (body) => {
   const requirements = Array.isArray(body.requirements) && body.requirements.every((value) => typeof value === 'string') ? body.requirements : null
   const modules = Array.isArray(body.modules) ? body.modules : null
 
-  if (!title || !category || !level || !cover || !status || !Number.isFinite(price) || price < 0 || !Number.isInteger(students) || students < 0 || !learningOutcomes || !requirements || !modules || typeof body.description !== 'string' || typeof body.longDescription !== 'string' || typeof body.certificate !== 'boolean') {
+  if (!title || !category || !level || !isValidCourseCover(cover) || !status || !Number.isFinite(price) || price < 0 || !Number.isInteger(students) || students < 0 || !learningOutcomes || !requirements || !modules || typeof body.description !== 'string' || typeof body.longDescription !== 'string' || typeof body.certificate !== 'boolean') {
     return null
   }
 
@@ -373,7 +375,7 @@ const readCourse = async (id, publishedOnly = false) => {
   return deserializeCourse(course)
 }
 
-app.use(express.json({ limit: '16kb' }))
+app.use(express.json({ limit: '10mb' }))
 
 app.get('/api/health', async (_request, response) => {
   await sql`SELECT 1`
