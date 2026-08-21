@@ -7,7 +7,6 @@ import Card from '@mui/material/Card'
 import Chip from '@mui/material/Chip'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
-import IconButton from '@mui/material/IconButton'
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import Grid from '@mui/material/Grid'
@@ -156,7 +155,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
               {firstVideo?.videoUrl ? <Box component="video" controls src={firstVideo.videoUrl} poster={firstVideo.thumbnailUrl || course.cover} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Box component="button" type="button" aria-label="Play course preview" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, p: 0, border: 0, borderRadius: '50%', backgroundColor: 'primary.main', color: 'primary.contrastText', cursor: 'pointer', '&:hover': { backgroundColor: 'primary.dark', transform: 'scale(1.04)' }, transition: 'transform 160ms ease' }}><PlayCircleOutlineIcon sx={{ fontSize: 42 }} /></Box>}
             </Box>
           </Box>
-          {firstVideo?.videoUrl && <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}><IconButton component="a" href={firstVideo.videoUrl} download={`${course.title}.mp4`} color="primary" aria-label="Download course video" title="Download course video"><DownloadOutlinedIcon /></IconButton></Box>}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, mt: 1 }}><Button component="a" href={firstVideo?.videoUrl ?? '#'} download={firstVideo?.videoUrl ? `${course.title}.mp4` : undefined} disabled={!firstVideo?.videoUrl} variant="outlined" size="small" startIcon={<DownloadOutlinedIcon />} aria-label="Download course video">Download video</Button>{!firstVideo?.videoUrl && <Typography variant="caption" color="text.secondary">Video download unavailable</Typography>}</Box>
         </Grid>
         <Grid item xs={12} md={4}>
           <Card elevation={2} sx={{ position: { md: 'sticky' }, top: { md: 24 }, p: { xs: 2.5, md: 3 }, borderRadius: 3 }}>
