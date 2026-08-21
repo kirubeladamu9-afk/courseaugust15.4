@@ -740,6 +740,7 @@ const TutorEditorPage: FC<TutorEditorPageProps> = ({ mode, tutorId }) => {
       setTutor(savedTutor)
       toast.add({ title: mode === 'new' ? 'Tutor created' : 'Tutor saved', description: mode === 'new' ? 'An invite link is ready for this tutor.' : `${savedTutor.name} is now updated.`, type: 'success' })
       if (mode === 'new') navigateTo(`/admin/tutors/${savedTutor.id}`, true)
+      else navigateTo('/admin/tutors', true)
     } catch (error) {
       toast.add({ title: 'Unable to save tutor', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
     } finally {
