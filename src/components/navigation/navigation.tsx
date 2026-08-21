@@ -3,10 +3,14 @@ import Box from '@mui/material/Box'
 import { Link as ScrollLink } from 'react-scroll'
 import { navigations } from './navigation.data'
 
-const Navigation: FC = () => {
+const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
+  if (isAdmin) return null
+
+  const destinations = navigations
+
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
-      {navigations.map(({ path: destination, label }) => (
+      {destinations.map(({ path: destination, label }) => (
         <Box
           component={ScrollLink}
           key={destination}

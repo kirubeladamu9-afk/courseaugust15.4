@@ -6,6 +6,8 @@ import Tooltip from '@mui/material/Tooltip'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { Logo } from '@/components/logo'
 import { Navigation, AuthNavigation } from '@/components/navigation'
+import { getAuthenticatedUser, signOut } from '@/services/api'
+import { navigateTo } from '@/lib/navigation'
 import { useTheme } from '@mui/material/styles'
 import { Close, DarkModeOutlined, LightModeOutlined, Menu } from '@mui/icons-material'
 
@@ -18,6 +20,7 @@ interface Props {
 
 const Header: FC<Props> = ({ darkMode, onSignIn, onSignUp, onToggleDarkMode }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
+  const isAdmin = getAuthenticatedUser()?.role === 'admin'
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
 
@@ -56,9 +59,9 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onSignUp, onToggleDarkMode }) =
             }}
           >
             <Box /> {/* Magic space */}
-            <Navigation />
+            <Navigation isAdmin={isAdmin} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AuthNavigation onSignIn={onSignIn} onSignUp={onSignUp} />
+              <AuthNavigation isAdmin={isAdmin} onSignIn={onSignIn} onSignUp={onSignUp} onAdminDashboard={() => navigateTo('/admin')} onSignOut={() => { void signOut().then(() => navigateTo('/', true)) }} />
               <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                 <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                   {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
