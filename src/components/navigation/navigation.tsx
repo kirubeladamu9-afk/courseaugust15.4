@@ -38,7 +38,10 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
 
             '& > div': { display: 'none' },
 
-            '&.current>div': { display: 'block' },
+            '&.current': {
+              color: 'primary.main',
+              '&>div': { display: 'block' },
+            },
 
             '&:hover': {
               color: 'primary.main',
