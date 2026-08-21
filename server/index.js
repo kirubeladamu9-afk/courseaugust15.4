@@ -15,7 +15,6 @@ const app = express()
 const port = Number(process.env.PORT ?? 3001)
 const sessionCookieName = 'coursespace-session'
 const sessionDuration = 86400000
-const sessions = new Map()
 
 const seedCourses = [
   { title: 'Android Development from Zeo to Hero', cover: '/images/courses/a9e7b27a0c5e986a22416d79e2e9dba9.jpg', rating: 5, ratingCount: 8, price: 25, category: 'Development', level: 'Beginner', tutor: 'Leon Kennedy', students: 0, status: 'Published' },
@@ -59,6 +58,14 @@ const initializeDatabase = async () => {
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'student',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      token TEXT PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL
     )
   `
 
@@ -165,13 +172,18 @@ const parseCourseId = (value) => /^\d+$/.test(value) ? Number(value) : null
 
 const getSessionToken = (request) => request.headers.cookie?.split(';').map((cookie) => cookie.trim()).find((cookie) => cookie.startsWith(`${sessionCookieName}=`))?.slice(sessionCookieName.length + 1)
 
-const requireAdmin = (request, response, next) => {
+const requireAdmin = async (request, response, next) => {
   const sessionToken = getSessionToken(request)
-  const session = sessions.get(sessionToken)
-  if (!session || session.role !== 'admin' || session.expiresAt <= Date.now()) {
-    if (sessionToken) sessions.delete(sessionToken)
-    return response.status(401).json({ message: 'Admin authentication is required.' })
-  }
+  if (!sessionToken) return response.status(401).json({ message: 'Admin authentication is required.' })
+
+  const [session] = await sql`
+    SELECT auth_sessions.token, users.role
+    FROM auth_sessions
+    INNER JOIN users ON users.id = auth_sessions.user_id
+    WHERE auth_sessions.token = ${sessionToken}
+      AND auth_sessions.expires_at > NOW()
+  `
+  if (!session || session.role !== 'admin') return response.status(401).json({ message: 'Admin authentication is required.' })
   return next()
 }
 
@@ -345,14 +357,16 @@ app.post('/api/auth/sign-in', async (request, response) => {
 
   const { password_hash: _passwordHash, ...account } = user
   const sessionToken = randomBytes(32).toString('hex')
-  sessions.set(sessionToken, { userId: user.id, role: user.role, expiresAt: Date.now() + sessionDuration })
+  await sql`
+    INSERT INTO auth_sessions ${sql({ token: sessionToken, user_id: user.id, expires_at: new Date(Date.now() + sessionDuration) })}
+  `
   response.setHeader('Set-Cookie', `${sessionCookieName}=${sessionToken}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${sessionDuration / 1000}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`)
   return response.json({ user: account })
 })
 
-app.post('/api/auth/sign-out', (request, response) => {
+app.post('/api/auth/sign-out', async (request, response) => {
   const sessionToken = getSessionToken(request)
-  if (sessionToken) sessions.delete(sessionToken)
+  if (sessionToken) await sql`DELETE FROM auth_sessions WHERE token = ${sessionToken}`
   response.setHeader('Set-Cookie', `${sessionCookieName}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`)
   return response.status(204).end()
 })
