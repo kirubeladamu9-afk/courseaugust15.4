@@ -229,6 +229,7 @@ const tutorColumns = sql.unsafe(`
   to_char(created_at, 'FMMonth DD, YYYY') AS "createdAt"
 `)
 
+const parseCourseId = (value) => /^\d+$/.test(value) ? Number(value) : null
 const parseTutorId = (value) => /^\d+$/.test(value) ? Number(value) : null
 
 const parseTutorPayload = (body) => {
