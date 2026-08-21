@@ -16,16 +16,6 @@ const port = Number(process.env.PORT ?? 3001)
 const sessionCookieName = 'coursespace-session'
 const sessionDuration = 86400000
 
-const seedCourses = [
-  { title: 'Android Development from Zeo to Hero', cover: '/images/courses/a9e7b27a0c5e986a22416d79e2e9dba9.jpg', rating: 5, ratingCount: 8, price: 25, category: 'Development', level: 'Beginner', tutor: 'Leon Kennedy', students: 0, status: 'Published' },
-  { title: 'UI/UX Complete Guide', cover: '/images/courses/alvaro-reyes-qWwpHwip31M-unsplash.jpg', rating: 5, ratingCount: 15, price: 20, category: 'Design', level: 'Intermediate', tutor: 'Rizki Known', students: 0, status: 'Published' },
-  { title: 'Mastering Data Modeling Fundamentals', cover: '/images/courses/christopher-gower-m_HRfLhgABo-unsplash.jpg', rating: 4, ratingCount: 7, price: 30, category: 'Data', level: 'Beginner', tutor: 'Maya Chen', students: 128, status: 'Published' },
-  { title: 'The Complete Guide to Docker and Kubernetes', cover: '/images/courses/true-agency-o4UhdLv5jbQ-unsplash.jpg', rating: 4, ratingCount: 12, price: 30, category: 'Development', level: 'Intermediate', tutor: 'Leon Kennedy', students: 96, status: 'Published' },
-  { title: 'Modern React with MUI & Redux', cover: '/images/courses/stillness-inmotion-Jh6aQX-25Uo-unsplash.jpg', rating: 4, ratingCount: 32, price: 35, category: 'Development', level: 'Intermediate', tutor: 'Jhon Dwirian', students: 0, status: 'Draft' },
-  { title: 'Ethical Hacking Bootcamp Zero to Mastery', cover: '/images/courses/stillness-inmotion-YSCCnRGrD-4-unsplash.jpg', rating: 5, ratingCount: 14, price: 35, category: 'Development', level: 'Beginner', tutor: 'Leon Kennedy', students: 0, status: 'Published' },
-  { title: 'Adobe Lightroom For Beginners: Complete Photo Editing', cover: '/images/courses/grovemade-RvPDe41lYBA-unsplash.jpg', rating: 4, ratingCount: 6, price: 25, category: 'Design', level: 'Beginner', tutor: 'Rizki Known', students: 0, status: 'Published' },
-]
-
 const seedTutors = [
   { name: 'Maya Chen', email: 'maya@example.com', status: 'Active' },
   { name: 'Leon Kennedy', email: 'leon@example.com', status: 'Active' },
@@ -147,47 +137,6 @@ const initializeDatabase = async () => {
     SET status = 'Inactive'
     WHERE status = 'Pending'
   `
-
-  await sql`
-    UPDATE courses
-    SET title = 'The Complete Guide to Docker and Kubernetes'
-    WHERE title = 'The Complete Guide Docker and Kubernetes'
-      AND NOT EXISTS (SELECT 1 FROM courses WHERE title = 'The Complete Guide to Docker and Kubernetes')
-  `
-
-  for (const seedCourse of seedCourses) {
-    await sql`
-      UPDATE courses
-      SET category = ${seedCourse.category},
-          level = ${seedCourse.level},
-          tutor = ${seedCourse.tutor},
-          students = ${seedCourse.students},
-          status = ${seedCourse.status}
-      WHERE title = ${seedCourse.title}
-        AND tutor = ''
-        AND description = ''
-        AND long_description = ''
-        AND modules = '[]'::jsonb
-    `
-  }
-
-  for (const seedCourse of seedCourses) {
-    await sql`
-      INSERT INTO courses ${sql({
-        title: seedCourse.title,
-        cover: seedCourse.cover,
-        rating: seedCourse.rating,
-        rating_count: seedCourse.ratingCount,
-        price: seedCourse.price,
-        category: seedCourse.category,
-        level: seedCourse.level,
-        tutor: seedCourse.tutor,
-        students: seedCourse.students,
-        status: seedCourse.status,
-      })}
-      ON CONFLICT (title) DO NOTHING
-    `
-  }
 
   await sql`
     UPDATE courses

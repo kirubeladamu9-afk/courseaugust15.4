@@ -19,8 +19,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
 import { Fragment, type FC, useEffect, useState } from 'react'
-import { data as popularCourses } from '@/components/home/popular-course.data'
-import { type AdminCourse, type AdminLesson, type LessonResource } from '@/components/admin/admin-data'
+import { type AdminCourse, type AdminLesson } from '@/components/admin/admin-data'
 import { getAuthenticatedUser, getAdminCourse, getCourse as getCourseFromApi } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
@@ -52,31 +51,6 @@ const CourseLessonContent: FC<{ lesson: AdminLesson; courseCover: string }> = ({
   return lesson.meetingUrl ? <Box component="a" href={lesson.meetingUrl} target="_blank" rel="noreferrer" sx={{ color: 'primary.main', fontWeight: 600 }}>Open live session</Box> : <Typography color="text.secondary" variant="body2">A meeting link has not been added yet.</Typography>
 }
 
-const getFallbackCourse = (courseId: string): AdminCourse | null => {
-  const popularCourse = popularCourses.find((course) => String(course.id) === courseId)
-  if (!popularCourse) return null
-  const fallbackResource: LessonResource = { id: Number(popularCourse.id) * 1000, name: 'Downloadable resource.pdf', url: `data:application/pdf;charset=utf-8,${encodeURIComponent(`${popularCourse.title}\n\nDownloadable course resource.`)}` }
-  const fallbackArticleLesson: AdminLesson = { id: Number(popularCourse.id) * 100 + 1, title: 'New article lesson', type: 'article', duration: null, resources: [fallbackResource], articleBody: 'Review the downloadable course resource alongside this article lesson.' }
-  return {
-    id: Number(popularCourse.id),
-    title: popularCourse.title,
-    category: popularCourse.category,
-    level: popularCourse.category,
-    tutor: 'Coursespace instructors',
-    status: 'Published',
-    students: 0,
-    price: popularCourse.price,
-    cover: popularCourse.cover,
-    description: 'A practical, focused course designed to help you build confidence through guided learning.',
-    longDescription: 'Work through a structured learning path with clear explanations, practical examples, and a curriculum designed to help you apply each new concept.',
-    learningOutcomes: ['Build a practical foundation you can use immediately', 'Apply new concepts through guided examples', 'Leave with a repeatable learning framework'],
-    requirements: ['A willingness to learn', 'A computer with a modern browser'],
-    certificate: true,
-    updatedAt: 'August 21, 2025',
-    modules: [{ id: Number(popularCourse.id) * 10, title: 'Getting started', lessons: [{ id: Number(popularCourse.id) * 100, title: 'Course introduction', type: 'video', duration: 600, resources: [] }, fallbackArticleLesson] }],
-  }
-}
-
 const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   const [course, setCourse] = useState<AdminCourse | null>(null)
   const [expandedModules, setExpandedModules] = useState<number[]>([])
@@ -96,16 +70,13 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
     loadCourse
       .then((nextCourse) => {
         if (!isCurrent) return
-        const fallbackCourse = getFallbackCourse(courseId)
-        const courseWithContent = nextCourse.modules.length || !fallbackCourse ? nextCourse : { ...nextCourse, modules: fallbackCourse.modules }
-        setCourse(courseWithContent)
-        setExpandedModules(courseWithContent.modules.map((module) => module.id))
+        setCourse(nextCourse)
+        setExpandedModules(nextCourse.modules.map((module) => module.id))
       })
-      .catch((error) => {
+      .catch(() => {
         if (!isCurrent) return
-        const fallbackCourse = error instanceof Error && error.message === 'Course not found.' ? null : getFallbackCourse(courseId)
-        setCourse(fallbackCourse)
-        setExpandedModules(fallbackCourse?.modules.map((module) => module.id) ?? [])
+        setCourse(null)
+        setExpandedModules([])
       })
       .finally(() => {
         if (isCurrent) setIsLoading(false)
@@ -126,8 +97,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
 
   const lessons = course.modules.flatMap((module) => module.lessons)
   const lessonResources = lessons.flatMap((lesson) => lesson.type === 'video' || lesson.type === 'article' ? lesson.resources.map((resource) => ({ lessonTitle: lesson.title, resource })) : [])
-  const fallbackResources = course.id === 7 ? getFallbackCourse(String(course.id))?.modules.flatMap((module) => module.lessons.flatMap((lesson) => lesson.resources.map((resource) => ({ lessonTitle: lesson.title, resource })))) ?? [] : []
-  const downloadableResources = lessonResources.length > 0 ? lessonResources : fallbackResources
+  const downloadableResources = lessonResources
   const videoLessons = lessons.filter((lesson) => lesson.type === 'video')
   const totalVideoSeconds = videoLessons.reduce((total, lesson) => total + (lesson.duration ?? 0), 0)
   const totalDurationSeconds = lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0)

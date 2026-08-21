@@ -3,13 +3,13 @@ import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
 import Slider, { Settings } from 'react-slick'
 import { useEffect, useRef, useState } from 'react'
+import { type Course } from '@/interfaces/course'
 import Container from '@mui/material/Container'
 import { useTheme, styled } from '@mui/material/styles'
 import { IconButton, useMediaQuery } from '@mui/material'
 import IconArrowBack from '@mui/icons-material/ArrowBack'
 import IconArrowForward from '@mui/icons-material/ArrowForward'
 
-import { data } from './popular-course.data'
 import { CourseCardItem } from '@/components/course'
 import { getCourses } from '@/services/api'
 
@@ -34,7 +34,7 @@ const HomePopularCourse: FC = () => {
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
 
   const sliderRef = useRef<Slider | null>(null)
-  const [courses, setCourses] = useState(data)
+  const [courses, setCourses] = useState<Course[]>([])
 
   useEffect(() => {
     let isCurrent = true
@@ -51,10 +51,10 @@ const HomePopularCourse: FC = () => {
   }, [])
 
   const sliderConfig: Settings = {
-    infinite: true,
+    infinite: courses.length > (matchMobileView ? 1 : 3),
     autoplay: true,
     speed: 300,
-    slidesToShow: matchMobileView ? 1 : 3,
+    slidesToShow: matchMobileView ? 1 : Math.min(3, Math.max(1, courses.length)),
     slidesToScroll: 1,
     arrows: false,
     dots: true,
@@ -78,28 +78,15 @@ const HomePopularCourse: FC = () => {
     >
       <Container maxWidth="lg">
         <Grid container spacing={2}>
-          <Grid item xs={12} md={3}>
-            <Box
-              sx={{
-                height: '100%',
-                width: { xs: '100%', md: '90%' },
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: { xs: 'center', md: 'flex-start' },
-              }}
-            >
-            </Box>
-          </Grid>
-
           <Grid item xs={12} md={9} sx={{ minWidth: 0 }}>
-            <Box sx={{ width: '100%', minWidth: 0 }}>
+            {courses.length > 0 && <Box sx={{ width: '100%', minWidth: 0 }}>
               <Slider ref={sliderRef} {...sliderConfig}>
                 {courses.map((item) => (
                   <CourseCardItem key={String(item.id)} item={item} />
                 ))}
               </Slider>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: { xs: 4, md: 2 } }}>
+            </Box>}
+            {courses.length > 0 && <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: { xs: 4, md: 2 } }}>
               <IconButton
                 sx={{
                   backgroundColor: 'background.paper',
@@ -126,7 +113,7 @@ const HomePopularCourse: FC = () => {
               >
                 <IconArrowForward sx={{ fontSize: 22 }} />
               </IconButton>
-            </Box>
+            </Box>}
           </Grid>
         </Grid>
       </Container>
