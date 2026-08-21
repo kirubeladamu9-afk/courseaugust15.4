@@ -401,6 +401,49 @@ app.get('/api/courses/:id', async (request, response) => {
   return response.json(course)
 })
 
+app.get('/api/admin/overview', requireAdmin, async (_request, response) => {
+  const [totals] = await sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN status = 'Published' THEN price * students ELSE 0 END), 0)::FLOAT AS "totalRevenue",
+      COALESCE(SUM(CASE WHEN status = 'Published' THEN students ELSE 0 END), 0)::INTEGER AS "activeStudents",
+      COUNT(*) FILTER (WHERE status = 'Published')::INTEGER AS "publishedCourses",
+      COUNT(*) FILTER (WHERE status = 'Draft')::INTEGER AS "draftCourses",
+      (SELECT COUNT(*) FROM tutors WHERE status = 'Active')::INTEGER AS "activeTutors",
+      (SELECT COUNT(*) FROM tutors WHERE status = 'Inactive')::INTEGER AS "inactiveTutors"
+    FROM courses
+  `
+  const revenueByMonth = await sql`
+    WITH months AS (
+      SELECT generate_series(
+        date_trunc('month', CURRENT_DATE) - INTERVAL '6 months',
+        date_trunc('month', CURRENT_DATE),
+        INTERVAL '1 month'
+      )::DATE AS month
+    ), revenue AS (
+      SELECT date_trunc('month', updated_at)::DATE AS month, SUM(price * students)::FLOAT AS value
+      FROM courses
+      WHERE status = 'Published'
+        AND updated_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '6 months'
+      GROUP BY 1
+    )
+    SELECT to_char(months.month, 'Mon') AS label, COALESCE(revenue.value, 0)::FLOAT AS value
+    FROM months
+    LEFT JOIN revenue ON revenue.month = months.month
+    ORDER BY months.month
+  `
+  const enrollmentsByCategory = await sql`
+    SELECT category AS label, SUM(students)::INTEGER AS value
+    FROM courses
+    WHERE status = 'Published'
+      AND students > 0
+    GROUP BY category
+    ORDER BY value DESC, label
+    LIMIT 5
+  `
+
+  response.json({ ...totals, revenueByMonth, enrollmentsByCategory })
+})
+
 app.get('/api/admin/courses', requireAdmin, async (_request, response) => {
   const courses = await sql`
     SELECT ${courseColumns}

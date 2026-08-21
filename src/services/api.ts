@@ -48,6 +48,23 @@ const requestTutor = async (url: string, init?: RequestInit): Promise<AdminTutor
 
 export type AdminTutorPayload = Pick<AdminTutor, 'name' | 'email' | 'phone' | 'bio'> & Partial<Pick<AdminTutor, 'status'>> & { assignedCourseIds?: number[] }
 
+export interface AdminDashboardOverview {
+  totalRevenue: number
+  activeStudents: number
+  publishedCourses: number
+  draftCourses: number
+  activeTutors: number
+  inactiveTutors: number
+  revenueByMonth: Array<{ label: string; value: number }>
+  enrollmentsByCategory: Array<{ label: string; value: number }>
+}
+
+export const getAdminDashboardOverview = async (): Promise<AdminDashboardOverview> => {
+  const response = await requestApi('/api/admin/overview')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
 export const getAdminCourses = async (): Promise<Array<AdminCourse>> => {
   const response = await requestApi('/api/admin/courses')
   if (!response.ok) throw new Error(await getErrorMessage(response))

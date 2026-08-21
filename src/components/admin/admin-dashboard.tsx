@@ -61,7 +61,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
-import { createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminTutor, getAdminTutors, getAdminUsers, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus } from '@/services/api'
+import { type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
@@ -424,11 +424,11 @@ const LessonDetailsPanel: FC<{ lessonPanel: LessonPanelState; updateLessonDraft:
   </Paper>
 }
 
-const DashboardCharts: FC = () => {
+const DashboardCharts: FC<Pick<AdminDashboardOverview, 'revenueByMonth' | 'enrollmentsByCategory'>> = ({ revenueByMonth, enrollmentsByCategory }) => {
   const theme = useTheme()
-  const revenuePoints = '20,148 110,132 200,144 290,96 380,112 470,70 560,84'
-  const enrollments = [56, 80, 44, 92, 68]
-  const courseLabels = ['Data', 'Docker', 'React', 'Design', 'Mobile']
+  const maxRevenue = Math.max(0, ...revenueByMonth.map(({ value }) => value))
+  const maxEnrollments = Math.max(0, ...enrollmentsByCategory.map(({ value }) => value))
+  const revenuePoints = revenueByMonth.map(({ value }, index) => `${20 + (540 * index) / Math.max(revenueByMonth.length - 1, 1)},${160 - (maxRevenue ? (value / maxRevenue) * 125 : 0)}`).join(' ')
 
   return (
     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
@@ -437,12 +437,8 @@ const DashboardCharts: FC = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Monthly revenue performance</Typography>
         <Box component="svg" viewBox="0 0 580 190" sx={{ width: '100%', height: 220 }} role="img" aria-label="Revenue trend chart">
           {[35, 75, 115, 155].map((y) => <line key={y} x1="20" x2="560" y1={y} y2={y} stroke={theme.palette.divider} strokeDasharray="4 4" />)}
-          <polyline points={revenuePoints} fill="none" stroke={theme.palette.primary.main} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-          {revenuePoints.split(' ').map((point) => {
-            const [cx, cy] = point.split(',')
-            return <circle key={point} cx={cx} cy={cy} r="5" fill={theme.palette.background.paper} stroke={theme.palette.primary.main} strokeWidth="3" />
-          })}
-          {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((label, index) => <text key={label} x={20 + index * 90} y="180" fill={theme.palette.text.secondary} fontSize="12" textAnchor="middle">{label}</text>)}
+          {maxRevenue > 0 ? <><polyline points={revenuePoints} fill="none" stroke={theme.palette.primary.main} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />{revenueByMonth.map(({ label, value }, index) => { const cx = 20 + (540 * index) / Math.max(revenueByMonth.length - 1, 1); const cy = 160 - (value / maxRevenue) * 125; return <circle key={label} cx={cx} cy={cy} r="5" fill={theme.palette.background.paper} stroke={theme.palette.primary.main} strokeWidth="3" /> })}</> : <text x="290" y="100" fill={theme.palette.text.secondary} fontSize="14" textAnchor="middle">No revenue data available yet</text>}
+          {revenueByMonth.map(({ label }, index) => <text key={label} x={20 + (540 * index) / Math.max(revenueByMonth.length - 1, 1)} y="180" fill={theme.palette.text.secondary} fontSize="12" textAnchor="middle">{label}</text>)}
         </Box>
       </Paper>
       <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1, minWidth: 0 }}>
@@ -450,29 +446,42 @@ const DashboardCharts: FC = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Students enrolled by category</Typography>
         <Box component="svg" viewBox="0 0 580 190" sx={{ width: '100%', height: 220 }} role="img" aria-label="Course enrollment chart">
           {[35, 75, 115, 155].map((y) => <line key={y} x1="20" x2="560" y1={y} y2={y} stroke={theme.palette.divider} strokeDasharray="4 4" />)}
-          {enrollments.map((value, index) => {
-            const height = value * 1.25
-            const x = 45 + index * 105
-            return <g key={courseLabels[index]}><rect x={x} y={160 - height} width="48" height={height} rx="5" fill={index % 2 ? theme.palette.secondary.main : theme.palette.primary.main} /><text x={x + 24} y="180" fill={theme.palette.text.secondary} fontSize="12" textAnchor="middle">{courseLabels[index]}</text></g>
-          })}
+          {maxEnrollments > 0 ? enrollmentsByCategory.map(({ label, value }, index) => { const height = (value / maxEnrollments) * 125; const x = 45 + (490 * index) / Math.max(enrollmentsByCategory.length - 1, 1); return <g key={label}><rect x={x} y={160 - height} width="48" height={height} rx="5" fill={index % 2 ? theme.palette.secondary.main : theme.palette.primary.main} /><text x={x + 24} y="180" fill={theme.palette.text.secondary} fontSize="12" textAnchor="middle">{label}</text></g> }) : <text x="290" y="100" fill={theme.palette.text.secondary} fontSize="14" textAnchor="middle">No enrollments available yet</text>}
         </Box>
       </Paper>
     </Stack>
   )
 }
 
-const OverviewPage: FC = () => (
-  <>
+const OverviewPage: FC = () => {
+  const [overview, setOverview] = useState<AdminDashboardOverview | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const reloadOverview = async () => {
+    try {
+      setOverview(await getAdminDashboardOverview())
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load dashboard data.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => { void reloadOverview() }, [])
+
+  return <>
     <PageHeading title="Dashboard overview" description="A snapshot of your learning platform." />
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
-      <StatCard label="Total revenue" value="$24,680" detail="12.5% from last month" icon={<PaymentsOutlinedIcon />} />
-      <StatCard label="Active students" value="1,284" detail="8.2% from last month" icon={<GroupOutlinedIcon />} />
-      <StatCard label="Published courses" value="48" detail="6 courses in draft" icon={<SchoolOutlinedIcon />} />
-      <StatCard label="Active tutors" value="32" detail="4 pending approvals" icon={<PersonOutlineIcon />} />
+    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading dashboard data" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadOverview() }} /></Paper> : overview && <><Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
+      <StatCard label="Total revenue" value={new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(overview.totalRevenue)} detail="Published course enrollments" icon={<PaymentsOutlinedIcon />} />
+      <StatCard label="Active students" value={new Intl.NumberFormat('en-US').format(overview.activeStudents)} detail="Across published courses" icon={<GroupOutlinedIcon />} />
+      <StatCard label="Published courses" value={new Intl.NumberFormat('en-US').format(overview.publishedCourses)} detail={`${overview.draftCourses} course${overview.draftCourses === 1 ? '' : 's'} in draft`} icon={<SchoolOutlinedIcon />} />
+      <StatCard label="Active tutors" value={new Intl.NumberFormat('en-US').format(overview.activeTutors)} detail={`${overview.inactiveTutors} inactive tutor${overview.inactiveTutors === 1 ? '' : 's'}`} icon={<PersonOutlineIcon />} />
     </Stack>
-    <DashboardCharts />
+    <DashboardCharts revenueByMonth={overview.revenueByMonth} enrollmentsByCategory={overview.enrollmentsByCategory} /></>}
   </>
-)
+}
 
 const createEmptyCourse = (): AdminCourse => ({
   id: 0,
