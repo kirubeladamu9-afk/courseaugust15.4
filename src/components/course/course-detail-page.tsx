@@ -7,18 +7,15 @@ import Card from '@mui/material/Card'
 import Chip from '@mui/material/Chip'
 import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
-import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import Grid from '@mui/material/Grid'
-import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined'
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined'
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
-import QuizOutlinedIcon from '@mui/icons-material/QuizOutlined'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
-import { Fragment, type FC, useEffect, useState } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { type AdminCourse, type AdminLesson } from '@/components/admin/admin-data'
 import { getAuthenticatedUser, getAdminCourse, getCourse as getCourseFromApi } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
@@ -39,22 +36,12 @@ const getLessonLabel = (lesson: AdminLesson) => {
 
 const LessonTypeIcon: FC<{ type: AdminLesson['type'] }> = ({ type }) => {
   if (type === 'article') return <MenuBookOutlinedIcon fontSize="small" />
-  if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
-  if (type === 'live') return <LinkOutlinedIcon fontSize="small" />
   return <PlayCircleOutlineIcon fontSize="small" />
-}
-
-const CourseLessonContent: FC<{ lesson: AdminLesson; courseCover: string }> = ({ lesson, courseCover }) => {
-  if (lesson.type === 'video') return lesson.videoUrl ? <Box component="video" controls preload="metadata" src={lesson.videoUrl} poster={lesson.thumbnailUrl || courseCover} sx={{ display: 'block', width: '100%', maxHeight: 420, borderRadius: 1, backgroundColor: 'grey.900' }}>Your browser does not support video playback.</Box> : <Typography color="text.secondary" variant="body2">This video is not available yet.</Typography>
-  if (lesson.type === 'article') return <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{lesson.articleBody || 'No article content has been added yet.'}</Typography>
-  if (lesson.type === 'quiz') return <Stack spacing={1}>{(lesson.quizQuestions ?? []).length ? lesson.quizQuestions?.map((question, questionIndex) => <Box key={question.id}><Typography variant="body2" sx={{ fontWeight: 600 }}>{questionIndex + 1}. {question.question}</Typography><Stack spacing={0.25} sx={{ mt: 0.5 }}>{question.options.map((option, optionIndex) => <Typography key={`${question.id}-${optionIndex}`} color={question.correctOption === optionIndex ? 'primary.main' : 'text.secondary'} variant="body2">{String.fromCharCode(65 + optionIndex)}. {option}</Typography>)}</Stack></Box>) : <Typography color="text.secondary" variant="body2">No quiz questions have been added yet.</Typography>}<Typography color="text.secondary" variant="caption">Pass threshold: {lesson.passThreshold ?? 70}%</Typography></Stack>
-  return lesson.meetingUrl ? <Box component="a" href={lesson.meetingUrl} target="_blank" rel="noreferrer" sx={{ color: 'primary.main', fontWeight: 600 }}>Open live session</Box> : <Typography color="text.secondary" variant="body2">A meeting link has not been added yet.</Typography>
 }
 
 const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   const [course, setCourse] = useState<AdminCourse | null>(null)
   const [expandedModules, setExpandedModules] = useState<number[]>([])
-  const [isRegistered, setIsRegistered] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const isAdmin = getAuthenticatedUser()?.role === 'admin'
 
@@ -63,7 +50,6 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
     setCourse(null)
     setIsLoading(true)
     setExpandedModules([])
-    setIsRegistered(false)
 
     const loadCourse = isAdmin ? getAdminCourse(Number(courseId)) : getCourseFromApi(courseId)
 
@@ -96,12 +82,10 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   }
 
   const lessons = course.modules.flatMap((module) => module.lessons)
-  const lessonResources = lessons.flatMap((lesson) => lesson.type === 'video' || lesson.type === 'article' ? lesson.resources.map((resource) => ({ lessonTitle: lesson.title, resource })) : [])
-  const downloadableResources = lessonResources
   const videoLessons = lessons.filter((lesson) => lesson.type === 'video')
   const totalVideoSeconds = videoLessons.reduce((total, lesson) => total + (lesson.duration ?? 0), 0)
   const totalDurationSeconds = lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0)
-  const resourceCount = downloadableResources.length
+  const resourceCount = lessons.reduce((total, lesson) => total + lesson.resources.length, 0)
   const firstVideo = videoLessons[0]
   const allExpanded = course.modules.length > 0 && expandedModules.length === course.modules.length
 
@@ -113,6 +97,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
       <Box component="button" type="button" onClick={() => navigateTo('/')} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}>
         Courses <Typography component="span" color="text.secondary">/</Typography> <Typography component="span" color="text.primary">{course.title}</Typography>
       </Box>
+
       <Grid container spacing={{ xs: 4, md: 6 }}>
         <Grid item xs={12} md={8}>
           <Chip label={course.category} color="primary" size="small" sx={{ mb: 2 }} />
@@ -125,14 +110,14 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
           </Stack>
           <Box sx={{ position: 'relative', overflow: 'hidden', minHeight: { xs: 230, md: 390 }, borderRadius: 3, backgroundColor: 'grey.900', backgroundImage: `url(${course.cover})`, backgroundPosition: 'center', backgroundSize: 'cover' }}>
             <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10, 20, 30, 0.42)' }}>
-              {firstVideo?.videoUrl ? <Box component="video" controls src={firstVideo.videoUrl} poster={firstVideo.thumbnailUrl || course.cover} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Box component="button" type="button" aria-label="Play course preview" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, p: 0, border: 0, borderRadius: '50%', backgroundColor: 'primary.main', color: 'primary.contrastText', cursor: 'pointer', '&:hover': { backgroundColor: 'primary.dark', transform: 'scale(1.04)' }, transition: 'transform 160ms ease' }}><PlayCircleOutlineIcon sx={{ fontSize: 42 }} /></Box>}
+              {firstVideo?.videoUrl ? <Box component="video" controls preload="metadata" src={firstVideo.videoUrl} poster={firstVideo.thumbnailUrl || course.cover} sx={{ width: '100%', height: '100%', objectFit: 'cover' }}>Your browser does not support video playback.</Box> : <Box component="button" type="button" aria-label="Play course preview" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, p: 0, border: 0, borderRadius: '50%', backgroundColor: 'primary.main', color: 'primary.contrastText', cursor: 'pointer', '&:hover': { backgroundColor: 'primary.dark', transform: 'scale(1.04)' }, transition: 'transform 160ms ease' }}><PlayCircleOutlineIcon sx={{ fontSize: 42 }} /></Box>}
             </Box>
           </Box>
         </Grid>
         <Grid item xs={12} md={4}>
           <Card elevation={2} sx={{ position: { md: 'sticky' }, top: { md: 24 }, p: { xs: 2.5, md: 3 }, borderRadius: 3 }}>
             <Typography variant="h3" sx={{ mb: 2 }}>${course.price}</Typography>
-            <Button fullWidth variant="contained" size="large" onClick={() => setIsRegistered(true)}>{isRegistered ? 'Registered' : 'Enroll now'}</Button>
+            <Button fullWidth variant="contained" size="large" onClick={() => document.getElementById('course-content')?.scrollIntoView({ behavior: 'smooth' })}>ENROLL NOW</Button>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1.5 }}>Full lifetime access</Typography>
             <Divider sx={{ my: 2.5 }} />
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>This course includes</Typography>
@@ -152,7 +137,13 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
             <Box><Typography variant="h4" sx={{ mb: 2 }}>What you'll learn</Typography><Stack spacing={1}>{course.learningOutcomes.map((outcome) => <Box key={outcome} sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}><Typography color="primary.main" sx={{ fontSize: 22, lineHeight: 1 }}>✓</Typography><Typography>{outcome}</Typography></Box>)}</Stack></Box>
             <Box><Typography variant="h4" sx={{ mb: 2 }}>Requirements</Typography><Stack spacing={1}>{course.requirements.map((requirement) => <Box key={requirement} sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}><Typography color="primary.main" sx={{ fontSize: 22, lineHeight: 1 }}>✓</Typography><Typography>{requirement}</Typography></Box>)}</Stack></Box>
             <Box><Typography variant="h4" sx={{ mb: 2 }}>Description</Typography><Typography color="text.secondary" sx={{ lineHeight: 1.8 }}>{course.longDescription}</Typography></Box>
-            <Box><Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}><Box><Typography variant="h4">Course content</Typography><Typography color="text.secondary" variant="body2">{course.modules.length} sections · {lessons.length} lectures · {formatDuration(totalDurationSeconds)}</Typography></Box><Button size="small" variant="text" onClick={toggleExpandAll}>{allExpanded ? 'Collapse all' : 'Expand all'}</Button></Box><Box sx={{ mb: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}><Typography variant="h6" sx={{ mb: 1 }}>Downloadable resources</Typography>{downloadableResources.length > 0 ? <Stack spacing={0.75}>{downloadableResources.map(({ lessonTitle, resource }) => <Box key={`${lessonTitle}-${resource.id}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}><Typography variant="caption" color="text.secondary">{lessonTitle}</Typography>{resource.url ? <Box component="a" href={resource.url} download={resource.name} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'primary.main', fontWeight: 600, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}><Typography variant="body2">Downloadable resource</Typography><DownloadOutlinedIcon fontSize="small" /></Box> : <Typography variant="body2" color="text.secondary">{resource.name}</Typography>}</Box>)}</Stack> : <Typography variant="body2" color="text.secondary">No downloadable resources have been added yet.</Typography>}</Box><Stack spacing={1}>{course.modules.map((module) => <Accordion key={module.id} expanded={expandedModules.includes(module.id)} onChange={() => toggleModule(module.id)} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}><AccordionSummary expandIcon={<ExpandMoreIcon />}><Box><Typography sx={{ fontWeight: 600 }}>{module.title}</Typography><Typography variant="caption" color="text.secondary">{module.lessons.length} {module.lessons.length === 1 ? 'lecture' : 'lectures'} · {formatDuration(module.lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0))}</Typography></Box></AccordionSummary><AccordionDetails sx={{ pt: 0 }}>{module.lessons.map((lesson) => <Fragment key={lesson.id}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap' }}><Box sx={{ display: 'flex', color: 'text.secondary' }}><LessonTypeIcon type={lesson.type} /></Box><Typography variant="body2" sx={{ flex: 1 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{getLessonLabel(lesson)}</Typography></Box><Box sx={{ width: '100%', pb: 1 }}><CourseLessonContent lesson={lesson} courseCover={course.cover} /></Box></Fragment>)}</AccordionDetails></Accordion>)}</Stack></Box>
+            <Box id="course-content">
+              <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                <Box><Typography variant="h4">Course content</Typography><Typography color="text.secondary" variant="body2">{course.modules.length} sections · {lessons.length} lectures · {formatDuration(totalDurationSeconds)}</Typography></Box>
+                <Button size="small" variant="text" onClick={toggleExpandAll}>{allExpanded ? 'Collapse all' : 'Expand all'}</Button>
+              </Box>
+              <Stack spacing={1.25}>{course.modules.map((module) => <Accordion key={module.id} expanded={expandedModules.includes(module.id)} onChange={() => toggleModule(module.id)} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: '8px !important', '&::before': { display: 'none' } }}><AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls={`module-${module.id}-content`} id={`module-${module.id}-header`}><Box sx={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 2, pr: 1 }}><Typography sx={{ fontWeight: 600 }}>{module.title}</Typography><Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{module.lessons.length} lectures · {formatDuration(module.lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0))}</Typography></Box></AccordionSummary><AccordionDetails sx={{ pt: 0 }}><Stack divider={<Divider flexItem />}>{module.lessons.map((lesson) => <Box key={lesson.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 1 }}><Box color="text.secondary" sx={{ display: 'flex' }}><LessonTypeIcon type={lesson.type} /></Box><Typography variant="body2" sx={{ flexGrow: 1 }}>{lesson.title}</Typography><Typography variant="body2" color="text.secondary">{getLessonLabel(lesson)}</Typography></Box>)}</Stack></AccordionDetails></Accordion>)}</Stack>
+            </Box>
           </Stack>
         </Grid>
       </Grid>
