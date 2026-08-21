@@ -28,6 +28,12 @@ body {
   background-color: '#fff';
 }
 
+.hero-image,
+.course-cover-image {
+  width: 100%;
+  height: auto;
+}
+
 .page-loading-state {
   display: flex;
   align-items: center;

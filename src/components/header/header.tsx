@@ -27,7 +27,11 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onSignUp, onToggleDarkMode }) =
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Logo />
           <Box sx={{ ml: 'auto', display: { xs: 'inline-flex', md: 'none' } }}>
-            <IconButton onClick={() => setVisibleMenu(!visibleMenu)}>
+            <IconButton
+              onClick={() => setVisibleMenu(!visibleMenu)}
+              aria-label={visibleMenu ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={visibleMenu}
+            >
               <Menu />
             </IconButton>
           </Box>
@@ -69,6 +73,7 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onSignUp, onToggleDarkMode }) =
                   right: 10,
                 }}
                 onClick={() => setVisibleMenu(!visibleMenu)}
+                aria-label="Close navigation menu"
               >
                 <Close />
               </IconButton>

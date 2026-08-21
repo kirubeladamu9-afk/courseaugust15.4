@@ -42,7 +42,7 @@ const CourseCardItem: FC<Props> = ({ item }) => {
             mb: 2,
           }}
         >
-          <img src={item.cover} width={760} height={760} alt={'Course ' + item.id} loading="lazy" style={{ width: '100%', height: 'auto' }} />
+          <img className="course-cover-image" src={item.cover} width={760} height={760} alt={'Course ' + item.id} loading="lazy" />
         </Box>
         <Box sx={{ mb: 2 }}>
           <Typography component="h2" variant="h5" sx={{ mb: 2, height: 56, overflow: 'hidden', fontSize: '1.2rem' }}>
@@ -64,6 +64,7 @@ const CourseCardItem: FC<Props> = ({ item }) => {
           </Box>
           <IconButton
             color="primary"
+            aria-label={`Open ${item.title} course`}
             sx={{ '&:hover': { backgroundColor: 'primary.main', color: 'primary.contrastText' } }}
           >
             <ArrowForward />

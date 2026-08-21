@@ -12,6 +12,7 @@ const Navigation: FC = () => {
           key={destination}
           activeClass="current"
           to={destination}
+          href={`#${destination}`}
           spy={true}
           smooth={true}
           duration={350}
@@ -26,7 +27,7 @@ const Navigation: FC = () => {
             px: { xs: 0, md: 3 },
             mb: { xs: 3, md: 0 },
             fontSize: { xs: '1.2rem', md: 'inherit' },
-            ...(destination === '/' && {
+            ...(destination === 'hero' && {
               color: 'primary.main',
             }),
 

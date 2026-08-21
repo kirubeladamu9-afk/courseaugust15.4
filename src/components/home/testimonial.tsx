@@ -34,6 +34,7 @@ const SliderArrow: FC<SliderArrowArrow> = (props) => {
       }}
       disableRipple
       color="inherit"
+      aria-label={type === 'next' ? 'Next testimonials' : 'Previous testimonials'}
       onClick={onClick}
       className={className}
     >

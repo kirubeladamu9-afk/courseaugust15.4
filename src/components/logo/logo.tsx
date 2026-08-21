@@ -8,7 +8,13 @@ interface Props {
 
 const Logo: FC<Props> = ({ onClick, variant }) => {
   return (
-    <Box onClick={onClick}>
+    <Box
+      component="a"
+      href="/"
+      aria-label="CourseSpace home"
+      onClick={onClick}
+      sx={{ display: 'inline-block', color: 'inherit', textDecoration: 'none' }}
+    >
       <Typography
         variant="h4"
         component="h1"

@@ -84,6 +84,7 @@ const HomeHero: FC = () => {
                   >
                     Improve{' '}
                     <Box
+                      component="span"
                       sx={{
                         position: 'absolute',
                         top: { xs: 24, md: 34 },
@@ -113,7 +114,7 @@ const HomeHero: FC = () => {
                     }}
                   >
                     Skill
-                    <svg version="1.1" viewBox="0 0 3183 3072">
+                    <svg aria-hidden="true" focusable="false" version="1.1" viewBox="0 0 3183 3072">
                       <g id="Layer_x0020_1">
                         <path
                           fill="#127C71"
@@ -137,7 +138,7 @@ const HomeHero: FC = () => {
               <Box sx={{ mb: 4, width: { xs: '100%', md: '70%' } }}>
                 <Typography sx={{ color: 'text.secondary', lineHeight: 1.6 }}>
                   {
-                    "Let's take an online course to improve your skills in a different way, you can set your own study time according to your learning speed. So you san study comfortable and absorb tge material easily."
+                    "Let's take an online course to improve your skills in a different way, you can set your own study time according to your learning speed. So you can study comfortably and absorb the material easily."
                   }
                 </Typography>
               </Box>
@@ -206,7 +207,7 @@ const HomeHero: FC = () => {
                 width={775}
                 height={787}
                 alt="Hero img"
-                style={{ width: '100%', height: 'auto' }}
+                className="hero-image"
               />
             </Box>
           </Grid>
