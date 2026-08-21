@@ -46,7 +46,7 @@ const requestTutor = async (url: string, init?: RequestInit): Promise<AdminTutor
   return response.json()
 }
 
-export type AdminTutorPayload = Pick<AdminTutor, 'name' | 'email' | 'phone' | 'bio'> & Partial<Pick<AdminTutor, 'status'>>
+export type AdminTutorPayload = Pick<AdminTutor, 'name' | 'email' | 'phone' | 'bio'> & Partial<Pick<AdminTutor, 'status'>> & { assignedCourseIds?: number[] }
 
 export const getAdminCourses = async (): Promise<Array<AdminCourse>> => {
   const response = await requestApi('/api/admin/courses')

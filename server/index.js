@@ -239,12 +239,14 @@ const parseTutorPayload = (body) => {
   const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
   const bio = typeof body.bio === 'string' ? body.bio.trim() : ''
   const status = body.status === undefined ? 'Active' : body.status
+  const assignedCourseIds = body.assignedCourseIds === undefined ? null : body.assignedCourseIds
+  const validCourseIds = Array.isArray(assignedCourseIds) && assignedCourseIds.every((id) => Number.isInteger(id) && id > 0)
 
-  if (!name || name.length > 120 || !email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.length > 40 || bio.length > 2000 || (status !== 'Active' && status !== 'Inactive')) {
+  if (!name || name.length > 120 || !email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.length > 40 || bio.length > 2000 || (status !== 'Active' && status !== 'Inactive') || (assignedCourseIds !== null && !validCourseIds)) {
     return null
   }
 
-  return { name, email, phone, bio, status }
+  return { name, email, phone, bio, status, assignedCourseIds }
 }
 
 const parseTutorStatus = (body) => body && typeof body === 'object' && !Array.isArray(body) && (body.status === 'Active' || body.status === 'Inactive') ? body.status : null
@@ -257,7 +259,7 @@ const addAssignedCourses = async (tutor) => {
        OR (tutor_id IS NULL AND LOWER(TRIM(tutor)) = LOWER(${tutor.name}))
     ORDER BY id
   `
-  return { ...tutor, assignedCourses }
+  return { ...tutor, assignedCourses, assignedCourseIds: assignedCourses.map((course) => course.id) }
 }
 
 const readTutor = async (id) => {
@@ -276,6 +278,24 @@ const findTutorIdByName = async (name) => {
     WHERE LOWER(TRIM(name)) = LOWER(${name})
   `
   return tutor?.id ?? null
+}
+
+const updateTutorAssignments = async (tutorId, tutorName, assignedCourseIds, previousTutorName = '') => {
+  if (assignedCourseIds === null) return
+  const retainedCourses = assignedCourseIds.length ? sql`AND id NOT IN ${sql(assignedCourseIds)}` : sql``
+  await sql`
+    UPDATE courses
+    SET tutor_id = NULL, tutor = ''
+    WHERE (tutor_id = ${tutorId} OR (tutor_id IS NULL AND LOWER(TRIM(tutor)) = LOWER(${previousTutorName || tutorName})))
+      ${retainedCourses}
+  `
+  if (assignedCourseIds.length) {
+    await sql`
+      UPDATE courses
+      SET tutor_id = ${tutorId}, tutor = ${tutorName}
+      WHERE id IN ${sql(assignedCourseIds)}
+    `
+  }
 }
 
 const getSessionToken = (request) => {
@@ -415,14 +435,16 @@ app.get('/api/admin/tutors/:id', requireAdmin, async (request, response) => {
 })
 
 app.post('/api/admin/tutors', requireAdmin, async (request, response) => {
-  const tutor = parseTutorPayload(request.body)
-  if (!tutor) return response.status(400).json({ message: 'Enter valid tutor details.' })
+  const parsedTutor = parseTutorPayload(request.body)
+  if (!parsedTutor) return response.status(400).json({ message: 'Enter valid tutor details.' })
+  const { assignedCourseIds, ...tutor } = parsedTutor
 
   try {
     const [created] = await sql`
       INSERT INTO tutors ${sql(tutor)}
       RETURNING id
     `
+    await updateTutorAssignments(Number(created.id), tutor.name, assignedCourseIds)
     const createdTutor = await readTutor(Number(created.id))
     return response.status(201).json({ ...createdTutor, inviteLink: `/admin/tutors/${created.id}` })
   } catch (error) {
@@ -435,10 +457,13 @@ app.put('/api/admin/tutors/:id', requireAdmin, async (request, response) => {
   const id = parseTutorId(request.params.id)
   if (id === null) return response.status(400).json({ message: 'Invalid tutor id.' })
 
-  const tutor = parseTutorPayload(request.body)
-  if (!tutor) return response.status(400).json({ message: 'Enter valid tutor details.' })
+  const parsedTutor = parseTutorPayload(request.body)
+  if (!parsedTutor) return response.status(400).json({ message: 'Enter valid tutor details.' })
+  const { assignedCourseIds, ...tutor } = parsedTutor
 
   try {
+    const [existingTutor] = await sql`SELECT name FROM tutors WHERE id = ${id}`
+    if (!existingTutor) return response.status(404).json({ message: 'Tutor not found.' })
     const [updated] = await sql`
       UPDATE tutors
       SET ${sql(tutor)}
@@ -446,6 +471,7 @@ app.put('/api/admin/tutors/:id', requireAdmin, async (request, response) => {
       RETURNING id
     `
     if (!updated) return response.status(404).json({ message: 'Tutor not found.' })
+    await updateTutorAssignments(id, tutor.name, assignedCourseIds, existingTutor.name)
     return response.json(await readTutor(id))
   } catch (error) {
     if (error.code === '23505') return response.status(409).json({ message: 'A tutor with this email already exists.' })

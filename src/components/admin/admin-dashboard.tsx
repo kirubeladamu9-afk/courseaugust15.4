@@ -703,6 +703,11 @@ const TutorEditorPage: FC<TutorEditorPageProps> = ({ mode, tutorId }) => {
   const [isLoading, setIsLoading] = useState(mode === 'edit')
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [courses, setCourses] = useState<AdminCourse[]>([])
+
+  useEffect(() => {
+    getAdminCourses().then(setCourses).catch(() => setLoadError('Unable to load courses.'))
+  }, [])
 
   useEffect(() => {
     let isCurrent = true
@@ -730,7 +735,8 @@ const TutorEditorPage: FC<TutorEditorPageProps> = ({ mode, tutorId }) => {
 
     setIsSaving(true)
     try {
-      const savedTutor = mode === 'new' ? await createAdminTutor({ name, email, phone: tutor.phone.trim(), bio: tutor.bio.trim(), status: tutor.status }) : await updateAdminTutor({ ...tutor, name, email, phone: tutor.phone.trim(), bio: tutor.bio.trim() })
+      const assignedCourseIds = tutor.assignedCourseIds ?? tutor.assignedCourses.map((course) => course.id)
+      const savedTutor = mode === 'new' ? await createAdminTutor({ name, email, phone: tutor.phone.trim(), bio: tutor.bio.trim(), status: tutor.status, assignedCourseIds }) : await updateAdminTutor({ ...tutor, name, email, phone: tutor.phone.trim(), bio: tutor.bio.trim(), assignedCourseIds })
       setTutor(savedTutor)
       toast.add({ title: mode === 'new' ? 'Tutor created' : 'Tutor saved', description: mode === 'new' ? 'An invite link is ready for this tutor.' : `${savedTutor.name} is now updated.`, type: 'success' })
       if (mode === 'new') navigateTo(`/admin/tutors/${savedTutor.id}`, true)
@@ -744,15 +750,16 @@ const TutorEditorPage: FC<TutorEditorPageProps> = ({ mode, tutorId }) => {
   if (isLoading) return <AdminLoadingState label="Loading tutor" />
   if (loadError || !tutor) return <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError ?? 'Tutor not found.'}</Typography><Button label="Back to tutors" variant="text" onClick={() => navigateTo('/admin/tutors')} /></Paper>
 
+  const selectedCourseIds = tutor.assignedCourseIds ?? tutor.assignedCourses.map((course) => course.id)
   return (
     <>
-      <PageHeading title={mode === 'new' ? 'New Tutor' : tutor.name} description={mode === 'new' ? 'Create a tutor profile and generate an invite link.' : 'Edit profile information. Course assignment remains in Programs & Courses.'} action={<Stack direction="row" spacing={1}><Button label="Back to tutors" variant="text" onClick={() => navigateTo('/admin/tutors')} /><Button label={mode === 'new' ? 'Create Tutor' : 'Save changes'} onClick={() => void saveTutor()} disabled={isSaving} /></Stack>} />
+      <PageHeading title={mode === 'new' ? 'New Tutor' : tutor.name} description={mode === 'new' ? 'Create a tutor profile, assign courses, and generate an invite link.' : 'Edit profile information and assigned courses.'} action={<Stack direction="row" spacing={1}><Button label="Back to tutors" variant="text" onClick={() => navigateTo('/admin/tutors')} /><Button label={mode === 'new' ? 'Create Tutor' : 'Save changes'} onClick={() => void saveTutor()} disabled={isSaving} /></Stack>} />
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
         <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>Profile information</Typography>
-          <Stack spacing={2}><TextField required fullWidth label="Name" value={tutor.name} onChange={(event) => setTutor({ ...tutor, name: event.target.value })} /><TextField required fullWidth type="email" label="Email" value={tutor.email} onChange={(event) => setTutor({ ...tutor, email: event.target.value })} /><TextField fullWidth label="Phone" value={tutor.phone} onChange={(event) => setTutor({ ...tutor, phone: event.target.value })} /><TextField fullWidth multiline minRows={5} label="Bio" value={tutor.bio} onChange={(event) => setTutor({ ...tutor, bio: event.target.value })} /><Stack direction="row" alignItems="center" justifyContent="space-between"><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>Status</Typography><Typography variant="caption" color="text.secondary">Inactive tutors remain available in existing course history.</Typography></Box><Switch checked={tutor.status === 'Active'} onChange={() => setTutor({ ...tutor, status: tutor.status === 'Active' ? 'Inactive' : 'Active' })} inputProps={{ 'aria-label': 'Tutor status' }} /></Stack></Stack>
+          <Stack spacing={2}><TextField required fullWidth label="Name" value={tutor.name} onChange={(event) => setTutor({ ...tutor, name: event.target.value })} /><TextField required fullWidth type="email" label="Email" value={tutor.email} onChange={(event) => setTutor({ ...tutor, email: event.target.value })} /><TextField fullWidth label="Phone" value={tutor.phone} onChange={(event) => setTutor({ ...tutor, phone: event.target.value })} /><TextField fullWidth multiline minRows={5} label="Bio" value={tutor.bio} onChange={(event) => setTutor({ ...tutor, bio: event.target.value })} /><FormControl fullWidth><InputLabel id="tutor-course-assignment-label">Assigned courses</InputLabel><Select labelId="tutor-course-assignment-label" multiple label="Assigned courses" value={selectedCourseIds} onChange={(event) => setTutor({ ...tutor, assignedCourseIds: (typeof event.target.value === 'string' ? event.target.value.split(',').map(Number) : event.target.value) as number[] })} renderValue={(selected) => (selected as number[]).map((id) => courses.find((course) => course.id === id)?.title ?? '').join(', ')}>{courses.map((course) => <MenuItem key={course.id} value={course.id}>{course.title}</MenuItem>)}</Select><Typography color="text.secondary" variant="caption">Select every course this tutor teaches.</Typography></FormControl><Stack direction="row" alignItems="center" justifyContent="space-between"><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>Status</Typography><Typography variant="caption" color="text.secondary">Inactive tutors remain available in existing course history.</Typography></Box><Switch checked={tutor.status === 'Active'} onChange={() => setTutor({ ...tutor, status: tutor.status === 'Active' ? 'Inactive' : 'Active' })} inputProps={{ 'aria-label': 'Tutor status' }} /></Stack></Stack>
         </Paper>
-        {mode === 'edit' && <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}><Typography variant="h6" sx={{ mb: 0.5 }}>Assigned Courses</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Read-only. Reassign tutors from the Programs & Courses list.</Typography><Stack spacing={1}>{tutor.assignedCourses.length ? tutor.assignedCourses.map((course) => <Box key={course.id} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}><Typography variant="subtitle2">{course.title}</Typography><Typography color="text.secondary" variant="body2">{course.category} · {course.students} students</Typography></Box>) : <Typography color="text.secondary" variant="body2">No courses assigned.</Typography>}</Stack></Paper>}
+        {mode === 'edit' && <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}><Typography variant="h6" sx={{ mb: 0.5 }}>Assigned Courses</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Current assignments. Update them with the multi-select in the profile form.</Typography><Stack spacing={1}>{tutor.assignedCourses.length ? tutor.assignedCourses.map((course) => <Box key={course.id} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}><Typography variant="subtitle2">{course.title}</Typography><Typography color="text.secondary" variant="body2">{course.category} · {course.students} students</Typography></Box>) : <Typography color="text.secondary" variant="body2">No courses assigned.</Typography>}</Stack></Paper>}
       </Stack>
     </>
   )

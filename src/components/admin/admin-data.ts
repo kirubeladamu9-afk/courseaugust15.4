@@ -77,6 +77,7 @@ export interface AdminTutor {
   status: 'Active' | 'Inactive'
   createdAt: string
   assignedCourses: AssignedCourse[]
+  assignedCourseIds?: number[]
   specialty?: string
   courses?: number
 }
