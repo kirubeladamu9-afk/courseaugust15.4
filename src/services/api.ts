@@ -1,4 +1,4 @@
-import { type AdminCourse, type AdminTutor } from '@/components/admin/admin-data'
+import { type AdminCourse, type AdminTutor, type AdminUser } from '@/components/admin/admin-data'
 import { type Course } from '@/interfaces/course'
 
 export interface AuthUser {
@@ -106,6 +106,28 @@ export const updateAdminTutorStatus = (id: AdminTutor['id'], status: AdminTutor[
 export const deleteAdminTutor = async (id: AdminTutor['id']) => {
   const response = await requestApi(`/api/admin/tutors/${id}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(await getErrorMessage(response))
+}
+
+export const getAdminUsers = async (): Promise<Array<AdminUser>> => {
+  const response = await requestApi('/api/admin/users')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const updateAdminUserStatus = async (accountType: AdminUser['accountType'], accountId: number, status: 'Active' | 'Suspended'): Promise<AdminUser> => {
+  const response = await requestApi(`/api/admin/users/${accountType}/${accountId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const resetAdminUserPassword = async (accountType: AdminUser['accountType'], accountId: number): Promise<{ temporaryPassword: string }> => {
+  const response = await requestApi(`/api/admin/users/${accountType}/${accountId}/reset-password`, { method: 'POST' })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
 }
 
 export const getCourse = async (id: Course['id']): Promise<AdminCourse> => requestCourse(`/api/courses/${id}`)

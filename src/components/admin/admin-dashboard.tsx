@@ -38,6 +38,9 @@ import FormatBoldIcon from '@mui/icons-material/FormatBold'
 import FormatItalicIcon from '@mui/icons-material/FormatItalic'
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import LockResetIcon from '@mui/icons-material/LockReset'
+import BlockIcon from '@mui/icons-material/Block'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
@@ -57,9 +60,9 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
-import { createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminTutor, getAdminTutors, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus } from '@/services/api'
+import { createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminTutor, getAdminTutors, getAdminUsers, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
-import { payments, registrations, users, type AdminCourse, type AdminLesson, type AdminTutor, type LessonType, type Registration } from './admin-data'
+import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
@@ -777,14 +780,63 @@ const PaymentsPage: FC = () => {
 }
 
 const UsersPage: FC = () => {
-  const columns: DataColumn<(typeof users)[number]>[] = [
+  const [userRows, setUserRows] = useState<AdminUser[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const reloadUsers = async () => {
+    try {
+      const accounts = await getAdminUsers()
+      setUserRows(accounts)
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load users.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void reloadUsers()
+  }, [])
+
+  const toggleAccountStatus = async (account: AdminUser) => {
+    if (!account.accountType || account.accountId === undefined) return
+    const status = account.status === 'Active' ? 'Suspended' : 'Active'
+    try {
+      const updatedAccount = await updateAdminUserStatus(account.accountType, account.accountId, status)
+      setUserRows((rows) => rows.map((row) => row.id === account.id ? updatedAccount : row))
+      toast.add({ title: status === 'Active' ? 'Account activated' : 'Account deactivated', description: `${account.name} is now ${status === 'Active' ? 'active' : 'suspended'}.`, type: 'success' })
+    } catch (error) {
+      toast.add({ title: 'Unable to update account', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
+  }
+
+  const resetPassword = async (account: AdminUser) => {
+    if (!account.accountType || account.accountId === undefined) return
+    if (!window.confirm(`Reset the password for ${account.name}?`)) return
+    try {
+      const result = await resetAdminUserPassword(account.accountType, account.accountId)
+      toast.add({ title: 'Password reset', description: `Temporary password: ${result.temporaryPassword}`, type: 'success', priority: 'high' })
+    } catch (error) {
+      toast.add({ title: 'Unable to reset password', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
+  }
+
+  const columns: DataColumn<AdminUser>[] = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
     { key: 'role', label: 'Role' },
     { key: 'joined', label: 'Joined' },
     { key: 'status', label: 'Status', render: (value) => <StatusChip status={String(value)} /> },
   ]
-  return <><PageHeading title="Users" description="Manage learners, tutors, and administrator accounts." action={<Button label="Add user" />} /><AdminDataTable rows={users} columns={columns} searchPlaceholder="Search users" /></>
+
+  return (
+    <>
+      <PageHeading title="Users" description="Manage learners, tutors, and administrator accounts." action={<Button label="Add user" disabled={isLoading} />} />
+      {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading users" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadUsers() }} /></Paper> : <AdminDataTable rows={userRows} columns={columns} searchPlaceholder="Search users" searchKeys={['name', 'email']} actions={(account) => <Stack direction="row" justifyContent="flex-end" spacing={0.5}><Tooltip title="Reset password"><IconButton size="small" onClick={() => void resetPassword(account)} aria-label={`Reset password for ${account.name}`}><LockResetIcon fontSize="small" /></IconButton></Tooltip><Tooltip title={account.status === 'Active' ? 'Deactivate account' : 'Activate account'}><IconButton size="small" color={account.status === 'Active' ? 'warning' : 'success'} onClick={() => void toggleAccountStatus(account)} aria-label={`${account.status === 'Active' ? 'Deactivate' : 'Activate'} ${account.name}`} disabled={account.role === 'Admin'}>{account.status === 'Active' ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}</IconButton></Tooltip></Stack>} />}
+    </>
+  )
 }
 
 const SimplePage: FC<{ title: string; description: string; icon: ReactNode }> = ({ title, description, icon }) => (

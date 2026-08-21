@@ -73,12 +73,17 @@ const initializeDatabase = async () => {
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT '',
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'student',
+      status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Suspended')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Active'`
 
   await sql`
     CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -130,6 +135,10 @@ const initializeDatabase = async () => {
     await sql`
       INSERT INTO tutors ${sql(seedTutor)}
       ON CONFLICT (email) DO NOTHING
+    `
+    await sql`
+      INSERT INTO users ${sql({ name: seedTutor.name, email: seedTutor.email, password_hash: await hashPassword(randomBytes(9).toString('base64url')), role: 'tutor', status: seedTutor.status === 'Active' ? 'Active' : 'Suspended' })}
+      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, role = 'tutor'
     `
   }
 
@@ -470,6 +479,72 @@ app.delete('/api/admin/tutors/:id', requireAdmin, async (request, response) => {
   return response.status(204).end()
 })
 
+const readAdminAccounts = async () => {
+  const users = await sql`
+    SELECT id::INTEGER AS "accountId",
+           id::INTEGER AS id,
+           COALESCE(NULLIF(name, ''), split_part(email, '@', 1)) AS name,
+           email,
+           CASE role WHEN 'admin' THEN 'Admin' WHEN 'tutor' THEN 'Tutor' ELSE 'Student' END AS role,
+           to_char(created_at, 'FMMonth DD, YYYY') AS joined,
+           status,
+           'user' AS "accountType"
+    FROM users
+  `
+  const tutors = await sql`
+    SELECT id::INTEGER AS "accountId",
+           (1000000000 + id)::INTEGER AS id,
+           name,
+           email,
+           'Tutor' AS role,
+           to_char(created_at, 'FMMonth DD, YYYY') AS joined,
+           CASE status WHEN 'Active' THEN 'Active' ELSE 'Suspended' END AS status,
+           'tutor' AS "accountType"
+    FROM tutors
+  `
+  const accountsByEmail = new Map([...users, ...tutors].map((account) => [account.email, account]))
+  return [...accountsByEmail.values()].sort((first, second) => first.name.localeCompare(second.name))
+}
+
+app.get('/api/admin/users', requireAdmin, async (_request, response) => response.json(await readAdminAccounts()))
+
+app.patch('/api/admin/users/:accountType/:id/status', requireAdmin, async (request, response) => {
+  const id = parseTutorId(request.params.id)
+  const accountType = request.params.accountType
+  const status = request.body?.status
+  if (id === null || !['user', 'tutor'].includes(accountType)) return response.status(400).json({ message: 'Invalid account.' })
+  if (status !== 'Active' && status !== 'Suspended') return response.status(400).json({ message: 'Account status must be Active or Suspended.' })
+
+  const updated = accountType === 'user'
+    ? await sql`UPDATE users SET status = ${status} WHERE id = ${id} RETURNING id`
+    : await sql`UPDATE tutors SET status = ${status === 'Active' ? 'Active' : 'Inactive'} WHERE id = ${id} RETURNING id, email`
+  if (!updated.length) return response.status(404).json({ message: 'Account not found.' })
+  if (accountType === 'tutor') await sql`UPDATE users SET status = ${status} WHERE email = ${updated[0].email}`
+  const account = (await readAdminAccounts()).find((currentAccount) => currentAccount.accountType === accountType && currentAccount.accountId === id)
+  return response.json(account)
+})
+
+app.post('/api/admin/users/:accountType/:id/reset-password', requireAdmin, async (request, response) => {
+  const id = parseTutorId(request.params.id)
+  const accountType = request.params.accountType
+  if (id === null || !['user', 'tutor'].includes(accountType)) return response.status(400).json({ message: 'Invalid account.' })
+
+  const temporaryPassword = randomBytes(9).toString('base64url')
+  const passwordHash = await hashPassword(temporaryPassword)
+  if (accountType === 'user') {
+    const [updated] = await sql`UPDATE users SET password_hash = ${passwordHash} WHERE id = ${id} RETURNING id`
+    if (!updated) return response.status(404).json({ message: 'Account not found.' })
+  } else {
+    const [tutor] = await sql`SELECT name, email, status FROM tutors WHERE id = ${id}`
+    if (!tutor) return response.status(404).json({ message: 'Account not found.' })
+    await sql`
+      INSERT INTO users ${sql({ name: tutor.name, email: tutor.email, password_hash: passwordHash, role: 'tutor', status: tutor.status === 'Active' ? 'Active' : 'Suspended' })}
+      ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, status = EXCLUDED.status
+    `
+  }
+  return response.json({ temporaryPassword })
+})
+
 app.post('/api/admin/courses', requireAdmin, async (request, response) => {
   const course = parseCoursePayload(request.body)
   if (!course) return response.status(400).json({ message: 'Enter all required course details.' })
@@ -550,12 +625,12 @@ app.post('/api/auth/sign-in', async (request, response) => {
 
   const normalizedEmail = email.trim().toLowerCase()
   const [user] = await sql`
-    SELECT id, email, password_hash, role, created_at AS "createdAt"
+    SELECT id, email, password_hash, role, status, created_at AS "createdAt"
     FROM users
     WHERE email = ${normalizedEmail}
   `
 
-  if (!user || !(await verifyPassword(password, user.password_hash))) {
+  if (!user || user.status !== 'Active' || !(await verifyPassword(password, user.password_hash))) {
     return response.status(401).json({ message: 'Invalid email or password.' })
   }
 

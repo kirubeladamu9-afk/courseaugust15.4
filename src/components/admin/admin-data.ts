@@ -94,6 +94,8 @@ export interface Payment {
 
 export interface AdminUser {
   id: number
+  accountId?: number
+  accountType?: 'user' | 'tutor'
   name: string
   email: string
   role: 'Student' | 'Tutor' | 'Admin'
