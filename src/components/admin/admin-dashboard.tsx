@@ -513,6 +513,7 @@ const CoursesPage: FC = () => {
   }
 
   const openNewCoursePage = () => navigateTo('/admin/courses/new')
+  const openCourseContentPage = (course: AdminCourse) => navigateTo(`/admin/courses/${course.id}/content`)
   const openEditCoursePage = (course: AdminCourse) => navigateTo(`/admin/courses/${course.id}/edit`)
 
   const deleteCourse = async (course: AdminCourse) => {
@@ -544,10 +545,50 @@ const CoursesPage: FC = () => {
           <FormControl size="small" sx={{ minWidth: 150 }}><InputLabel>Status</InputLabel><Select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'All' | AdminCourse['status'])}><MenuItem value="All">All statuses</MenuItem><MenuItem value="Published">Published</MenuItem><MenuItem value="Draft">Draft</MenuItem></Select></FormControl>
           <FormControl size="small" sx={{ minWidth: 170 }}><InputLabel>Program</InputLabel><Select label="Program" value={programFilter} onChange={(event) => setProgramFilter(event.target.value)}><MenuItem value="All">All programs</MenuItem>{programs.map((program) => <MenuItem key={program} value={program}>{program}</MenuItem>)}</Select></FormControl>
         </Stack>
-        <AdminDataTable rows={filteredCourses} columns={columns} searchPlaceholder="Search courses" searchKeys={['title', 'category', 'tutor']} actions={(course) => <Stack direction="row" justifyContent="flex-end" spacing={0.5}><Button label="View" size="small" variant="text" onClick={() => navigateTo(`/courses/${course.id}`)} /><Button label="Edit" size="small" variant="text" onClick={() => openEditCoursePage(course)} /><Tooltip title={`Delete ${course.title}`}><IconButton size="small" color="error" onClick={() => void deleteCourse(course)} aria-label={`Delete ${course.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip></Stack>} />
+        <AdminDataTable rows={filteredCourses} columns={columns} searchPlaceholder="Search courses" searchKeys={['title', 'category', 'tutor']} actions={(course) => <Stack direction="row" justifyContent="flex-end" spacing={0.5}><Button label="Content" size="small" variant="text" onClick={() => openCourseContentPage(course)} /><Button label="View" size="small" variant="text" onClick={() => navigateTo(`/courses/${course.id}`)} /><Button label="Edit" size="small" variant="text" onClick={() => openEditCoursePage(course)} /><Tooltip title={`Delete ${course.title}`}><IconButton size="small" color="error" onClick={() => void deleteCourse(course)} aria-label={`Delete ${course.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip></Stack>} />
       </>}
     </>
   )
+}
+
+type CourseContentPageProps = { courseId: number }
+
+const CourseContentPage: FC<CourseContentPageProps> = ({ courseId }) => {
+  const [course, setCourse] = useState<AdminCourse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isCurrent = true
+    setCourse(null)
+    setIsLoading(true)
+    setLoadError(null)
+
+    getAdminCourse(courseId)
+      .then((loadedCourse) => {
+        if (isCurrent) setCourse(loadedCourse)
+      })
+      .catch((error) => {
+        if (isCurrent) setLoadError(error instanceof Error ? error.message : 'Unable to load course content.')
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [courseId])
+
+  if (isLoading) return <AdminLoadingState label="Loading course content" />
+  if (loadError || !course) return <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError ?? 'Course not found.'}</Typography><Stack direction="row" spacing={1}><Button label="Back to courses" variant="text" onClick={() => navigateTo('/admin/courses')} /><Button label="Retry" onClick={() => window.location.reload()} /></Stack></Paper>
+
+  const lessons = course.modules.flatMap((module) => module.lessons)
+
+  return <>
+    <PageHeading title="Course content" description={`${course.title} · ${course.modules.length} ${course.modules.length === 1 ? 'section' : 'sections'} · ${lessons.length} ${lessons.length === 1 ? 'lesson' : 'lessons'}`} action={<Stack direction="row" spacing={1}><Button label="Back to courses" variant="text" onClick={() => navigateTo('/admin/courses')} /><Button label="Edit course" onClick={() => navigateTo(`/admin/courses/${course.id}/edit`)} /></Stack>} />
+    {course.modules.length === 0 ? <Paper elevation={0} sx={{ p: 4, textAlign: 'center', border: 1, borderColor: 'divider' }}><Typography color="text.secondary">This course has no content yet.</Typography></Paper> : <Stack spacing={2}>{course.modules.map((module) => <Paper key={module.id} elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: 'divider' }}><Box sx={{ mb: 2 }}><Typography variant="h6">{module.title}</Typography><Typography color="text.secondary" variant="body2">{module.lessons.length} {module.lessons.length === 1 ? 'lesson' : 'lessons'} · {formatDuration(getModuleDuration(module))}</Typography></Box><Stack spacing={1.5}>{module.lessons.map((lesson) => <Paper key={lesson.id} elevation={0} sx={{ p: 2, border: 1, borderColor: 'divider', backgroundColor: 'background.default' }}><Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}><Box sx={{ display: 'flex', color: 'primary.main' }}><LessonTypeIcon type={lesson.type} /></Box><Typography sx={{ flex: 1, fontWeight: 600 }}>{lesson.title}</Typography><Chip label={getLessonLabel(lesson)} size="small" variant="outlined" /></Stack>{lesson.type === 'video' && (lesson.videoUrl ? <Box component="video" controls preload="metadata" src={lesson.videoUrl} poster={lesson.thumbnailUrl || course.cover} sx={{ display: 'block', width: '100%', maxHeight: 520, borderRadius: 1, backgroundColor: 'grey.900' }}>Your browser does not support video playback.</Box> : <Typography color="text.secondary" variant="body2">A video source has not been added to this lesson yet.</Typography>)}{lesson.type === 'article' && <Typography sx={{ whiteSpace: 'pre-wrap' }}>{lesson.articleBody || 'No article content has been added yet.'}</Typography>}{lesson.type === 'quiz' && <Stack spacing={1.5}>{(lesson.quizQuestions ?? []).length ? lesson.quizQuestions?.map((question, questionIndex) => <Box key={question.id}><Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>Question {questionIndex + 1}: {question.question}</Typography><Stack spacing={0.5}>{question.options.map((option, optionIndex) => <Typography key={`${question.id}-${optionIndex}`} color={question.correctOption === optionIndex ? 'primary.main' : 'text.secondary'} variant="body2">{String.fromCharCode(65 + optionIndex)}. {option}</Typography>)}</Stack></Box>) : <Typography color="text.secondary" variant="body2">No quiz questions have been added yet.</Typography>}<Typography color="text.secondary" variant="caption">Pass threshold: {lesson.passThreshold ?? 70}%</Typography></Stack>}{lesson.type === 'live' && (lesson.meetingUrl ? <Box component="a" href={lesson.meetingUrl} target="_blank" rel="noreferrer" sx={{ color: 'primary.main', fontWeight: 600 }}>Open live session</Box> : <Typography color="text.secondary" variant="body2">A meeting link has not been added to this lesson yet.</Typography>)}{lesson.resources.length > 0 && <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mt: 1.5 }}>{lesson.resources.map((resource) => <Chip key={resource.id} label={resource.name} size="small" variant="outlined" />)}</Stack>}</Paper>)}</Stack></Paper>)}</Stack>}
+  </>
 }
 
 type CourseEditorPageProps =
@@ -978,6 +1019,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
     switch (section) {
       case 'courses': {
         if (/^\/admin\/courses\/new\/?$/.test(pathname)) return <CourseEditorPage mode="new" />
+        const contentMatch = pathname.match(/^\/admin\/courses\/(\d+)\/content\/?$/)
+        if (contentMatch) return <CourseContentPage courseId={Number(contentMatch[1])} />
         const editMatch = pathname.match(/^\/admin\/courses\/(\d+)\/edit\/?$/)
         if (editMatch) return <CourseEditorPage mode="edit" courseId={Number(editMatch[1])} />
         return <CoursesPage />
