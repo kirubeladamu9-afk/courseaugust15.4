@@ -23,8 +23,12 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
     const formData = new FormData(event.currentTarget)
 
     try {
-      await submitCredentials(mode, String(formData.get('email')), String(formData.get('password')))
-      setToastMessage(isSignUp ? 'Account created successfully.' : 'Signed in successfully.')
+      const { user } = await submitCredentials(mode, String(formData.get('email')), String(formData.get('password')))
+      if (!isSignUp) {
+        window.location.assign(user.role === 'admin' ? '/admin' : '/')
+        return
+      }
+      setToastMessage('Account created successfully.')
     } catch (error) {
       setToastMessage(error instanceof Error ? error.message : 'Unable to complete your request.')
     }
