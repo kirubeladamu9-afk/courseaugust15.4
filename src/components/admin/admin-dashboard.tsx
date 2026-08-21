@@ -581,6 +581,7 @@ const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
       setCourse(savedCourse)
       toast.add({ title: mode === 'new' ? 'Course created' : 'Course saved', description: `${savedCourse.title} is now stored in the database.`, type: 'success' })
       if (mode === 'new') navigateTo(`/admin/courses/${savedCourse.id}/edit`, true)
+      else navigateTo('/admin/courses', true)
     } catch (error) {
       toast.add({ title: 'Unable to save course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
     } finally {
