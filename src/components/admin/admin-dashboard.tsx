@@ -2,15 +2,12 @@ import { useMemo, useState, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
-import Dialog from '@mui/material/Dialog'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import FormControl from '@mui/material/FormControl'
 import IconButton from '@mui/material/IconButton'
 import InputLabel from '@mui/material/InputLabel'
+import LinearProgress from '@mui/material/LinearProgress'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
@@ -18,7 +15,6 @@ import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
-import Toolbar from '@mui/material/Toolbar'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
@@ -28,13 +24,16 @@ import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
 import BookOutlinedIcon from '@mui/icons-material/BookOutlined'
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import FormatBoldIcon from '@mui/icons-material/FormatBold'
+import FormatItalicIcon from '@mui/icons-material/FormatItalic'
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
@@ -45,12 +44,17 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
+import InsertLinkOutlinedIcon from '@mui/icons-material/InsertLinkOutlined'
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
+import QuizOutlinedIcon from '@mui/icons-material/QuizOutlined'
+import TitleIcon from '@mui/icons-material/Title'
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined'
 import { type FormEvent, useEffect } from 'react'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
 import { clearAuthenticatedUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
-import { courses, payments, registrations, tutors, users, type AdminCourse, type AdminModule, type Registration } from './admin-data'
+import { loadAdminCourses, payments, registrations, saveAdminCourses, tutors, users, type AdminCourse, type AdminLesson, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
@@ -96,17 +100,79 @@ const StatCard: FC<{ label: string; value: string; detail: string; icon: ReactNo
   </Paper>
 )
 
+const RepeatableBulletList: FC<{ title: string; values: string[]; onChange: (values: string[]) => void }> = ({ title, values, onChange }) => {
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+
+  const updateValue = (index: number, value: string) => onChange(values.map((currentValue, currentIndex) => currentIndex === index ? value : currentValue))
+  const addValue = () => {
+    const nextIndex = values.length
+    onChange([...values, ''])
+    setFocusedIndex(nextIndex)
+  }
+
+  return <Box>
+    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>{title}</Typography>
+    <Stack spacing={1}>
+      {values.map((value, index) => <Box key={`${title}-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Typography color="primary.main">•</Typography><TextField fullWidth size="small" placeholder={`Add ${title.toLowerCase()} point`} value={value} autoFocus={focusedIndex === index} onFocus={() => setFocusedIndex(null)} onChange={(event) => updateValue(index, event.target.value)} /><IconButton size="small" onClick={() => onChange(values.filter((_, currentIndex) => currentIndex !== index))} aria-label={`Remove ${title} point ${index + 1}`}><CloseIcon fontSize="small" /></IconButton></Box>)}
+      <Box component="button" type="button" onClick={addValue} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}><AddIcon fontSize="small" /> Add point</Box>
+    </Stack>
+  </Box>
+}
+
+const formatDuration = (seconds: number) => {
+  if (seconds <= 0) return '0m'
+  const totalMinutes = Math.round(seconds / 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${minutes}m`
+}
+
+const getModuleDuration = (module: AdminCourse['modules'][number]) => module.lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0)
+const getLessonLabel = (lesson: AdminLesson) => lesson.type === 'video' ? (lesson.duration ? formatDuration(lesson.duration) : 'Processing') : lesson.type === 'article' ? 'Article' : lesson.type === 'quiz' ? 'Quiz' : 'Live'
+
+const LessonTypeIcon: FC<{ type: LessonType; fontSize?: 'small' | 'medium' }> = ({ type, fontSize = 'small' }) => {
+  if (type === 'article') return <ArticleOutlinedIcon fontSize={fontSize} />
+  if (type === 'quiz') return <QuizOutlinedIcon fontSize={fontSize} />
+  if (type === 'live') return <InsertLinkOutlinedIcon fontSize={fontSize} />
+  return <PlayCircleOutlineIcon fontSize={fontSize} />
+}
+
+const createLesson = (id: number, type: LessonType): AdminLesson => ({
+  id, title: `New ${type} lesson`, type, duration: null, resources: [],
+  ...(type === 'article' ? { articleBody: '' } : {}),
+  ...(type === 'quiz' ? { passThreshold: 70, quizQuestions: [] } : {}),
+  ...(type === 'live' ? { meetingUrl: '', scheduledAt: '', estimatedDuration: 3600 } : {}),
+})
+
+const lessonTypeOptions: Array<{ type: LessonType; label: string; detail: string }> = [
+  { type: 'video', label: 'Video', detail: 'Upload a lecture' },
+  { type: 'article', label: 'Article', detail: 'Write a lesson' },
+  { type: 'quiz', label: 'Quiz', detail: 'Test learning' },
+  { type: 'live', label: 'Live', detail: 'Schedule a session' },
+]
+
+type LessonPanelState = { moduleId: number; lesson: AdminLesson; isNew: boolean }
+
 const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) => void }> = ({ course, onChange }) => {
   const [draggedModule, setDraggedModule] = useState<number | null>(null)
   const [draggedLesson, setDraggedLesson] = useState<{ moduleId: number; index: number } | null>(null)
   const [expandedModuleIds, setExpandedModuleIds] = useState<number[]>(() => course.modules.map((module) => module.id))
   const [isAddingModule, setIsAddingModule] = useState(false)
   const [newModuleTitle, setNewModuleTitle] = useState('')
+  const [editingModuleId, setEditingModuleId] = useState<number | null>(null)
+  const [editingModuleTitle, setEditingModuleTitle] = useState('')
+  const [addingLessonModuleId, setAddingLessonModuleId] = useState<number | null>(null)
+  const [lessonPanel, setLessonPanel] = useState<LessonPanelState | null>(null)
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0)
 
   useEffect(() => {
     setExpandedModuleIds(course.modules.map((module) => module.id))
     setIsAddingModule(false)
     setNewModuleTitle('')
+    setEditingModuleId(null)
+    setAddingLessonModuleId(null)
+    setLessonPanel(null)
+    setVideoUploadProgress(0)
   }, [course.id])
 
   const moveModule = (targetId: number) => {
@@ -137,30 +203,15 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
     if (sourceModuleId === targetModuleId) return
     const sourceModule = course.modules.find((module) => module.id === sourceModuleId)
     const lesson = sourceModule?.lessons[lessonIndex]
-    if (!sourceModule || lesson === undefined) return
-
-    const nextModules = course.modules.map((module) => {
-      if (module.id === sourceModuleId) return { ...module, lessons: module.lessons.filter((_, index) => index !== lessonIndex) }
-      if (module.id === targetModuleId) return { ...module, lessons: [...module.lessons, lesson] }
-      return module
-    })
-    onChange({ ...course, modules: nextModules })
+    if (!sourceModule || !lesson) return
+    onChange({ ...course, modules: course.modules.map((module) => module.id === sourceModuleId ? { ...module, lessons: module.lessons.filter((_, index) => index !== lessonIndex) } : module.id === targetModuleId ? { ...module, lessons: [...module.lessons, lesson] } : module) })
     setExpandedModuleIds((ids) => ids.includes(targetModuleId) ? ids : [...ids, targetModuleId])
-  }
-
-  const addLesson = (moduleId: number) => {
-    const nextModules = course.modules.map((module) => {
-      if (module.id !== moduleId) return module
-      return { ...module, lessons: [...module.lessons, `New lesson ${module.lessons.length + 1}`] }
-    })
-    onChange({ ...course, modules: nextModules })
   }
 
   const addModule = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const title = newModuleTitle.trim()
     if (!title) return
-
     const nextModuleId = Math.max(0, ...course.modules.map((module) => module.id)) + 1
     onChange({ ...course, modules: [...course.modules, { id: nextModuleId, title, lessons: [] }] })
     setExpandedModuleIds((ids) => [...ids, nextModuleId])
@@ -168,122 +219,141 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
     setIsAddingModule(false)
   }
 
+  const saveModuleTitle = (moduleId: number) => {
+    const title = editingModuleTitle.trim()
+    if (title) onChange({ ...course, modules: course.modules.map((module) => module.id === moduleId ? { ...module, title } : module) })
+    setEditingModuleId(null)
+  }
+
+  const deleteModule = (module: AdminCourse['modules'][number]) => {
+    const warning = module.lessons.length ? `Delete ${module.title} and its ${module.lessons.length} ${module.lessons.length === 1 ? 'lesson' : 'lessons'}? This cannot be undone.` : `Delete ${module.title}?`
+    if (!window.confirm(warning)) return
+    onChange({ ...course, modules: course.modules.filter((currentModule) => currentModule.id !== module.id) })
+    if (lessonPanel?.moduleId === module.id) setLessonPanel(null)
+  }
+
+  const openLessonPanel = (moduleId: number, lesson: AdminLesson, isNew: boolean) => {
+    setAddingLessonModuleId(null)
+    setVideoUploadProgress(0)
+    setLessonPanel({ moduleId, lesson: { ...lesson, resources: [...lesson.resources], quizQuestions: lesson.quizQuestions?.map((question) => ({ ...question, options: [...question.options] })) }, isNew })
+  }
+
+  const updateLessonDraft = (nextLesson: AdminLesson) => setLessonPanel((panel) => panel ? { ...panel, lesson: nextLesson } : panel)
+
+  const deleteLesson = (moduleId: number, lessonId: number) => {
+    onChange({ ...course, modules: course.modules.map((module) => module.id === moduleId ? { ...module, lessons: module.lessons.filter((lesson) => lesson.id !== lessonId) } : module) })
+    if (lessonPanel?.lesson.id === lessonId) setLessonPanel(null)
+  }
+
+  const saveLesson = () => {
+    if (!lessonPanel) return
+    const lesson = { ...lessonPanel.lesson, title: lessonPanel.lesson.title.trim() }
+    if (!lesson.title) return
+    onChange({ ...course, modules: course.modules.map((module) => module.id === lessonPanel.moduleId ? { ...module, lessons: lessonPanel.isNew ? [...module.lessons, lesson] : module.lessons.map((currentLesson) => currentLesson.id === lesson.id ? lesson : currentLesson) } : module) })
+    setLessonPanel(null)
+  }
+
+  const handleVideoFile = (file: File) => {
+    if (!lessonPanel) return
+    const videoUrl = URL.createObjectURL(file)
+    updateLessonDraft({ ...lessonPanel.lesson, videoUrl, duration: null })
+    setVideoUploadProgress(12)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      setLessonPanel((panel) => panel ? { ...panel, lesson: { ...panel.lesson, duration: Math.max(1, Math.round(video.duration)) } } : panel)
+      URL.revokeObjectURL(videoUrl)
+    }
+    video.onerror = () => URL.revokeObjectURL(videoUrl)
+    video.src = videoUrl
+    window.setTimeout(() => setVideoUploadProgress(100), 700)
+  }
+
+  const addResources = (files: FileList | null) => {
+    if (!lessonPanel || !files?.length) return
+    const highestResourceId = Math.max(0, ...lessonPanel.lesson.resources.map((resource) => resource.id))
+    const nextResources = Array.from(files).map((file, index) => ({ id: highestResourceId + index + 1, name: file.name }))
+    updateLessonDraft({ ...lessonPanel.lesson, resources: [...lessonPanel.lesson.resources, ...nextResources] })
+  }
+
+  const isVideoProcessing = lessonPanel?.lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100
+  const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl))
+
   return (
     <Paper id="course-curriculum-editor" elevation={0} sx={{ mt: 3, p: 2.5, border: 1, borderColor: 'divider', scrollMarginTop: 24 }}>
-      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <Box>
-          <Typography variant="h6">Course curriculum</Typography>
-          <Typography color="text.secondary" variant="body2">{course.title}</Typography>
-        </Box>
+      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <Box><Typography variant="h6">Course details</Typography><Typography color="text.secondary" variant="body2">Edit the information learners see before they enroll.</Typography></Box>
         <StatusChip status={course.status} />
       </Box>
-      <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules to reorder modules. Drag lessons to reorder lessons within the same module.</Typography>
+      <Stack spacing={2} sx={{ mb: 3 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <TextField required fullWidth label="Course title" value={course.title} onChange={(event) => onChange({ ...course, title: event.target.value })} />
+          <FormControl fullWidth required><InputLabel>Program</InputLabel><Select label="Program" value={course.category} onChange={(event) => onChange({ ...course, category: event.target.value })}><MenuItem value="Data">Data</MenuItem><MenuItem value="Development">Development</MenuItem><MenuItem value="Design">Design</MenuItem><MenuItem value="Business">Business</MenuItem></Select></FormControl>
+        </Stack>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <FormControl fullWidth><InputLabel>Level</InputLabel><Select label="Level" value={course.level} onChange={(event) => onChange({ ...course, level: event.target.value })}><MenuItem value="Beginner">Beginner</MenuItem><MenuItem value="Intermediate">Intermediate</MenuItem><MenuItem value="Advanced">Advanced</MenuItem></Select></FormControl>
+          <FormControl fullWidth><InputLabel>Tutor</InputLabel><Select label="Tutor" value={course.tutor} onChange={(event) => onChange({ ...course, tutor: event.target.value })}>{['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known'].map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}</Select></FormControl>
+          <TextField fullWidth label="Price" type="number" inputProps={{ min: 0, step: 1 }} value={course.price} onChange={(event) => onChange({ ...course, price: Number(event.target.value) })} />
+        </Stack>
+        <TextField fullWidth multiline minRows={2} label="Description" value={course.description} onChange={(event) => onChange({ ...course, description: event.target.value })} />
+        <TextField fullWidth multiline minRows={4} label="Long description" value={course.longDescription} onChange={(event) => onChange({ ...course, longDescription: event.target.value })} />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>Course status</Typography><Typography variant="caption" color="text.secondary">Draft courses remain editable and hidden from learners.</Typography></Box><Stack direction="row" alignItems="center" spacing={1}><StatusChip status={course.status} /><Switch checked={course.status === 'Published'} onChange={() => onChange({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title || 'course'}` }} /></Stack></Box>
+      </Stack>
+      <RepeatableBulletList title="What you'll learn" values={course.learningOutcomes} onChange={(learningOutcomes) => onChange({ ...course, learningOutcomes })} />
+      <RepeatableBulletList title="Requirements" values={course.requirements} onChange={(requirements) => onChange({ ...course, requirements })} />
+      <Divider sx={{ my: 3 }} />
+      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <Box><Typography variant="h6">Course curriculum</Typography><Typography color="text.secondary" variant="body2">{course.title || 'Untitled course'}</Typography></Box>
+        <Typography color="text.secondary" variant="body2">{course.modules.length} {course.modules.length === 1 ? 'section' : 'sections'}</Typography>
+      </Box>
+      <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules to reorder. Lessons can be reordered within their module.</Typography>
       <Stack spacing={1.5}>
+        {course.modules.length === 0 && !isAddingModule && <Box sx={{ p: 4, textAlign: 'center', border: 1, borderColor: 'divider', borderStyle: 'dashed', borderRadius: 1 }}><Typography color="text.secondary" sx={{ mb: 1 }}>This course has no modules yet.</Typography><Button label="Add your first module" size="small" onClick={() => setIsAddingModule(true)} /></Box>}
         {course.modules.map((module) => {
           const isExpanded = expandedModuleIds.includes(module.id)
-
-          return (
-            <Paper
-              key={module.id}
-              elevation={0}
-              draggable
-              onDragStart={() => setDraggedModule(module.id)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => moveModule(module.id)}
-              sx={{ p: 1.5, backgroundColor: 'background.default', border: 1, borderColor: 'divider' }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <IconButton
-                  size="small"
-                  onClick={() => setExpandedModuleIds((ids) => isExpanded ? ids.filter((id) => id !== module.id) : [...ids, module.id])}
-                  aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${module.title}`}
-                  aria-expanded={isExpanded}
-                >
-                  <ChevronRightIcon sx={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 160ms ease' }} fontSize="small" />
-                </IconButton>
-                <DragIndicatorIcon color="disabled" fontSize="small" />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{module.title}</Typography>
-                  <Typography color="text.secondary" variant="caption">{module.lessons.length} {module.lessons.length === 1 ? 'lesson' : 'lessons'}</Typography>
-                </Box>
+          return <Paper key={module.id} elevation={0} draggable onDragStart={() => setDraggedModule(module.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => moveModule(module.id)} sx={{ p: 1.5, backgroundColor: 'background.default', border: 1, borderColor: 'divider' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton size="small" onClick={() => setExpandedModuleIds((ids) => isExpanded ? ids.filter((id) => id !== module.id) : [...ids, module.id])} aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${module.title}`} aria-expanded={isExpanded}><ChevronRightIcon sx={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 160ms ease' }} fontSize="small" /></IconButton>
+              <DragIndicatorIcon color="disabled" fontSize="small" />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                {editingModuleId === module.id ? <TextField autoFocus fullWidth size="small" value={editingModuleTitle} onChange={(event) => setEditingModuleTitle(event.target.value)} onBlur={() => saveModuleTitle(module.id)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} inputProps={{ 'aria-label': 'Module title' }} /> : <Box component="button" type="button" onClick={() => { setEditingModuleId(module.id); setEditingModuleTitle(module.title) }} sx={{ display: 'block', width: '100%', p: 0, border: 0, background: 'none', color: 'text.primary', cursor: 'text', font: 'inherit', textAlign: 'left' }}><Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{module.title}</Typography></Box>}
+                <Typography color="text.secondary" variant="caption">{module.lessons.length} {module.lessons.length === 1 ? 'lecture' : 'lectures'} · {formatDuration(getModuleDuration(module))}</Typography>
               </Box>
-              {isExpanded && (
-                <Stack spacing={0.5} sx={{ mt: 1, ml: 5 }}>
-                  {module.lessons.map((lesson, index) => (
-                    <Box
-                      key={`${module.id}-${lesson}-${index}`}
-                      draggable
-                      onDragStart={(event) => {
-                        event.stopPropagation()
-                        setDraggedLesson({ moduleId: module.id, index })
-                      }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.stopPropagation()
-                        moveLesson(module.id, index)
-                      }}
-                      sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, px: 1, backgroundColor: 'background.paper', borderRadius: 1 }}
-                    >
-                      <DragIndicatorIcon color="disabled" fontSize="small" />
-                      <Typography variant="body2" sx={{ flex: 1 }}>{lesson}</Typography>
-                      {course.modules.length > 1 && (
-                        <Select
-                          value=""
-                          displayEmpty
-                          size="small"
-                          onChange={(event) => moveLessonToModule(module.id, index, Number(event.target.value))}
-                          renderValue={() => 'Move to module'}
-                          inputProps={{ 'aria-label': `Move ${lesson} to module` }}
-                          sx={{ minWidth: 145 }}
-                        >
-                          <MenuItem disabled value="">Move to module</MenuItem>
-                          {course.modules.filter((targetModule) => targetModule.id !== module.id).map((targetModule) => (
-                            <MenuItem key={targetModule.id} value={targetModule.id}>{targetModule.title}</MenuItem>
-                          ))}
-                        </Select>
-                      )}
-                    </Box>
-                  ))}
-                  <Box
-                    component="button"
-                    type="button"
-                    onClick={() => addLesson(module.id)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
-                  >
-                    <AddIcon fontSize="small" /> Add lesson
-                  </Box>
-                </Stack>
-              )}
-            </Paper>
-          )
+              <Tooltip title={`Delete ${module.title}`}><IconButton size="small" color="error" onClick={() => deleteModule(module)} aria-label={`Delete ${module.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+            </Box>
+            {isExpanded && <Stack spacing={0.5} sx={{ mt: 1, ml: { xs: 0, sm: 5 } }}>
+              {module.lessons.map((lesson, index) => <Box key={lesson.id} draggable onDragStart={(event) => { event.stopPropagation(); setDraggedLesson({ moduleId: module.id, index }) }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); moveLesson(module.id, index) }} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, px: 1, backgroundColor: 'background.paper', borderRadius: 1, flexWrap: 'wrap' }}>
+                <DragIndicatorIcon color="disabled" fontSize="small" /><Box sx={{ color: 'text.secondary', display: 'flex' }}><LessonTypeIcon type={lesson.type} /></Box>
+                <Box component="button" type="button" onClick={() => openLessonPanel(module.id, lesson, false)} sx={{ flex: 1, minWidth: 160, display: 'flex', alignItems: 'center', gap: 1, p: 0, border: 0, background: 'none', color: 'text.primary', cursor: 'pointer', font: 'inherit', textAlign: 'left' }}><Typography variant="body2">{lesson.title}</Typography><Chip label={getLessonLabel(lesson)} size="small" variant="outlined" /></Box>
+                {course.modules.length > 1 && <Select value="" displayEmpty size="small" onChange={(event) => moveLessonToModule(module.id, index, Number(event.target.value))} renderValue={() => 'Move to module'} inputProps={{ 'aria-label': `Move ${lesson.title} to module` }} sx={{ minWidth: 145 }}><MenuItem disabled value="">Move to module</MenuItem>{course.modules.filter((targetModule) => targetModule.id !== module.id).map((targetModule) => <MenuItem key={targetModule.id} value={targetModule.id}>{targetModule.title}</MenuItem>)}</Select>}
+                <Tooltip title={`Edit ${lesson.title}`}><IconButton size="small" onClick={() => openLessonPanel(module.id, lesson, false)} aria-label={`Edit ${lesson.title}`}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip><Tooltip title={`Delete ${lesson.title}`}><IconButton size="small" color="error" onClick={() => deleteLesson(module.id, lesson.id)} aria-label={`Delete ${lesson.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+              </Box>)}
+              {module.lessons.length === 0 && <Typography color="text.secondary" variant="body2" sx={{ py: 1 }}>No lessons yet</Typography>}
+              {addingLessonModuleId === module.id ? <Paper elevation={0} sx={{ p: 1.5, border: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}><Typography variant="body2" sx={{ fontWeight: 600 }}>Choose a lesson type</Typography><IconButton size="small" onClick={() => setAddingLessonModuleId(null)} aria-label="Cancel adding lesson"><CloseIcon fontSize="small" /></IconButton></Box><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>{lessonTypeOptions.map((option) => <Box key={option.type} component="button" type="button" onClick={() => openLessonPanel(module.id, createLesson(Math.max(0, ...course.modules.flatMap((currentModule) => currentModule.lessons.map((currentLesson) => currentLesson.id))) + 1, option.type), true)} sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1, p: 1, border: 1, borderColor: 'divider', borderRadius: 1, backgroundColor: 'background.default', color: 'text.primary', cursor: 'pointer', textAlign: 'left', font: 'inherit', '&:hover': { borderColor: 'primary.main', backgroundColor: 'action.hover' } }}><Box sx={{ color: 'primary.main', display: 'flex' }}><LessonTypeIcon type={option.type} /></Box><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{option.label}</Typography><Typography variant="caption" color="text.secondary">{option.detail}</Typography></Box></Box>)}</Stack></Paper> : <Box component="button" type="button" onClick={() => setAddingLessonModuleId(module.id)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}><AddIcon fontSize="small" /> Add lesson</Box>}
+            </Stack>}
+          </Paper>
         })}
-        {isAddingModule ? (
-          <Box component="form" onSubmit={addModule} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TextField
-              autoFocus
-              required
-              size="small"
-              fullWidth
-              label="Module title"
-              value={newModuleTitle}
-              onChange={(event) => setNewModuleTitle(event.target.value)}
-            />
-            <IconButton type="submit" color="primary" aria-label="Save module"><CheckIcon /></IconButton>
-            <IconButton type="button" onClick={() => setIsAddingModule(false)} aria-label="Cancel adding module"><CloseIcon /></IconButton>
-          </Box>
-        ) : (
-          <Box
-            component="button"
-            type="button"
-            onClick={() => setIsAddingModule(true)}
-            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
-          >
-            <AddIcon fontSize="small" /> Add module
-          </Box>
-        )}
+        {isAddingModule ? <Box component="form" onSubmit={addModule} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><TextField autoFocus required size="small" fullWidth label="Module title" value={newModuleTitle} onChange={(event) => setNewModuleTitle(event.target.value)} /><IconButton type="submit" color="primary" aria-label="Save module"><CheckIcon /></IconButton><IconButton type="button" onClick={() => setIsAddingModule(false)} aria-label="Cancel adding module"><CloseIcon /></IconButton></Box> : course.modules.length > 0 && <Box component="button" type="button" onClick={() => setIsAddingModule(true)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}><AddIcon fontSize="small" /> Add module</Box>}
       </Stack>
+      {lessonPanel && <LessonDetailsPanel lessonPanel={lessonPanel} updateLessonDraft={updateLessonDraft} onClose={() => setLessonPanel(null)} onSave={saveLesson} onVideoFile={handleVideoFile} onAddResources={addResources} videoUploadProgress={videoUploadProgress} disabled={cannotSaveLesson} />}
     </Paper>
   )
+}
+
+const LessonDetailsPanel: FC<{ lessonPanel: LessonPanelState; updateLessonDraft: (lesson: AdminLesson) => void; onClose: () => void; onSave: () => void; onVideoFile: (file: File) => void; onAddResources: (files: FileList | null) => void; videoUploadProgress: number; disabled: boolean }> = ({ lessonPanel, updateLessonDraft, onClose, onSave, onVideoFile, onAddResources, videoUploadProgress, disabled }) => {
+  const { lesson } = lessonPanel
+  const questionId = Math.max(0, ...(lesson.quizQuestions ?? []).map((question) => question.id)) + 1
+  const isVideoProcessing = lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100
+  return <Paper elevation={0} sx={{ mt: 2, p: 2.5, border: 1, borderColor: 'primary.main', backgroundColor: 'background.paper' }}>
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 2 }}><Box><Typography variant="h6">{lessonPanel.isNew ? 'Add lesson' : 'Lesson details'}</Typography><Typography color="text.secondary" variant="body2">{lessonTypeOptions.find((option) => option.type === lesson.type)?.label} lesson</Typography></Box><IconButton onClick={onClose} aria-label="Close lesson details"><CloseIcon /></IconButton></Box>
+    <Stack spacing={2}><TextField label="Title" fullWidth required value={lesson.title} onChange={(event) => updateLessonDraft({ ...lesson, title: event.target.value })} />
+      {lesson.type === 'video' && <Stack spacing={1.5}><Box component="label" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const [file] = Array.from(event.dataTransfer.files); if (file) onVideoFile(file) }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75, p: 3, border: 1, borderColor: 'divider', borderStyle: 'dashed', borderRadius: 1, color: 'text.secondary', cursor: 'pointer', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}><UploadFileOutlinedIcon color="primary" /><Typography variant="body2" sx={{ fontWeight: 600 }}>{lesson.videoUrl ? 'Replace video' : 'Drop a video here or choose a file'}</Typography><Typography variant="caption">Duration is extracted automatically after processing.</Typography><input hidden type="file" accept="video/*" onChange={(event) => { const [file] = Array.from(event.target.files ?? []); if (file) onVideoFile(file); event.target.value = '' }} /></Box>{videoUploadProgress > 0 && <Box><LinearProgress variant="determinate" value={videoUploadProgress} sx={{ mb: 0.5 }} /><Typography color="text.secondary" variant="caption">{isVideoProcessing ? `Processing video · ${videoUploadProgress}%` : lesson.duration ? `Video duration: ${formatDuration(lesson.duration)}` : 'Video uploaded. Duration will appear when metadata is available.'}</Typography></Box>}<Box><Typography variant="body2" sx={{ mb: 0.75 }}>Resources <Typography component="span" variant="caption" color="text.secondary">(optional)</Typography></Typography><Box component="label" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'primary.main', cursor: 'pointer', fontSize: 14 }}><UploadFileOutlinedIcon fontSize="small" /> Add files<input hidden type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" onChange={(event) => { onAddResources(event.target.files); event.target.value = '' }} /></Box>{lesson.resources.length > 0 && <Stack spacing={0.5} sx={{ mt: 1 }}>{lesson.resources.map((resource) => <Box key={resource.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Typography variant="caption" sx={{ flex: 1 }}>{resource.name}</Typography><IconButton size="small" onClick={() => updateLessonDraft({ ...lesson, resources: lesson.resources.filter((currentResource) => currentResource.id !== resource.id) })} aria-label={`Remove ${resource.name}`}><CloseIcon fontSize="small" /></IconButton></Box>)}</Stack>}</Box></Stack>}
+      {lesson.type === 'article' && <Stack spacing={1}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><Tooltip title="Bold"><IconButton size="small" onClick={() => document.execCommand('bold')} aria-label="Bold text"><FormatBoldIcon fontSize="small" /></IconButton></Tooltip><Tooltip title="Italic"><IconButton size="small" onClick={() => document.execCommand('italic')} aria-label="Italic text"><FormatItalicIcon fontSize="small" /></IconButton></Tooltip><Tooltip title="Bulleted list"><IconButton size="small" onClick={() => document.execCommand('insertUnorderedList')} aria-label="Bulleted list"><FormatListBulletedIcon fontSize="small" /></IconButton></Tooltip><Tooltip title="Heading"><IconButton size="small" onClick={() => document.execCommand('formatBlock', false, 'h3')} aria-label="Heading"><TitleIcon fontSize="small" /></IconButton></Tooltip></Box><Box contentEditable suppressContentEditableWarning onInput={(event) => updateLessonDraft({ ...lesson, articleBody: event.currentTarget.innerText })} sx={{ minHeight: 180, p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1, outline: 'none', '&:focus': { borderColor: 'primary.main' } }}>{lesson.articleBody}</Box><Typography color="text.secondary" variant="caption">Estimated read time: {Math.max(1, Math.ceil((lesson.articleBody?.trim().split(/\s+/).filter(Boolean).length ?? 0) / 200))} min</Typography></Stack>}
+      {lesson.type === 'quiz' && <Stack spacing={1.5}>{(lesson.quizQuestions ?? []).map((question, questionIndex) => <Paper key={question.id} elevation={0} sx={{ p: 1.5, border: 1, borderColor: 'divider' }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}><Typography variant="body2" sx={{ fontWeight: 600 }}>Question {questionIndex + 1}</Typography><IconButton size="small" color="error" onClick={() => updateLessonDraft({ ...lesson, quizQuestions: lesson.quizQuestions?.filter((currentQuestion) => currentQuestion.id !== question.id) })} aria-label={`Delete question ${questionIndex + 1}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Box><TextField fullWidth size="small" label="Question" value={question.question} onChange={(event) => updateLessonDraft({ ...lesson, quizQuestions: lesson.quizQuestions?.map((currentQuestion) => currentQuestion.id === question.id ? { ...currentQuestion, question: event.target.value } : currentQuestion) })} sx={{ mb: 1 }} /><Stack spacing={0.75}>{question.options.map((option, optionIndex) => <Box key={`${question.id}-${optionIndex}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Box component="input" type="radio" name={`correct-option-${question.id}`} checked={question.correctOption === optionIndex} onChange={() => updateLessonDraft({ ...lesson, quizQuestions: lesson.quizQuestions?.map((currentQuestion) => currentQuestion.id === question.id ? { ...currentQuestion, correctOption: optionIndex } : currentQuestion) })} aria-label={`Mark option ${optionIndex + 1} correct`} /><TextField fullWidth size="small" placeholder={`Option ${optionIndex + 1}`} value={option} onChange={(event) => updateLessonDraft({ ...lesson, quizQuestions: lesson.quizQuestions?.map((currentQuestion) => currentQuestion.id === question.id ? { ...currentQuestion, options: currentQuestion.options.map((currentOption, currentOptionIndex) => currentOptionIndex === optionIndex ? event.target.value : currentOption) } : currentQuestion) })} /></Box>)}</Stack></Paper>)}<Button label="Add question" size="small" variant="outlined" onClick={() => updateLessonDraft({ ...lesson, quizQuestions: [...(lesson.quizQuestions ?? []), { id: questionId, question: '', options: ['', '', ''], correctOption: 0 }] })} /><TextField label="Pass threshold" type="number" size="small" inputProps={{ min: 0, max: 100 }} value={lesson.passThreshold ?? 70} onChange={(event) => updateLessonDraft({ ...lesson, passThreshold: Number(event.target.value) })} sx={{ maxWidth: 220 }} /></Stack>}
+      {lesson.type === 'live' && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField fullWidth label="Meeting link" type="url" placeholder="https://" value={lesson.meetingUrl ?? ''} onChange={(event) => updateLessonDraft({ ...lesson, meetingUrl: event.target.value })} /><TextField fullWidth label="Scheduled date and time" type="datetime-local" InputLabelProps={{ shrink: true }} value={lesson.scheduledAt ?? ''} onChange={(event) => updateLessonDraft({ ...lesson, scheduledAt: event.target.value })} /><TextField label="Duration (minutes)" type="number" inputProps={{ min: 1 }} value={Math.round((lesson.estimatedDuration ?? 3600) / 60)} onChange={(event) => updateLessonDraft({ ...lesson, estimatedDuration: Number(event.target.value) * 60 })} /></Stack>}
+      <Stack direction="row" justifyContent="flex-end" spacing={1}><Button label="Cancel" variant="text" onClick={onClose} /><Button label={isVideoProcessing ? 'Processing video' : 'Save lesson'} onClick={onSave} disabled={disabled} /></Stack>
+    </Stack>
+  </Paper>
 }
 
 const DashboardCharts: FC = () => {
@@ -336,32 +406,43 @@ const OverviewPage: FC = () => (
   </>
 )
 
-interface NewCourseDraft {
-  title: string
-  category: string
-  tutor: string
-  price: string
-}
-
 const CoursesPage: FC = () => {
-  const [courseRows, setCourseRows] = useState(courses)
-  const [selectedId, setSelectedId] = useState(courses[0].id)
-  const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false)
-  const [editingCourseId, setEditingCourseId] = useState<number | null>(null)
-  const [newCourseDraft, setNewCourseDraft] = useState<NewCourseDraft>({ title: '', category: '', tutor: 'Maya Chen', price: '' })
+  const [courseRows, setCourseRows] = useState<AdminCourse[]>(loadAdminCourses)
+  const [selectedId, setSelectedId] = useState(() => loadAdminCourses()[0]?.id ?? -1)
   const selectedCourse = courseRows.find((course) => course.id === selectedId) ?? courseRows[0]
   const tutorOptions = ['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known']
 
+  useEffect(() => {
+    saveAdminCourses(courseRows)
+  }, [courseRows])
+
   const openCourseDialog = () => {
-    setEditingCourseId(null)
-    setNewCourseDraft({ title: '', category: '', tutor: tutorOptions[0], price: '' })
-    setIsCourseDialogOpen(true)
+    const nextCourse: AdminCourse = {
+      id: Math.max(0, ...courseRows.map((course) => course.id)) + 1,
+      title: '',
+      category: '',
+      level: 'Beginner',
+      tutor: tutorOptions[0],
+      status: 'Draft',
+      students: 0,
+      price: 0,
+      cover: '/images/courses/christopher-gower-m_HRfLhgABo-unsplash.jpg',
+      description: '',
+      longDescription: '',
+      learningOutcomes: [''],
+      requirements: [''],
+      certificate: false,
+      updatedAt: 'Not published',
+      modules: [],
+    }
+    setCourseRows((rows) => [...rows, nextCourse])
+    setSelectedId(nextCourse.id)
+    window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
   }
 
   const openEditDialog = (course: AdminCourse) => {
-    setEditingCourseId(course.id)
-    setNewCourseDraft({ title: course.title, category: course.category, tutor: course.tutor, price: String(course.price) })
-    setIsCourseDialogOpen(true)
+    setSelectedId(course.id)
+    window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
   }
 
   const deleteCourse = (course: AdminCourse) => {
@@ -370,32 +451,6 @@ const CoursesPage: FC = () => {
     const remainingCourses = courseRows.filter((row) => row.id !== course.id)
     setCourseRows(remainingCourses)
     if (selectedId === course.id) setSelectedId(remainingCourses[0]?.id ?? -1)
-  }
-
-  const saveCourse = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const courseDetails = {
-      title: newCourseDraft.title.trim(),
-      category: newCourseDraft.category.trim(),
-      tutor: newCourseDraft.tutor,
-      price: Number(newCourseDraft.price),
-    }
-
-    if (editingCourseId !== null) {
-      setCourseRows((rows) => rows.map((row) => row.id === editingCourseId ? { ...row, ...courseDetails } : row))
-    } else {
-      const nextCourse: AdminCourse = {
-        id: Math.max(0, ...courseRows.map((course) => course.id)) + 1,
-        ...courseDetails,
-        status: 'Draft',
-        students: 0,
-        modules: [{ id: 1, title: 'Course introduction', lessons: [] }],
-      }
-      setCourseRows((rows) => [...rows, nextCourse])
-      setSelectedId(nextCourse.id)
-    }
-
-    setIsCourseDialogOpen(false)
   }
 
   return (
@@ -473,55 +528,6 @@ const CoursesPage: FC = () => {
         })}
       </Paper>
       {selectedCourse && <CourseEditor course={selectedCourse} onChange={(next) => setCourseRows((rows) => rows.map((row) => row.id === next.id ? next : row))} />}
-      <Dialog open={isCourseDialogOpen} onClose={() => setIsCourseDialogOpen(false)} fullWidth maxWidth="sm">
-        <Box component="form" onSubmit={saveCourse}>
-          <DialogTitle>{editingCourseId === null ? 'Create a new course' : 'Edit course'}</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ pt: 1 }}>
-              <TextField
-                autoFocus
-                required
-                fullWidth
-                label="Course title"
-                value={newCourseDraft.title}
-                onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, title: event.target.value }))}
-              />
-              <TextField
-                required
-                fullWidth
-                label="Category"
-                value={newCourseDraft.category}
-                onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, category: event.target.value }))}
-              />
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <FormControl fullWidth required>
-                  <InputLabel>Tutor</InputLabel>
-                  <Select
-                    label="Tutor"
-                    value={newCourseDraft.tutor}
-                    onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, tutor: event.target.value }))}
-                  >
-                    {tutorOptions.map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}
-                  </Select>
-                </FormControl>
-                <TextField
-                  required
-                  fullWidth
-                  label="Price"
-                  type="number"
-                  inputProps={{ min: 0, step: 1 }}
-                  value={newCourseDraft.price}
-                  onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, price: event.target.value }))}
-                />
-              </Stack>
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button label="Cancel" variant="text" onClick={() => setIsCourseDialogOpen(false)} />
-            <Button label={editingCourseId === null ? 'Create course' : 'Save changes'} type="submit" />
-          </DialogActions>
-        </Box>
-      </Dialog>
     </>
   )
 }
@@ -603,11 +609,12 @@ const SimplePage: FC<{ title: string; description: string; icon: ReactNode }> = 
   </>
 )
 
-const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium'; variant?: 'contained' | 'outlined' | 'text'; type?: 'button' | 'submit' }> = ({ label, onClick, size = 'medium', variant = 'contained', type = 'button' }) => (
+const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium'; variant?: 'contained' | 'outlined' | 'text'; type?: 'button' | 'submit'; disabled?: boolean }> = ({ label, onClick, size = 'medium', variant = 'contained', type = 'button', disabled = false }) => (
   <Box
     component="button"
     type={type}
     onClick={onClick}
+    disabled={disabled}
     sx={{
       border: variant === 'outlined' ? 1 : 0,
       borderColor: 'primary.main',
@@ -616,10 +623,11 @@ const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium
       py: size === 'small' ? 0.5 : 1,
       backgroundColor: variant === 'contained' ? 'primary.main' : 'transparent',
       color: variant === 'text' ? 'primary.main' : variant === 'contained' ? 'primary.contrastText' : 'primary.main',
-      cursor: 'pointer',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      opacity: disabled ? 0.55 : 1,
       fontFamily: 'inherit',
       fontSize: size === 'small' ? 12 : 14,
-      '&:hover': { backgroundColor: variant === 'contained' ? 'primary.dark' : 'action.hover' },
+      '&:hover': { backgroundColor: disabled ? 'transparent' : variant === 'contained' ? 'primary.dark' : 'action.hover' },
     }}
   >
     {label}

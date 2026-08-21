@@ -6,6 +6,7 @@ import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
 import SignInPage from '@/components/auth/sign-in-page'
 import AdminDashboard from '@/components/admin/admin-dashboard'
+import CourseDetailPage from '@/components/course/course-detail-page'
 import { navigateTo } from '@/lib/navigation'
 import { getAuthenticatedUser } from '@/services/api'
 
@@ -51,6 +52,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up' | null>(null)
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
   const isAdminPath = /^\/admin(?:\/|$)/.test(currentPath)
+  const courseMatch = currentPath.match(/^\/courses\/([^/]+)\/?$/)
   const canAccessAdmin = getAuthenticatedUser()?.role === 'admin'
 
   useEffect(() => {
@@ -84,6 +86,8 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
         />
         {authMode ? (
           <SignInPage mode={authMode} />
+        ) : courseMatch ? (
+          <CourseDetailPage courseId={decodeURIComponent(courseMatch[1])} />
         ) : (
           <>
             <HomeHero />

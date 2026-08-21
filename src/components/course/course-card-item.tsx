@@ -5,6 +5,7 @@ import Typography from '@mui/material/Typography'
 import IconButton, { iconButtonClasses } from '@mui/material/IconButton'
 import ArrowForward from '@mui/icons-material/ArrowForward'
 import { Course } from '@/interfaces/course'
+import { navigateTo } from '@/lib/navigation'
 
 interface Props {
   item: Course
@@ -65,6 +66,7 @@ const CourseCardItem: FC<Props> = ({ item }) => {
           <IconButton
             color="primary"
             aria-label={`Open ${item.title} course`}
+            onClick={() => navigateTo(`/courses/${item.id}`)}
             sx={{ '&:hover': { backgroundColor: 'primary.main', color: 'primary.contrastText' } }}
           >
             <ArrowForward />
