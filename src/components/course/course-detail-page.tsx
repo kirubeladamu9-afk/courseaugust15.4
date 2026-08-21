@@ -20,7 +20,7 @@ import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
 import { Fragment, type FC, useEffect, useState } from 'react'
 import { data as popularCourses } from '@/components/home/popular-course.data'
 import { type AdminCourse, type AdminLesson } from '@/components/admin/admin-data'
-import { getCourse as getCourseFromApi } from '@/services/api'
+import { getAuthenticatedUser, getAdminCourse, getCourse as getCourseFromApi } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
 const formatDuration = (seconds: number) => {
@@ -79,6 +79,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   const [expandedModules, setExpandedModules] = useState<number[]>([])
   const [isRegistered, setIsRegistered] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const isAdmin = getAuthenticatedUser()?.role === 'admin'
 
   useEffect(() => {
     let isCurrent = true
@@ -87,7 +88,9 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
     setExpandedModules([])
     setIsRegistered(false)
 
-    getCourseFromApi(courseId)
+    const loadCourse = isAdmin ? getAdminCourse(Number(courseId)) : getCourseFromApi(courseId)
+
+    loadCourse
       .then((nextCourse) => {
         if (!isCurrent) return
         setCourse(nextCourse)
@@ -106,7 +109,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
     return () => {
       isCurrent = false
     }
-  }, [courseId])
+  }, [courseId, isAdmin])
 
   if (isLoading && !course) {
     return <Container maxWidth="lg" sx={{ py: 12, textAlign: 'center' }}><Typography variant="h4">Loading course...</Typography></Container>
