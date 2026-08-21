@@ -737,6 +737,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
           <Box
             key={item.key}
             component="button"
+            title={item.label}
+            aria-label={item.label}
             onClick={() => selectSection(item.key)}
             sx={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5,
@@ -750,7 +752,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       </Box>
       <Box sx={{ p: 2 }}>
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Preferences</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, backgroundColor: 'background.default', borderRadius: 2 }}><SettingsOutlinedIcon color="disabled" fontSize="small" /><Typography variant="body2" color="text.secondary">Settings</Typography></Box>
+        <Box title="Settings" aria-label="Settings" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, backgroundColor: 'background.default', borderRadius: 2 }}><SettingsOutlinedIcon color="disabled" fontSize="small" /><Typography variant="body2" color="text.secondary">Settings</Typography></Box>
       </Box>
     </Box>
   )
@@ -776,8 +778,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
               </IconButton>
             </Tooltip>
             <Menu anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)}>
-              <MenuItem onClick={() => setProfileAnchor(null)}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />Admin profile</MenuItem>
-              <MenuItem onClick={handleSignOut}><LogoutIcon fontSize="small" sx={{ mr: 1 }} />Sign out</MenuItem>
+              <MenuItem title="Admin profile" onClick={() => setProfileAnchor(null)}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />Admin profile</MenuItem>
+              <MenuItem title="Sign out" onClick={handleSignOut}><LogoutIcon fontSize="small" sx={{ mr: 1 }} />Sign out</MenuItem>
             </Menu>
           </Stack>
         </Box>
