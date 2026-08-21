@@ -7,6 +7,7 @@ import { type Course } from '@/interfaces/course'
 import Container from '@mui/material/Container'
 import { useTheme, styled } from '@mui/material/styles'
 import { IconButton, useMediaQuery } from '@mui/material'
+import Typography from '@mui/material/Typography'
 import IconArrowBack from '@mui/icons-material/ArrowBack'
 import IconArrowForward from '@mui/icons-material/ArrowForward'
 
@@ -62,6 +63,7 @@ const HomePopularCourse: FC<{ courses: Course[] }> = ({ courses }) => {
       <Container maxWidth="lg">
         <Grid container spacing={2}>
           <Grid item xs={12} md={9} sx={{ minWidth: 0 }}>
+            <Typography component="h2" variant="h3" sx={{ mb: 3 }}>Most Popular Courses</Typography>
             {courses.length > 0 && <Box sx={{ width: '100%', minWidth: 0 }}>
               <Slider ref={sliderRef} {...sliderConfig}>
                 {courses.map((item) => (
