@@ -55,7 +55,8 @@ const CourseLessonContent: FC<{ lesson: AdminLesson; courseCover: string }> = ({
 const getFallbackCourse = (courseId: string): AdminCourse | null => {
   const popularCourse = popularCourses.find((course) => String(course.id) === courseId)
   if (!popularCourse) return null
-  const fallbackResource: LessonResource = { id: Number(popularCourse.id) * 1000, name: 'Course introduction notes.txt', url: `data:text/plain;charset=utf-8,${encodeURIComponent(`${popularCourse.title}\n\nReview the course introduction and key editing concepts.`)}` }
+  const fallbackResource: LessonResource = { id: Number(popularCourse.id) * 1000, name: '1786691942293-KIRU-CV_merged_2_compressed.pdf', url: `data:application/pdf;charset=utf-8,${encodeURIComponent(`${popularCourse.title}\n\nDownloadable course resource.`)}` }
+  const fallbackArticleLesson: AdminLesson = { id: Number(popularCourse.id) * 100 + 1, title: 'New article lesson', type: 'article', duration: null, resources: [fallbackResource], articleBody: 'Review the downloadable course resource alongside this article lesson.' }
   return {
     id: Number(popularCourse.id),
     title: popularCourse.title,
@@ -72,7 +73,7 @@ const getFallbackCourse = (courseId: string): AdminCourse | null => {
     requirements: ['A willingness to learn', 'A computer with a modern browser'],
     certificate: true,
     updatedAt: 'August 21, 2025',
-    modules: [{ id: Number(popularCourse.id) * 10, title: 'Getting started', lessons: [{ id: Number(popularCourse.id) * 100, title: 'Course introduction', type: 'video', duration: 600, resources: [fallbackResource] }] }],
+    modules: [{ id: Number(popularCourse.id) * 10, title: 'Getting started', lessons: [{ id: Number(popularCourse.id) * 100, title: 'Course introduction', type: 'video', duration: 600, resources: [] }, fallbackArticleLesson] }],
   }
 }
 
