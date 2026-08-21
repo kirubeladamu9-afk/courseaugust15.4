@@ -19,6 +19,7 @@ const Navigation: FC = () => {
           sx={{
             position: 'relative',
             color: 'text.disabled',
+            textDecoration: 'none',
             cursor: 'pointer',
             fontWeight: 600,
             display: 'inline-flex',
