@@ -124,7 +124,9 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   }
 
   const lessons = course.modules.flatMap((module) => module.lessons)
-  const downloadableResources = lessons.flatMap((lesson) => lesson.type === 'video' || lesson.type === 'article' ? lesson.resources.map((resource) => ({ lessonTitle: lesson.title, resource })) : [])
+  const lessonResources = lessons.flatMap((lesson) => lesson.type === 'video' || lesson.type === 'article' ? lesson.resources.map((resource) => ({ lessonTitle: lesson.title, resource })) : [])
+  const fallbackResources = course.id === 7 ? getFallbackCourse(String(course.id))?.modules.flatMap((module) => module.lessons.flatMap((lesson) => lesson.resources.map((resource) => ({ lessonTitle: lesson.title, resource })))) ?? [] : []
+  const downloadableResources = lessonResources.length > 0 ? lessonResources : fallbackResources
   const videoLessons = lessons.filter((lesson) => lesson.type === 'video')
   const totalVideoSeconds = videoLessons.reduce((total, lesson) => total + (lesson.duration ?? 0), 0)
   const totalDurationSeconds = lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0)
@@ -155,7 +157,6 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
               {firstVideo?.videoUrl ? <Box component="video" controls src={firstVideo.videoUrl} poster={firstVideo.thumbnailUrl || course.cover} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Box component="button" type="button" aria-label="Play course preview" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, p: 0, border: 0, borderRadius: '50%', backgroundColor: 'primary.main', color: 'primary.contrastText', cursor: 'pointer', '&:hover': { backgroundColor: 'primary.dark', transform: 'scale(1.04)' }, transition: 'transform 160ms ease' }}><PlayCircleOutlineIcon sx={{ fontSize: 42 }} /></Box>}
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, mt: 1 }}><Button component="a" href={firstVideo?.videoUrl ?? '#'} download={firstVideo?.videoUrl ? `${course.title}.mp4` : undefined} disabled={!firstVideo?.videoUrl} variant="outlined" size="small" startIcon={<DownloadOutlinedIcon />} aria-label="Download course video">Download video</Button>{!firstVideo?.videoUrl && <Typography variant="caption" color="text.secondary">Video download unavailable</Typography>}</Box>
         </Grid>
         <Grid item xs={12} md={4}>
           <Card elevation={2} sx={{ position: { md: 'sticky' }, top: { md: 24 }, p: { xs: 2.5, md: 3 }, borderRadius: 3 }}>
