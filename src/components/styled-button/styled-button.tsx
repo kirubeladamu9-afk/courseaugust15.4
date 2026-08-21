@@ -158,10 +158,9 @@ interface Props extends BaseButtonProps {
   children: ReactNode
 }
 
-const StyledButton: FC<Props> = (props: Props) => {
-  const { children, onClick, disableHoverEffect, startIcon, endIcon, ...rest } = props
+const StyledButton: FC<Props> = ({ children, onClick, disableHoverEffect = false, startIcon, endIcon, color = 'primary', variant = 'contained', size = 'medium', ...rest }) => {
   return (
-    <StyledButtonRoot onClick={onClick} disableHoverEffect={disableHoverEffect} {...rest}>
+    <StyledButtonRoot onClick={onClick} disableHoverEffect={disableHoverEffect} color={color} variant={variant} size={size} {...rest}>
       {startIcon && (
         <Box component="span" sx={{ display: 'inherit', mr: 1, ml: -0.5 }}>
           {startIcon}
@@ -175,13 +174,6 @@ const StyledButton: FC<Props> = (props: Props) => {
       )}
     </StyledButtonRoot>
   )
-}
-
-StyledButton.defaultProps = {
-  color: 'primary',
-  variant: 'contained',
-  size: 'medium',
-  disableHoverEffect: false,
 }
 
 export default StyledButton
