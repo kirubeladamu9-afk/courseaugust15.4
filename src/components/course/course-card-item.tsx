@@ -40,8 +40,14 @@ const CourseCardItem: FC<Props> = ({ item }) => {
           sx={{
             lineHeight: 0,
             overflow: 'hidden',
+            aspectRatio: '16 / 9',
             borderRadius: 3,
             mb: 2,
+            '& .course-cover-image': {
+              display: 'block',
+              height: '100%',
+              objectFit: 'cover',
+            },
           }}
         >
           <img className="course-cover-image" src={item.cover} width={760} height={760} alt={'Course ' + item.id} loading="lazy" />
