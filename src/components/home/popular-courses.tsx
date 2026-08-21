@@ -95,12 +95,14 @@ const HomePopularCourse: FC = () => {
             </Box>
           </Grid>
 
-          <Grid item xs={12} md={9}>
-            <Slider ref={sliderRef} {...sliderConfig}>
-              {courses.map((item) => (
-                <CourseCardItem key={String(item.id)} item={item} />
-              ))}
-            </Slider>
+          <Grid item xs={12} md={9} sx={{ minWidth: 0 }}>
+            <Box sx={{ width: '100%', minWidth: 0 }}>
+              <Slider ref={sliderRef} {...sliderConfig}>
+                {courses.map((item) => (
+                  <CourseCardItem key={String(item.id)} item={item} />
+                ))}
+              </Slider>
+            </Box>
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: { xs: 4, md: 2 } }}>
               <IconButton
                 sx={{

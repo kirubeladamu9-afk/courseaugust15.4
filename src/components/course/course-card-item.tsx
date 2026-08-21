@@ -15,6 +15,7 @@ const CourseCardItem: FC<Props> = ({ item }) => {
   return (
     <Box
       sx={{
+        width: '100%',
         px: 1,
         py: 4,
       }}
