@@ -303,6 +303,10 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
           <TextField required fullWidth label="Course title" value={course.title} onChange={(event) => onChange({ ...course, title: event.target.value })} />
           <FormControl fullWidth required><InputLabel>Program</InputLabel><Select label="Program" value={course.category} onChange={(event) => onChange({ ...course, category: event.target.value })}><MenuItem value="Data">Data</MenuItem><MenuItem value="Development">Development</MenuItem><MenuItem value="Design">Design</MenuItem><MenuItem value="Business">Business</MenuItem></Select></FormControl>
         </Stack>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-start">
+          <TextField required fullWidth label="Thumbnail URL" type="url" value={course.cover} onChange={(event) => onChange({ ...course, cover: event.target.value })} placeholder="/images/courses/thumbnail.jpg" />
+          {course.cover && <Box component="img" src={course.cover} alt={`${course.title || 'Course'} thumbnail`} sx={{ width: { xs: '100%', md: 180 }, height: 100, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }} />}
+        </Stack>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <FormControl fullWidth><InputLabel>Level</InputLabel><Select label="Level" value={course.level} onChange={(event) => onChange({ ...course, level: event.target.value })}><MenuItem value="Beginner">Beginner</MenuItem><MenuItem value="Intermediate">Intermediate</MenuItem><MenuItem value="Advanced">Advanced</MenuItem></Select></FormControl>
           <FormControl fullWidth><InputLabel>Tutor</InputLabel><Select label="Tutor" value={course.tutor} onChange={(event) => onChange({ ...course, tutor: event.target.value })}>{['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known'].map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}</Select></FormControl>
@@ -565,6 +569,10 @@ const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
     const title = course.title.trim()
     if (!title) {
       toast.add({ title: 'Course title is required', description: 'Add a title before saving the course.', type: 'error', priority: 'high' })
+      return
+    }
+    if (!course.cover.trim()) {
+      toast.add({ title: 'Course thumbnail is required', description: 'Add a thumbnail URL before saving the course.', type: 'error', priority: 'high' })
       return
     }
 
