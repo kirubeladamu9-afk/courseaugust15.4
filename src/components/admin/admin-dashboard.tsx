@@ -32,6 +32,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
@@ -266,30 +268,54 @@ const CoursesPage: FC = () => {
   const [courseRows, setCourseRows] = useState(courses)
   const [selectedId, setSelectedId] = useState(courses[0].id)
   const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false)
+  const [editingCourseId, setEditingCourseId] = useState<number | null>(null)
   const [newCourseDraft, setNewCourseDraft] = useState<NewCourseDraft>({ title: '', category: '', tutor: 'Maya Chen', price: '' })
   const selectedCourse = courseRows.find((course) => course.id === selectedId) ?? courseRows[0]
   const tutorOptions = ['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known']
 
   const openCourseDialog = () => {
+    setEditingCourseId(null)
     setNewCourseDraft({ title: '', category: '', tutor: tutorOptions[0], price: '' })
     setIsCourseDialogOpen(true)
   }
 
-  const createCourse = (event: FormEvent<HTMLFormElement>) => {
+  const openEditDialog = (course: AdminCourse) => {
+    setEditingCourseId(course.id)
+    setNewCourseDraft({ title: course.title, category: course.category, tutor: course.tutor, price: String(course.price) })
+    setIsCourseDialogOpen(true)
+  }
+
+  const deleteCourse = (course: AdminCourse) => {
+    if (!window.confirm(`Delete ${course.title}? This cannot be undone.`)) return
+
+    const remainingCourses = courseRows.filter((row) => row.id !== course.id)
+    setCourseRows(remainingCourses)
+    if (selectedId === course.id) setSelectedId(remainingCourses[0]?.id ?? -1)
+  }
+
+  const saveCourse = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const nextCourse: AdminCourse = {
-      id: Math.max(0, ...courseRows.map((course) => course.id)) + 1,
+    const courseDetails = {
       title: newCourseDraft.title.trim(),
       category: newCourseDraft.category.trim(),
       tutor: newCourseDraft.tutor,
-      status: 'Draft',
-      students: 0,
       price: Number(newCourseDraft.price),
-      modules: [{ id: 1, title: 'Course introduction', lessons: [] }],
     }
 
-    setCourseRows((rows) => [...rows, nextCourse])
-    setSelectedId(nextCourse.id)
+    if (editingCourseId !== null) {
+      setCourseRows((rows) => rows.map((row) => row.id === editingCourseId ? { ...row, ...courseDetails } : row))
+    } else {
+      const nextCourse: AdminCourse = {
+        id: Math.max(0, ...courseRows.map((course) => course.id)) + 1,
+        ...courseDetails,
+        status: 'Draft',
+        students: 0,
+        modules: [{ id: 1, title: 'Course introduction', lessons: [] }],
+      }
+      setCourseRows((rows) => [...rows, nextCourse])
+      setSelectedId(nextCourse.id)
+    }
+
     setIsCourseDialogOpen(false)
   }
 
@@ -321,22 +347,34 @@ const CoursesPage: FC = () => {
                 inputProps={{ 'aria-label': `Publish ${course.title}` }}
               />
             </Stack>
-            <Button
-              label="Curriculum"
-              size="small"
-              variant="text"
-              onClick={() => {
-                setSelectedId(course.id)
-                window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
-              }}
-            />
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <Button
+                label="Curriculum"
+                size="small"
+                variant="text"
+                onClick={() => {
+                  setSelectedId(course.id)
+                  window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+                }}
+              />
+              <Tooltip title={`Edit ${course.title}`}>
+                <IconButton size="small" onClick={() => openEditDialog(course)} aria-label={`Edit ${course.title}`}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={`Delete ${course.title}`}>
+                <IconButton size="small" color="error" onClick={() => deleteCourse(course)} aria-label={`Delete ${course.title}`}>
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
           </Box>
         ))}
       </Paper>
       {selectedCourse && <CourseEditor course={selectedCourse} onChange={(next) => setCourseRows((rows) => rows.map((row) => row.id === next.id ? next : row))} />}
       <Dialog open={isCourseDialogOpen} onClose={() => setIsCourseDialogOpen(false)} fullWidth maxWidth="sm">
-        <Box component="form" onSubmit={createCourse}>
-          <DialogTitle>Create a new course</DialogTitle>
+        <Box component="form" onSubmit={saveCourse}>
+          <DialogTitle>{editingCourseId === null ? 'Create a new course' : 'Edit course'}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
               <TextField
@@ -379,7 +417,7 @@ const CoursesPage: FC = () => {
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button label="Cancel" variant="text" onClick={() => setIsCourseDialogOpen(false)} />
-            <Button label="Create course" type="submit" />
+            <Button label={editingCourseId === null ? 'Create course' : 'Save changes'} type="submit" />
           </DialogActions>
         </Box>
       </Dialog>
