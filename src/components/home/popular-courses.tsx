@@ -2,7 +2,7 @@ import React, { FC } from 'react'
 import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
 import Slider, { Settings } from 'react-slick'
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
 import { useTheme, styled } from '@mui/material/styles'
@@ -12,6 +12,7 @@ import IconArrowForward from '@mui/icons-material/ArrowForward'
 
 import { data } from './popular-course.data'
 import { CourseCardItem } from '@/components/course'
+import { getCourses } from '@/services/api'
 
 const StyledDots = styled('ul')(({ theme }) => ({
   '&.slick-dots': {
@@ -34,6 +35,21 @@ const HomePopularCourse: FC = () => {
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
 
   const sliderRef = useRef<Slider | null>(null)
+  const [courses, setCourses] = useState(data)
+
+  useEffect(() => {
+    let isCurrent = true
+
+    getCourses()
+      .then((nextCourses) => {
+        if (isCurrent) setCourses(nextCourses)
+      })
+      .catch(() => undefined)
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
 
   const sliderConfig: Settings = {
     infinite: true,
@@ -81,7 +97,7 @@ const HomePopularCourse: FC = () => {
 
           <Grid item xs={12} md={9}>
             <Slider ref={sliderRef} {...sliderConfig}>
-              {data.map((item) => (
+              {courses.map((item) => (
                 <CourseCardItem key={String(item.id)} item={item} />
               ))}
             </Slider>

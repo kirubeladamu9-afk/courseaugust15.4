@@ -12,10 +12,11 @@ import { Close, DarkModeOutlined, LightModeOutlined, Menu } from '@mui/icons-mat
 interface Props {
   darkMode: boolean
   onSignIn: () => void
+  onSignUp: () => void
   onToggleDarkMode: () => void
 }
 
-const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
+const Header: FC<Props> = ({ darkMode, onSignIn, onSignUp, onToggleDarkMode }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
@@ -53,7 +54,7 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
             <Box /> {/* Magic space */}
             <Navigation />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AuthNavigation onSignIn={onSignIn} />
+              <AuthNavigation onSignIn={onSignIn} onSignUp={onSignUp} />
               <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                 <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                   {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}

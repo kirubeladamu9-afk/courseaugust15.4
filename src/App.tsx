@@ -27,7 +27,7 @@ interface AppProps {
 }
 
 const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
-  const [showSignIn, setShowSignIn] = useState(false)
+  const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up' | null>(null)
 
   if (window.location.pathname.startsWith('/admin')) {
     return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
@@ -44,11 +44,12 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
       >
         <Header
           darkMode={darkMode}
-          onSignIn={() => setShowSignIn(true)}
+          onSignIn={() => setAuthMode('sign-in')}
+          onSignUp={() => setAuthMode('sign-up')}
           onToggleDarkMode={onToggleDarkMode}
         />
-        {showSignIn ? (
-          <SignInPage />
+        {authMode ? (
+          <SignInPage mode={authMode} />
         ) : (
           <>
             <HomeHero />
