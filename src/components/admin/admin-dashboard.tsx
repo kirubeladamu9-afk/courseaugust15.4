@@ -294,8 +294,15 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
   const addResources = (files: FileList | null) => {
     if (!lessonPanel || !files?.length) return
     const highestResourceId = Math.max(0, ...lessonPanel.lesson.resources.map((resource) => resource.id))
-    const nextResources = Array.from(files).map((file, index) => ({ id: highestResourceId + index + 1, name: file.name }))
-    updateLessonDraft({ ...lessonPanel.lesson, resources: [...lessonPanel.lesson.resources, ...nextResources] })
+    Array.from(files).forEach((file, index) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result !== 'string') return
+        const resource = { id: highestResourceId + index + 1, name: file.name, url: reader.result }
+        setLessonPanel((panel) => panel ? { ...panel, lesson: { ...panel.lesson, resources: [...panel.lesson.resources, resource] } } : panel)
+      }
+      reader.readAsDataURL(file)
+    })
   }
 
   const isVideoProcessing = lessonPanel?.lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100

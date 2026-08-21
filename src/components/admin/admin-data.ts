@@ -3,6 +3,7 @@ export type LessonType = 'video' | 'article' | 'quiz' | 'live'
 export interface LessonResource {
   id: number
   name: string
+  url?: string
 }
 
 export interface QuizQuestion {
