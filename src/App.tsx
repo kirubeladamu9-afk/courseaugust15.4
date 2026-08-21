@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useState } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import { Footer } from '@/components/footer'
@@ -6,6 +6,7 @@ import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
 import SignInPage from '@/components/auth/sign-in-page'
 import AdminDashboard from '@/components/admin/admin-dashboard'
+import { navigateTo } from '@/lib/navigation'
 import { getAuthenticatedUser } from '@/services/api'
 
 const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
@@ -48,15 +49,23 @@ const RouteLoadingState: React.FC<{ message: string }> = ({ message }) => (
 
 const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up' | null>(null)
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
+  const isAdminPath = /^\/admin(?:\/|$)/.test(currentPath)
+  const canAccessAdmin = getAuthenticatedUser()?.role === 'admin'
 
-  if (window.location.pathname.startsWith('/admin')) {
-    if (getAuthenticatedUser()?.role !== 'admin') {
-      window.location.replace('/')
-      return <RouteLoadingState message="Returning to Coursespace..." />
-    }
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname)
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
-    return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
-  }
+  useEffect(() => {
+    if (isAdminPath && !canAccessAdmin) navigateTo('/', true)
+    if (!isAdminPath) setAuthMode(null)
+  }, [canAccessAdmin, isAdminPath])
+
+  if (isAdminPath && !canAccessAdmin) return <RouteLoadingState message="Returning to Coursespace..." />
+  if (isAdminPath) return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
 
   return (
     <Box component="main">

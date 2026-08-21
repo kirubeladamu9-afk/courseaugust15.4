@@ -6,6 +6,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
+import { navigateTo } from '@/lib/navigation'
 import { toast } from '@/components/toast'
 import { saveAuthenticatedUser, submitCredentials } from '@/services/api'
 
@@ -26,7 +27,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
       if (!isSignUp) {
         saveAuthenticatedUser(user)
         setIsRedirecting(true)
-        window.setTimeout(() => window.location.assign(user.role === 'admin' ? '/admin' : '/'), 400)
+        window.setTimeout(() => navigateTo(user.role === 'admin' ? '/admin' : '/'), 400)
         return
       }
       toast.add({

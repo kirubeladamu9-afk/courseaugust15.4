@@ -38,6 +38,7 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import { useEffect } from 'react'
 import { Logo } from '@/components/logo'
+import { navigateTo } from '@/lib/navigation'
 import { clearAuthenticatedUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import { courses, payments, registrations, tutors, users, type AdminCourse, type AdminModule, type Registration } from './admin-data'
@@ -384,28 +385,39 @@ interface AdminDashboardProps {
   onToggleDarkMode: () => void
 }
 
+const getSectionFromPath = (pathname: string): Section => {
+  const pathSection = pathname.split('/')[2]
+  return navigation.some(({ key }) => key === pathSection) ? (pathSection as Section) : 'overview'
+}
+
 const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode }) => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const [section, setSection] = useState<Section>('overview')
+  const [section, setSection] = useState<Section>(() => getSectionFromPath(window.location.pathname))
   const [isLoading, setIsLoading] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
 
   const selectSection = (next: Section) => {
+    navigateTo(next === 'overview' ? '/admin' : `/admin/${next}`)
     setSection(next)
     setMobileOpen(false)
-    window.history.replaceState({}, '', next === 'overview' ? '/admin' : `/admin/${next}`)
   }
 
   const handleSignOut = () => {
     clearAuthenticatedUser()
-    window.location.replace('/')
+    navigateTo('/', true)
   }
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 400)
-    return () => window.clearTimeout(timer)
+    const handlePopState = () => setSection(getSectionFromPath(window.location.pathname))
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('popstate', handlePopState)
+    }
   }, [])
 
   const currentPage = useMemo(() => {
