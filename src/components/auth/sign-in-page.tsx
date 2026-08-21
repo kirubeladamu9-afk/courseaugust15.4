@@ -48,6 +48,27 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
             <Box sx={{ '& button': { width: '100%', justifyContent: 'center' } }}>
               <StyledButton type="submit">{isSignUp ? 'Sign Up' : 'Sign In'}</StyledButton>
             </Box>
+            {!isSignUp && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 2,
+                  p: 1.5,
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  backgroundColor: 'background.default',
+                }}
+              >
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Admin User</Typography>
+                  <Typography variant="caption" color="text.secondary">admin@coursespace.com</Typography>
+                </Box>
+                <Typography variant="caption" color="primary.main">Administrator</Typography>
+              </Box>
+            )}
           </Box>
         </Paper>
       </Container>
