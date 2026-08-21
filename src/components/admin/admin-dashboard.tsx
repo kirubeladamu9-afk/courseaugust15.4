@@ -120,9 +120,23 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
     setDraggedLesson(null)
   }
 
+  const addLesson = (moduleId: number) => {
+    const nextModules = course.modules.map((module) => {
+      if (module.id !== moduleId) return module
+      return { ...module, lessons: [...module.lessons, `New lesson ${module.lessons.length + 1}`] }
+    })
+    onChange({ ...course, modules: nextModules })
+  }
+
   return (
-    <Paper elevation={0} sx={{ mt: 3, p: 2.5, border: 1, borderColor: 'divider' }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Modules & lessons editor</Typography>
+    <Paper id="course-curriculum-editor" elevation={0} sx={{ mt: 3, p: 2.5, border: 1, borderColor: 'divider', scrollMarginTop: 24 }}>
+      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <Box>
+          <Typography variant="h6">Course curriculum</Typography>
+          <Typography color="text.secondary" variant="body2">{course.title}</Typography>
+        </Box>
+        <StatusChip status={course.status} />
+      </Box>
       <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules or lessons to reorder the course structure.</Typography>
       <Stack spacing={1.5}>
         {course.modules.map((module) => (
@@ -142,7 +156,7 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
             <Stack spacing={0.5} sx={{ mt: 1, ml: 4 }}>
               {module.lessons.map((lesson, index) => (
                 <Box
-                  key={lesson}
+                  key={`${module.id}-${lesson}-${index}`}
                   draggable
                   onDragStart={(event) => {
                     event.stopPropagation()
@@ -159,6 +173,14 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
                   <Typography variant="body2">{lesson}</Typography>
                 </Box>
               ))}
+              <Box
+                component="button"
+                type="button"
+                onClick={() => addLesson(module.id)}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
+              >
+                <AddIcon fontSize="small" /> Add lesson
+              </Box>
             </Stack>
           </Paper>
         ))}
@@ -299,6 +321,15 @@ const CoursesPage: FC = () => {
                 inputProps={{ 'aria-label': `Publish ${course.title}` }}
               />
             </Stack>
+            <Button
+              label="Curriculum"
+              size="small"
+              variant="text"
+              onClick={() => {
+                setSelectedId(course.id)
+                window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+              }}
+            />
           </Box>
         ))}
       </Paper>
