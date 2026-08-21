@@ -70,7 +70,7 @@ const AdminDataTable = <T extends { id: number }>({ rows, columns, searchPlaceho
             setPage(0)
           }}
           size="small"
-          fullWidth
+          sx={{ width: { xs: '100%', sm: 320 } }}
           placeholder={searchPlaceholder}
           inputProps={{ 'aria-label': searchPlaceholder }}
         />
