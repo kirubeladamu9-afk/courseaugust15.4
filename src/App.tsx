@@ -85,7 +85,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
 
   if (isAdminPath && !canAccessAdmin) return <RouteLoadingState message="Returning to Coursespace..." />
   if (isAdminPath) return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
-  if (!courseMatch && homeCourses === null) return <RouteLoadingState message="Loading courses..." />
+  if (!courseMatch && homeCourses === null) return <div className="page-loading-state"><SpinnerCustom /></div>
 
   return (
     <Box component="main">
