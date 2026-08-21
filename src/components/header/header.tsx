@@ -2,23 +2,19 @@ import React, { FC, useState } from 'react'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import IconButton from '@mui/material/IconButton'
-import Tooltip from '@mui/material/Tooltip'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { Logo } from '@/components/logo'
 import { Navigation, AuthNavigation } from '@/components/navigation'
 import { getAuthenticatedUser, signOut } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 import { useTheme } from '@mui/material/styles'
-import { Close, DarkModeOutlined, LightModeOutlined, Menu } from '@mui/icons-material'
+import { Close, Menu } from '@mui/icons-material'
 
 interface Props {
-  darkMode: boolean
   onSignIn: () => void
-  onSignUp: () => void
-  onToggleDarkMode: () => void
 }
 
-const Header: FC<Props> = ({ darkMode, onSignIn, onSignUp, onToggleDarkMode }) => {
+const Header: FC<Props> = ({ onSignIn }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
   const isAdmin = getAuthenticatedUser()?.role === 'admin'
   const { breakpoints } = useTheme()
@@ -61,12 +57,7 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onSignUp, onToggleDarkMode }) =
             <Box /> {/* Magic space */}
             <Navigation isAdmin={isAdmin} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AuthNavigation isAdmin={isAdmin} onSignIn={onSignIn} onSignUp={onSignUp} onAdminDashboard={() => navigateTo('/admin')} onSignOut={() => { void signOut().then(() => navigateTo('/', true)) }} />
-              <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-                <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-                  {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
-                </IconButton>
-              </Tooltip>
+              <AuthNavigation isAdmin={isAdmin} onSignIn={onSignIn} onAdminDashboard={() => navigateTo('/admin')} onSignOut={() => { void signOut().then(() => navigateTo('/', true)) }} />
             </Box>
             {visibleMenu && matchMobileView && (
               <IconButton
