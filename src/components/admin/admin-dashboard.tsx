@@ -1,6 +1,9 @@
 import { useMemo, useState, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
+import Accordion from '@mui/material/Accordion'
+import AccordionDetails from '@mui/material/AccordionDetails'
+import AccordionSummary from '@mui/material/AccordionSummary'
 import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
@@ -35,6 +38,7 @@ import FormatBoldIcon from '@mui/icons-material/FormatBold'
 import FormatItalicIcon from '@mui/icons-material/FormatItalic'
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
@@ -164,6 +168,7 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
   const [addingLessonModuleId, setAddingLessonModuleId] = useState<number | null>(null)
   const [lessonPanel, setLessonPanel] = useState<LessonPanelState | null>(null)
   const [videoUploadProgress, setVideoUploadProgress] = useState(0)
+  const [expandedSections, setExpandedSections] = useState<string[]>(['curriculum'])
 
   useEffect(() => {
     setExpandedModuleIds(course.modules.map((module) => module.id))
@@ -173,7 +178,12 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
     setAddingLessonModuleId(null)
     setLessonPanel(null)
     setVideoUploadProgress(0)
+    setExpandedSections(['curriculum'])
   }, [course.id])
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((sections) => sections.includes(section) ? sections.filter((currentSection) => currentSection !== section) : [...sections, section])
+  }
 
   const moveModule = (targetId: number) => {
     if (draggedModule === null || draggedModule === targetId) return
@@ -281,11 +291,10 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
 
   return (
     <Paper id="course-curriculum-editor" elevation={0} sx={{ mt: 3, p: 2.5, border: 1, borderColor: 'divider', scrollMarginTop: 24 }}>
-      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <Box><Typography variant="h6">Course details</Typography><Typography color="text.secondary" variant="body2">Edit the information learners see before they enroll.</Typography></Box>
-        <StatusChip status={course.status} />
-      </Box>
-      <Stack spacing={2} sx={{ mb: 3 }}>
+      <Accordion expanded={expandedSections.includes('details')} onChange={() => toggleSection('details')} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}><Box><Typography variant="h6">Course details</Typography><Typography color="text.secondary" variant="body2">Edit the information learners see before they enroll.</Typography></Box></AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={2}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <TextField required fullWidth label="Course title" value={course.title} onChange={(event) => onChange({ ...course, title: event.target.value })} />
           <FormControl fullWidth required><InputLabel>Program</InputLabel><Select label="Program" value={course.category} onChange={(event) => onChange({ ...course, category: event.target.value })}><MenuItem value="Data">Data</MenuItem><MenuItem value="Development">Development</MenuItem><MenuItem value="Design">Design</MenuItem><MenuItem value="Business">Business</MenuItem></Select></FormControl>
@@ -297,17 +306,26 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
         </Stack>
         <TextField fullWidth multiline minRows={2} label="Description" value={course.description} onChange={(event) => onChange({ ...course, description: event.target.value })} />
         <TextField fullWidth multiline minRows={4} label="Long description" value={course.longDescription} onChange={(event) => onChange({ ...course, longDescription: event.target.value })} />
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>Course status</Typography><Typography variant="caption" color="text.secondary">Draft courses remain editable and hidden from learners.</Typography></Box><Stack direction="row" alignItems="center" spacing={1}><StatusChip status={course.status} /><Switch checked={course.status === 'Published'} onChange={() => onChange({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title || 'course'}` }} /></Stack></Box>
       </Stack>
-      <RepeatableBulletList title="What you'll learn" values={course.learningOutcomes} onChange={(learningOutcomes) => onChange({ ...course, learningOutcomes })} />
-      <RepeatableBulletList title="Requirements" values={course.requirements} onChange={(requirements) => onChange({ ...course, requirements })} />
+          <RepeatableBulletList title="What you'll learn" values={course.learningOutcomes} onChange={(learningOutcomes) => onChange({ ...course, learningOutcomes })} />
+        </AccordionDetails>
+      </Accordion>
+      <Accordion expanded={expandedSections.includes('status')} onChange={() => toggleSection('status')} disableGutters elevation={0} sx={{ mt: 1, border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}><Box><Typography variant="h6">Course status</Typography><Typography color="text.secondary" variant="body2">Control whether learners can see this course.</Typography></Box></AccordionSummary>
+        <AccordionDetails>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{course.status === 'Published' ? 'Published' : 'Draft course'}</Typography><Typography variant="caption" color="text.secondary">Draft courses remain editable and hidden from learners.</Typography></Box><Stack direction="row" alignItems="center" spacing={1}><StatusChip status={course.status} /><Switch checked={course.status === 'Published'} onChange={() => onChange({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title || 'course'}` }} /></Stack></Box>
+        </AccordionDetails>
+      </Accordion>
+      <Accordion expanded={expandedSections.includes('requirements')} onChange={() => toggleSection('requirements')} disableGutters elevation={0} sx={{ mt: 1, border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="h6">Requirements</Typography></AccordionSummary>
+        <AccordionDetails><RepeatableBulletList title="Requirements" values={course.requirements} onChange={(requirements) => onChange({ ...course, requirements })} /></AccordionDetails>
+      </Accordion>
       <Divider sx={{ my: 3 }} />
-      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
-        <Box><Typography variant="h6">Course curriculum</Typography><Typography color="text.secondary" variant="body2">{course.title || 'Untitled course'}</Typography></Box>
-        <Typography color="text.secondary" variant="body2">{course.modules.length} {course.modules.length === 1 ? 'section' : 'sections'}</Typography>
-      </Box>
-      <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules to reorder. Lessons can be reordered within their module.</Typography>
-      <Stack spacing={1.5}>
+      <Accordion expanded={expandedSections.includes('curriculum')} onChange={() => toggleSection('curriculum')} disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider', '&:before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}><Box><Typography variant="h6">Course curriculum</Typography><Typography color="text.secondary" variant="body2">{course.modules.length} {course.modules.length === 1 ? 'section' : 'sections'} · {course.title || 'Untitled course'}</Typography></Box></AccordionSummary>
+        <AccordionDetails>
+          <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules to reorder. Lessons can be reordered within their module.</Typography>
+          <Stack spacing={1.5}>
         {course.modules.length === 0 && !isAddingModule && <Box sx={{ p: 4, textAlign: 'center', border: 1, borderColor: 'divider', borderStyle: 'dashed', borderRadius: 1 }}><Typography color="text.secondary" sx={{ mb: 1 }}>This course has no modules yet.</Typography><Button label="Add your first module" size="small" onClick={() => setIsAddingModule(true)} /></Box>}
         {course.modules.map((module) => {
           const isExpanded = expandedModuleIds.includes(module.id)
@@ -334,7 +352,9 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
           </Paper>
         })}
         {isAddingModule ? <Box component="form" onSubmit={addModule} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><TextField autoFocus required size="small" fullWidth label="Module title" value={newModuleTitle} onChange={(event) => setNewModuleTitle(event.target.value)} /><IconButton type="submit" color="primary" aria-label="Save module"><CheckIcon /></IconButton><IconButton type="button" onClick={() => setIsAddingModule(false)} aria-label="Cancel adding module"><CloseIcon /></IconButton></Box> : course.modules.length > 0 && <Box component="button" type="button" onClick={() => setIsAddingModule(true)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}><AddIcon fontSize="small" /> Add module</Box>}
-      </Stack>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
       {lessonPanel && <LessonDetailsPanel lessonPanel={lessonPanel} updateLessonDraft={updateLessonDraft} onClose={() => setLessonPanel(null)} onSave={saveLesson} onVideoFile={handleVideoFile} onAddResources={addResources} videoUploadProgress={videoUploadProgress} disabled={cannotSaveLesson} />}
     </Paper>
   )
