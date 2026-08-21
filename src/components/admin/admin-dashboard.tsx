@@ -36,6 +36,7 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import { Logo } from '@/components/logo'
+import { clearAuthenticatedUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import { courses, payments, registrations, tutors, users, type AdminCourse, type AdminModule, type Registration } from './admin-data'
 
@@ -373,6 +374,11 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
     window.history.replaceState({}, '', next === 'overview' ? '/admin' : `/admin/${next}`)
   }
 
+  const handleSignOut = () => {
+    clearAuthenticatedUser()
+    window.location.replace('/')
+  }
+
   const currentPage = useMemo(() => {
     switch (section) {
       case 'courses': return <CoursesPage />
@@ -431,7 +437,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             </Tooltip>
             <Menu anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)}>
               <MenuItem onClick={() => setProfileAnchor(null)}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />Admin profile</MenuItem>
-              <MenuItem onClick={() => setProfileAnchor(null)}><LogoutIcon fontSize="small" sx={{ mr: 1 }} />Sign out</MenuItem>
+              <MenuItem onClick={handleSignOut}><LogoutIcon fontSize="small" sx={{ mr: 1 }} />Sign out</MenuItem>
             </Menu>
           </Stack>
         </Box>

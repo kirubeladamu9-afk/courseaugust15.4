@@ -5,6 +5,7 @@ import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
 import SignInPage from '@/components/auth/sign-in-page'
 import AdminDashboard from '@/components/admin/admin-dashboard'
+import { getAuthenticatedUser } from '@/services/api'
 
 const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
   lazy(() =>
@@ -30,6 +31,11 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up' | null>(null)
 
   if (window.location.pathname.startsWith('/admin')) {
+    if (getAuthenticatedUser()?.role !== 'admin') {
+      window.location.replace('/')
+      return null
+    }
+
     return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   }
 

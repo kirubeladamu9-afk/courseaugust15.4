@@ -7,7 +7,7 @@ import Alert from '@mui/material/Alert'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
-import { submitCredentials } from '@/services/api'
+import { saveAuthenticatedUser, submitCredentials } from '@/services/api'
 
 interface SignInPageProps {
   mode: 'sign-in' | 'sign-up'
@@ -25,6 +25,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
     try {
       const { user } = await submitCredentials(mode, String(formData.get('email')), String(formData.get('password')))
       if (!isSignUp) {
+        saveAuthenticatedUser(user)
         window.location.assign(user.role === 'admin' ? '/admin' : '/')
         return
       }
