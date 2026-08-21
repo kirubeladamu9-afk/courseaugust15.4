@@ -2,7 +2,7 @@ import React, { FC } from 'react'
 import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid'
 import Slider, { Settings } from 'react-slick'
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { type Course } from '@/interfaces/course'
 import Container from '@mui/material/Container'
 import { useTheme, styled } from '@mui/material/styles'
@@ -11,8 +11,6 @@ import IconArrowBack from '@mui/icons-material/ArrowBack'
 import IconArrowForward from '@mui/icons-material/ArrowForward'
 
 import { CourseCardItem } from '@/components/course'
-import { getCourses } from '@/services/api'
-
 const StyledDots = styled('ul')(({ theme }) => ({
   '&.slick-dots': {
     position: 'absolute',
@@ -29,26 +27,11 @@ const StyledDots = styled('ul')(({ theme }) => ({
   },
 }))
 
-const HomePopularCourse: FC = () => {
+const HomePopularCourse: FC<{ courses: Course[] }> = ({ courses }) => {
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
 
   const sliderRef = useRef<Slider | null>(null)
-  const [courses, setCourses] = useState<Course[]>([])
-
-  useEffect(() => {
-    let isCurrent = true
-
-    getCourses()
-      .then((nextCourses) => {
-        if (isCurrent) setCourses(nextCourses)
-      })
-      .catch(() => undefined)
-
-    return () => {
-      isCurrent = false
-    }
-  }, [])
 
   const sliderConfig: Settings = {
     infinite: courses.length > (matchMobileView ? 1 : 3),

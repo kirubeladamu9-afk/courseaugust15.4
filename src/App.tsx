@@ -8,19 +8,14 @@ import SignInPage from '@/components/auth/sign-in-page'
 import AdminDashboard from '@/components/admin/admin-dashboard'
 import CourseDetailPage from '@/components/course/course-detail-page'
 import { navigateTo } from '@/lib/navigation'
-import { getAuthenticatedUser } from '@/services/api'
+import { type Course } from '@/interfaces/course'
+import { getAuthenticatedUser, getCourses } from '@/services/api'
 
-const loadSection = (load: () => Promise<{ default: React.ComponentType }>) =>
-  lazy(() =>
-    Promise.all([
-      load(),
-      new Promise<void>((resolve) => setTimeout(resolve, 1200)),
-    ]).then(([module]) => module)
-  )
+const loadSection = <Props extends object = {}>(load: () => Promise<{ default: React.ComponentType<Props> }>) => lazy(load)
 
 const HomeHero = loadSection(() => import('@/components/home/hero'))
 const HomeFeature = loadSection(() => import('@/components/home/feature'))
-const HomePopularCourse = loadSection(() => import('@/components/home/popular-courses'))
+const HomePopularCourse = loadSection<{ courses: Course[] }>(() => import('@/components/home/popular-courses'))
 const HomeTestimonial = loadSection(() => import('@/components/home/testimonial'))
 const HomeOurMentors = loadSection(() => import('@/components/home/mentors'))
 const HomeNewsLetter = loadSection(() => import('@/components/home/newsletter'))
@@ -51,6 +46,7 @@ const RouteLoadingState: React.FC<{ message: string }> = ({ message }) => (
 const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up' | null>(null)
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
+  const [homeCourses, setHomeCourses] = useState<Course[] | null>(null)
   const isAdminPath = /^\/admin(?:\/|$)/.test(currentPath)
   const courseMatch = currentPath.match(/^\/courses\/([^/]+)\/?$/)
   const canAccessAdmin = getAuthenticatedUser()?.role === 'admin'
@@ -66,8 +62,30 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
     if (!isAdminPath) setAuthMode(null)
   }, [canAccessAdmin, isAdminPath])
 
+  useEffect(() => {
+    if (isAdminPath || courseMatch) {
+      setHomeCourses(null)
+      return
+    }
+
+    let isCurrent = true
+    setHomeCourses(null)
+    getCourses()
+      .then((courses) => {
+        if (isCurrent) setHomeCourses(courses)
+      })
+      .catch(() => {
+        if (isCurrent) setHomeCourses([])
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [currentPath, isAdminPath])
+
   if (isAdminPath && !canAccessAdmin) return <RouteLoadingState message="Returning to Coursespace..." />
   if (isAdminPath) return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
+  if (!courseMatch && homeCourses === null) return <RouteLoadingState message="Loading courses..." />
 
   return (
     <Box component="main">
@@ -90,7 +108,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
         ) : (
           <>
             <HomeHero />
-            <HomePopularCourse />
+            <HomePopularCourse courses={homeCourses ?? []} />
             <HomeFeature />
             <HomeTestimonial />
             <HomeOurMentors />
