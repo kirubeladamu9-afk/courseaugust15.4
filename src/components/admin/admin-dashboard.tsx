@@ -583,7 +583,7 @@ const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
     }
   }
 
-  if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading course" /></Box>
+  if (isLoading) return <AdminLoadingState label="Loading course" />
   if (loadError || !course) return <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError ?? 'Course not found.'}</Typography><Stack direction="row" spacing={1}><Button label="Back to courses" variant="text" onClick={() => navigateTo('/admin/courses')} /><Button label="Retry" onClick={() => window.location.reload()} /></Stack></Paper>
 
   return (
@@ -700,12 +700,10 @@ const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium
   </Box>
 )
 
-const AdminLoadingState = () => (
+const AdminLoadingState: FC<{ label?: string }> = ({ label = 'Loading admin workspace' }) => (
   <Box
     sx={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 'modal',
+      minHeight: 'calc(100vh - 72px)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -716,8 +714,8 @@ const AdminLoadingState = () => (
     role="status"
     aria-live="polite"
   >
-    <CircularProgress aria-label="Loading admin workspace" />
-    <Typography color="text.secondary">Loading admin workspace...</Typography>
+    <CircularProgress aria-label={label} />
+    <Typography color="text.secondary">{label}...</Typography>
   </Box>
 )
 
@@ -838,11 +836,10 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             </Menu>
           </Stack>
         </Box>
-        <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440 }}>
-          {currentPage}
+        <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
+          {isLoading ? <AdminLoadingState /> : currentPage}
         </Box>
       </Box>
-      {isLoading && <AdminLoadingState />}
     </Box>
   )
 }
