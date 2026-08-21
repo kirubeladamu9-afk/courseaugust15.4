@@ -89,11 +89,15 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
 
     getCourseFromApi(courseId)
       .then((nextCourse) => {
-        if (isCurrent) setCourse(nextCourse)
+        if (!isCurrent) return
+        setCourse(nextCourse)
+        setExpandedModules(nextCourse.modules.map((module) => module.id))
       })
       .catch((error) => {
         if (!isCurrent) return
-        setCourse(error instanceof Error && error.message === 'Course not found.' ? null : getFallbackCourse(courseId))
+        const fallbackCourse = error instanceof Error && error.message === 'Course not found.' ? null : getFallbackCourse(courseId)
+        setCourse(fallbackCourse)
+        setExpandedModules(fallbackCourse?.modules.map((module) => module.id) ?? [])
       })
       .finally(() => {
         if (isCurrent) setIsLoading(false)
