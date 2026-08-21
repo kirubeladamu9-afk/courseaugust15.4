@@ -61,9 +61,11 @@ const HomePopularCourse: FC<{ courses: Course[] }> = ({ courses }) => {
       }}
     >
       <Container maxWidth="lg">
-        <Grid container spacing={2}>
+        <Grid container spacing={2} alignItems="flex-start">
+          <Grid item xs={12} md={3}>
+            <Typography component="h2" variant="h3" sx={{ maxWidth: 170, fontSize: { xs: '2.25rem', md: '2.5rem' }, lineHeight: 1.2 }}>Most Popular Courses</Typography>
+          </Grid>
           <Grid item xs={12} md={9} sx={{ minWidth: 0 }}>
-            <Typography component="h2" variant="h3" sx={{ mb: 3 }}>Most Popular Courses</Typography>
             {courses.length > 0 && <Box sx={{ width: '100%', minWidth: 0 }}>
               <Slider ref={sliderRef} {...sliderConfig}>
                 {courses.map((item) => (
