@@ -79,7 +79,9 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
         }
       >
         <Header
+          darkMode={darkMode}
           onSignIn={() => setAuthMode('sign-in')}
+          onToggleDarkMode={onToggleDarkMode}
         />
         {authMode ? (
           <SignInPage mode={authMode} />
