@@ -2,6 +2,10 @@ import { useMemo, useState, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import FormControl from '@mui/material/FormControl'
@@ -13,6 +17,7 @@ import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
+import TextField from '@mui/material/TextField'
 import Toolbar from '@mui/material/Toolbar'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
@@ -36,7 +41,7 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
-import { useEffect } from 'react'
+import { type FormEvent, useEffect } from 'react'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
 import { clearAuthenticatedUser } from '@/services/api'
@@ -158,9 +163,20 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
           </Paper>
         ))}
         <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <Typography color="primary.main" variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}>
+          <Box
+            component="button"
+            type="button"
+            onClick={() => {
+              const nextModuleId = Math.max(0, ...course.modules.map((module) => module.id)) + 1
+              onChange({
+                ...course,
+                modules: [...course.modules, { id: nextModuleId, title: `New module ${course.modules.length + 1}`, lessons: [] }],
+              })
+            }}
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}
+          >
             <AddIcon fontSize="small" /> Add module
-          </Typography>
+          </Box>
         </Box>
       </Stack>
     </Paper>
@@ -217,15 +233,47 @@ const OverviewPage: FC = () => (
   </>
 )
 
+interface NewCourseDraft {
+  title: string
+  category: string
+  tutor: string
+  price: string
+}
+
 const CoursesPage: FC = () => {
   const [courseRows, setCourseRows] = useState(courses)
   const [selectedId, setSelectedId] = useState(courses[0].id)
+  const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false)
+  const [newCourseDraft, setNewCourseDraft] = useState<NewCourseDraft>({ title: '', category: '', tutor: 'Maya Chen', price: '' })
   const selectedCourse = courseRows.find((course) => course.id === selectedId) ?? courseRows[0]
   const tutorOptions = ['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known']
 
+  const openCourseDialog = () => {
+    setNewCourseDraft({ title: '', category: '', tutor: tutorOptions[0], price: '' })
+    setIsCourseDialogOpen(true)
+  }
+
+  const createCourse = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const nextCourse: AdminCourse = {
+      id: Math.max(0, ...courseRows.map((course) => course.id)) + 1,
+      title: newCourseDraft.title.trim(),
+      category: newCourseDraft.category.trim(),
+      tutor: newCourseDraft.tutor,
+      status: 'Draft',
+      students: 0,
+      price: Number(newCourseDraft.price),
+      modules: [{ id: 1, title: 'Course introduction', lessons: [] }],
+    }
+
+    setCourseRows((rows) => [...rows, nextCourse])
+    setSelectedId(nextCourse.id)
+    setIsCourseDialogOpen(false)
+  }
+
   return (
     <>
-      <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" />} />
+      <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" onClick={openCourseDialog} />} />
       <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
         {courseRows.map((course) => (
           <Box key={course.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
@@ -255,6 +303,55 @@ const CoursesPage: FC = () => {
         ))}
       </Paper>
       {selectedCourse && <CourseEditor course={selectedCourse} onChange={(next) => setCourseRows((rows) => rows.map((row) => row.id === next.id ? next : row))} />}
+      <Dialog open={isCourseDialogOpen} onClose={() => setIsCourseDialogOpen(false)} fullWidth maxWidth="sm">
+        <Box component="form" onSubmit={createCourse}>
+          <DialogTitle>Create a new course</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <TextField
+                autoFocus
+                required
+                fullWidth
+                label="Course title"
+                value={newCourseDraft.title}
+                onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, title: event.target.value }))}
+              />
+              <TextField
+                required
+                fullWidth
+                label="Category"
+                value={newCourseDraft.category}
+                onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, category: event.target.value }))}
+              />
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <FormControl fullWidth required>
+                  <InputLabel>Tutor</InputLabel>
+                  <Select
+                    label="Tutor"
+                    value={newCourseDraft.tutor}
+                    onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, tutor: event.target.value }))}
+                  >
+                    {tutorOptions.map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <TextField
+                  required
+                  fullWidth
+                  label="Price"
+                  type="number"
+                  inputProps={{ min: 0, step: 1 }}
+                  value={newCourseDraft.price}
+                  onChange={(event) => setNewCourseDraft((draft) => ({ ...draft, price: event.target.value }))}
+                />
+              </Stack>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button label="Cancel" variant="text" onClick={() => setIsCourseDialogOpen(false)} />
+            <Button label="Create course" type="submit" />
+          </DialogActions>
+        </Box>
+      </Dialog>
     </>
   )
 }
@@ -336,10 +433,10 @@ const SimplePage: FC<{ title: string; description: string; icon: ReactNode }> = 
   </>
 )
 
-const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium'; variant?: 'contained' | 'outlined' | 'text' }> = ({ label, onClick, size = 'medium', variant = 'contained' }) => (
+const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium'; variant?: 'contained' | 'outlined' | 'text'; type?: 'button' | 'submit' }> = ({ label, onClick, size = 'medium', variant = 'contained', type = 'button' }) => (
   <Box
     component="button"
-    type="button"
+    type={type}
     onClick={onClick}
     sx={{
       border: variant === 'outlined' ? 1 : 0,
