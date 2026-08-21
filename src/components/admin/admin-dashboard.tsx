@@ -402,8 +402,29 @@ const CoursesPage: FC = () => {
     <>
       <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" onClick={openCourseDialog} />} />
       <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
-        {courseRows.map((course) => (
-          <Box key={course.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
+        {courseRows.map((course) => {
+          const isSelected = course.id === selectedId
+
+          return (
+            <Box
+              key={course.id}
+              aria-current={isSelected ? 'true' : undefined}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                p: 2,
+                pl: isSelected ? 1.625 : 2,
+                backgroundColor: isSelected ? 'action.selected' : 'transparent',
+                borderBottom: 1,
+                borderLeft: isSelected ? 3 : 0,
+                borderColor: 'divider',
+                borderLeftColor: 'primary.main',
+                flexWrap: 'wrap',
+                transition: 'background-color 160ms ease',
+                '&:hover': { backgroundColor: isSelected ? 'action.selected' : 'action.hover' },
+              }}
+            >
             <Box sx={{ flex: 1, minWidth: 240, cursor: 'pointer' }} onClick={() => setSelectedId(course.id)}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{course.title}</Typography>
               <Typography variant="body2" color="text.secondary">{course.category} · {course.students} students · ${course.price}</Typography>
@@ -447,8 +468,9 @@ const CoursesPage: FC = () => {
                 </IconButton>
               </Tooltip>
             </Stack>
-          </Box>
-        ))}
+            </Box>
+          )
+        })}
       </Paper>
       {selectedCourse && <CourseEditor course={selectedCourse} onChange={(next) => setCourseRows((rows) => rows.map((row) => row.id === next.id ? next : row))} />}
       <Dialog open={isCourseDialogOpen} onClose={() => setIsCourseDialogOpen(false)} fullWidth maxWidth="sm">
