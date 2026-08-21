@@ -276,7 +276,6 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
     video.preload = 'metadata'
     video.onloadedmetadata = () => {
       setLessonPanel((panel) => panel ? { ...panel, lesson: { ...panel.lesson, duration: Math.max(1, Math.round(video.duration)) } } : panel)
-      URL.revokeObjectURL(videoUrl)
     }
     video.onerror = () => URL.revokeObjectURL(videoUrl)
     video.src = videoUrl
