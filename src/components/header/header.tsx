@@ -65,7 +65,7 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
                   {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
                 </IconButton>
               </Tooltip>
-              <AuthNavigation isAdmin={isAdmin} onSignIn={onSignIn} onAdminDashboard={() => navigateTo('/admin')} onSignOut={() => { void signOut().then(() => navigateTo('/', true)) }} />
+              <AuthNavigation isAdmin={isAdmin} darkMode={darkMode} onSignIn={onSignIn} onAdminDashboard={() => navigateTo('/admin')} onSignOut={() => { void signOut().then(() => navigateTo('/', true)) }} />
             </Box>
             {visibleMenu && matchMobileView && (
               <IconButton

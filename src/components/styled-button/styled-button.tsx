@@ -132,8 +132,8 @@ const StyledButtonRoot = styled('button', {
     }),
   ...(color === 'light' &&
     variant === 'outlined' && {
-      border: `2px solid #313d56`,
-      color: `#313d56`,
+      border: `2px solid ${theme.palette.primary.contrastText}`,
+      color: theme.palette.primary.contrastText,
     }),
 
   ...(color === 'primary' &&
