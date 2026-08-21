@@ -1,4 +1,4 @@
-import { type AdminCourse } from '@/components/admin/admin-data'
+import { type AdminCourse, type AdminTutor } from '@/components/admin/admin-data'
 import { type Course } from '@/interfaces/course'
 
 export interface AuthUser {
@@ -40,6 +40,14 @@ const requestCourse = async (url: string, init?: RequestInit): Promise<AdminCour
   return response.json()
 }
 
+const requestTutor = async (url: string, init?: RequestInit): Promise<AdminTutor> => {
+  const response = await requestApi(url, init)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export type AdminTutorPayload = Pick<AdminTutor, 'name' | 'email' | 'phone' | 'bio'> & Partial<Pick<AdminTutor, 'status'>>
+
 export const getAdminCourses = async (): Promise<Array<AdminCourse>> => {
   const response = await requestApi('/api/admin/courses')
   if (!response.ok) throw new Error(await getErrorMessage(response))
@@ -62,6 +70,41 @@ export const updateAdminCourse = (course: AdminCourse) => requestCourse(`/api/ad
 
 export const deleteAdminCourse = async (id: AdminCourse['id']) => {
   const response = await requestApi(`/api/admin/courses/${id}`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+}
+
+export const getAdminTutors = async (): Promise<Array<AdminTutor>> => {
+  const response = await requestApi('/api/admin/tutors')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getAdminTutor = async (id: AdminTutor['id']): Promise<AdminTutor> => requestTutor(`/api/admin/tutors/${id}`)
+
+export const createAdminTutor = async (tutor: AdminTutorPayload): Promise<AdminTutor & { inviteLink: string }> => {
+  const response = await requestApi('/api/admin/tutors', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(tutor),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const updateAdminTutor = (tutor: AdminTutor) => requestTutor(`/api/admin/tutors/${tutor.id}`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(tutor),
+})
+
+export const updateAdminTutorStatus = (id: AdminTutor['id'], status: AdminTutor['status']) => requestTutor(`/api/admin/tutors/${id}/status`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ status }),
+})
+
+export const deleteAdminTutor = async (id: AdminTutor['id']) => {
+  const response = await requestApi(`/api/admin/tutors/${id}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(await getErrorMessage(response))
 }
 

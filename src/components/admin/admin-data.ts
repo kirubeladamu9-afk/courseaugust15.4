@@ -61,13 +61,27 @@ export interface Registration {
   status: 'Pending' | 'Approved' | 'Waitlisted' | 'Rejected'
 }
 
-export interface Tutor {
+export interface AssignedCourse {
+  id: number
+  title: string
+  category: string
+  students: number
+}
+
+export interface AdminTutor {
   id: number
   name: string
-  specialty: string
-  courses: number
-  status: 'Active' | 'Pending'
+  email: string
+  phone: string
+  bio: string
+  status: 'Active' | 'Inactive'
+  createdAt: string
+  assignedCourses: AssignedCourse[]
+  specialty?: string
+  courses?: number
 }
+
+export type Tutor = AdminTutor
 
 export interface Payment {
   id: number
@@ -216,10 +230,10 @@ export const registrations: Registration[] = [
 ]
 
 export const tutors: Tutor[] = [
-  { id: 1, name: 'Maya Chen', specialty: 'Data Science', courses: 4, status: 'Active' },
-  { id: 2, name: 'Leon Kennedy', specialty: 'Cloud Engineering', courses: 3, status: 'Active' },
-  { id: 3, name: 'Jhon Dwirian', specialty: 'Frontend Development', courses: 2, status: 'Pending' },
-  { id: 4, name: 'Rizki Known', specialty: 'Product Design', courses: 5, status: 'Active' },
+  { id: 1, name: 'Maya Chen', email: 'maya@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jul 12, 2025', assignedCourses: [], specialty: 'Data Science', courses: 4 },
+  { id: 2, name: 'Leon Kennedy', email: 'leon@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jun 24, 2025', assignedCourses: [], specialty: 'Cloud Engineering', courses: 3 },
+  { id: 3, name: 'Jhon Dwirian', email: 'jhon@example.com', phone: '', bio: '', status: 'Inactive', createdAt: 'May 09, 2025', assignedCourses: [], specialty: 'Frontend Development', courses: 2 },
+  { id: 4, name: 'Rizki Known', email: 'rizki@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Apr 18, 2025', assignedCourses: [], specialty: 'Product Design', courses: 5 },
 ]
 
 export const payments: Payment[] = [

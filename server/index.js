@@ -26,6 +26,13 @@ const seedCourses = [
   { title: 'Adobe Lightroom For Beginners: Complete Photo Editing', cover: '/images/courses/grovemade-RvPDe41lYBA-unsplash.jpg', rating: 4, ratingCount: 6, price: 25, category: 'Design', level: 'Beginner', tutor: 'Rizki Known', students: 0, status: 'Published' },
 ]
 
+const seedTutors = [
+  { name: 'Maya Chen', email: 'maya@example.com', status: 'Active' },
+  { name: 'Leon Kennedy', email: 'leon@example.com', status: 'Active' },
+  { name: 'Jhon Dwirian', email: 'jhon@example.com', status: 'Inactive' },
+  { name: 'Rizki Known', email: 'rizki@example.com', status: 'Active' },
+]
+
 const hashPassword = async (password) => {
   const salt = randomBytes(16).toString('hex')
   const hash = await scrypt(password, salt, 64)
@@ -51,6 +58,18 @@ const isValidCredentials = (email, password) => (
 )
 
 const initializeDatabase = async () => {
+  await sql`
+    CREATE TABLE IF NOT EXISTS tutors (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      phone TEXT NOT NULL DEFAULT '',
+      bio TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -80,6 +99,7 @@ const initializeDatabase = async () => {
       category TEXT NOT NULL,
       level TEXT NOT NULL DEFAULT 'Beginner',
       tutor TEXT NOT NULL DEFAULT '',
+      tutor_id BIGINT REFERENCES tutors(id) ON DELETE SET NULL,
       status TEXT NOT NULL DEFAULT 'Published',
       students INTEGER NOT NULL DEFAULT 0 CHECK (students >= 0),
       description TEXT NOT NULL DEFAULT '',
@@ -95,6 +115,7 @@ const initializeDatabase = async () => {
 
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS level TEXT NOT NULL DEFAULT 'Beginner'`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS tutor TEXT NOT NULL DEFAULT ''`
+  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS tutor_id BIGINT REFERENCES tutors(id) ON DELETE SET NULL`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Published'`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS students INTEGER NOT NULL DEFAULT 0`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''`
@@ -104,6 +125,19 @@ const initializeDatabase = async () => {
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate BOOLEAN NOT NULL DEFAULT false`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS modules JSONB NOT NULL DEFAULT '[]'::jsonb`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+  for (const seedTutor of seedTutors) {
+    await sql`
+      INSERT INTO tutors ${sql(seedTutor)}
+      ON CONFLICT (email) DO NOTHING
+    `
+  }
+
+  await sql`
+    UPDATE tutors
+    SET status = 'Inactive'
+    WHERE status = 'Pending'
+  `
 
   await sql`
     UPDATE courses
@@ -145,6 +179,14 @@ const initializeDatabase = async () => {
       ON CONFLICT (title) DO NOTHING
     `
   }
+
+  await sql`
+    UPDATE courses
+    SET tutor_id = tutors.id
+    FROM tutors
+    WHERE courses.tutor_id IS NULL
+      AND LOWER(TRIM(courses.tutor)) = LOWER(tutors.name)
+  `
 }
 
 const courseColumns = sql.unsafe(`
@@ -168,7 +210,64 @@ const courseColumns = sql.unsafe(`
   to_char(updated_at, 'FMMonth DD, YYYY') AS "updatedAt"
 `)
 
-const parseCourseId = (value) => /^\d+$/.test(value) ? Number(value) : null
+const tutorColumns = sql.unsafe(`
+  id::INTEGER AS id,
+  name,
+  email,
+  phone,
+  bio,
+  status,
+  to_char(created_at, 'FMMonth DD, YYYY') AS "createdAt"
+`)
+
+const parseTutorId = (value) => /^\d+$/.test(value) ? Number(value) : null
+
+const parseTutorPayload = (body) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+  const bio = typeof body.bio === 'string' ? body.bio.trim() : ''
+  const status = body.status === undefined ? 'Active' : body.status
+
+  if (!name || name.length > 120 || !email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.length > 40 || bio.length > 2000 || (status !== 'Active' && status !== 'Inactive')) {
+    return null
+  }
+
+  return { name, email, phone, bio, status }
+}
+
+const parseTutorStatus = (body) => body && typeof body === 'object' && !Array.isArray(body) && (body.status === 'Active' || body.status === 'Inactive') ? body.status : null
+
+const addAssignedCourses = async (tutor) => {
+  const assignedCourses = await sql`
+    SELECT id::INTEGER AS id, title, category, students
+    FROM courses
+    WHERE tutor_id = ${tutor.id}
+       OR (tutor_id IS NULL AND LOWER(TRIM(tutor)) = LOWER(${tutor.name}))
+    ORDER BY id
+  `
+  return { ...tutor, assignedCourses }
+}
+
+const readTutor = async (id) => {
+  const [tutor] = await sql`
+    SELECT ${tutorColumns}
+    FROM tutors
+    WHERE id = ${id}
+  `
+  return tutor ? addAssignedCourses(tutor) : null
+}
+
+const findTutorIdByName = async (name) => {
+  const [tutor] = await sql`
+    SELECT id
+    FROM tutors
+    WHERE LOWER(TRIM(name)) = LOWER(${name})
+  `
+  return tutor?.id ?? null
+}
 
 const getSessionToken = (request) => {
   const cookieToken = request.headers.cookie?.split(';').map((cookie) => cookie.trim()).find((cookie) => cookie.startsWith(`${sessionCookieName}=`))?.slice(sessionCookieName.length + 1)
@@ -288,13 +387,97 @@ app.get('/api/admin/courses/:id', requireAdmin, async (request, response) => {
   return response.json(course)
 })
 
+app.get('/api/admin/tutors', requireAdmin, async (_request, response) => {
+  const tutors = await sql`
+    SELECT ${tutorColumns}
+    FROM tutors
+    ORDER BY id
+  `
+  return response.json(await Promise.all(tutors.map(addAssignedCourses)))
+})
+
+app.get('/api/admin/tutors/:id', requireAdmin, async (request, response) => {
+  const id = parseTutorId(request.params.id)
+  if (id === null) return response.status(400).json({ message: 'Invalid tutor id.' })
+
+  const tutor = await readTutor(id)
+  if (!tutor) return response.status(404).json({ message: 'Tutor not found.' })
+  return response.json(tutor)
+})
+
+app.post('/api/admin/tutors', requireAdmin, async (request, response) => {
+  const tutor = parseTutorPayload(request.body)
+  if (!tutor) return response.status(400).json({ message: 'Enter valid tutor details.' })
+
+  try {
+    const [created] = await sql`
+      INSERT INTO tutors ${sql(tutor)}
+      RETURNING id
+    `
+    const createdTutor = await readTutor(Number(created.id))
+    return response.status(201).json({ ...createdTutor, inviteLink: `/admin/tutors/${created.id}` })
+  } catch (error) {
+    if (error.code === '23505') return response.status(409).json({ message: 'A tutor with this email already exists.' })
+    throw error
+  }
+})
+
+app.put('/api/admin/tutors/:id', requireAdmin, async (request, response) => {
+  const id = parseTutorId(request.params.id)
+  if (id === null) return response.status(400).json({ message: 'Invalid tutor id.' })
+
+  const tutor = parseTutorPayload(request.body)
+  if (!tutor) return response.status(400).json({ message: 'Enter valid tutor details.' })
+
+  try {
+    const [updated] = await sql`
+      UPDATE tutors
+      SET ${sql(tutor)}
+      WHERE id = ${id}
+      RETURNING id
+    `
+    if (!updated) return response.status(404).json({ message: 'Tutor not found.' })
+    return response.json(await readTutor(id))
+  } catch (error) {
+    if (error.code === '23505') return response.status(409).json({ message: 'A tutor with this email already exists.' })
+    throw error
+  }
+})
+
+app.patch('/api/admin/tutors/:id/status', requireAdmin, async (request, response) => {
+  const id = parseTutorId(request.params.id)
+  if (id === null) return response.status(400).json({ message: 'Invalid tutor id.' })
+
+  const status = parseTutorStatus(request.body)
+  if (!status) return response.status(400).json({ message: 'Tutor status must be Active or Inactive.' })
+
+  const [updated] = await sql`
+    UPDATE tutors
+    SET status = ${status}
+    WHERE id = ${id}
+    RETURNING id
+  `
+  if (!updated) return response.status(404).json({ message: 'Tutor not found.' })
+  return response.json(await readTutor(id))
+})
+
+app.delete('/api/admin/tutors/:id', requireAdmin, async (request, response) => {
+  const id = parseTutorId(request.params.id)
+  if (id === null) return response.status(400).json({ message: 'Invalid tutor id.' })
+
+  const [deleted] = await sql`DELETE FROM tutors WHERE id = ${id} RETURNING id`
+  if (!deleted) return response.status(404).json({ message: 'Tutor not found.' })
+  return response.status(204).end()
+})
+
 app.post('/api/admin/courses', requireAdmin, async (request, response) => {
   const course = parseCoursePayload(request.body)
   if (!course) return response.status(400).json({ message: 'Enter all required course details.' })
 
   try {
+    const courseWithTutor = { ...course, tutor_id: await findTutorIdByName(course.tutor) }
     const [created] = await sql`
-      INSERT INTO courses ${sql(course)}
+      INSERT INTO courses ${sql(courseWithTutor)}
       RETURNING id
     `
     return response.status(201).json(await readCourse(Number(created.id)))
@@ -312,9 +495,10 @@ app.put('/api/admin/courses/:id', requireAdmin, async (request, response) => {
   if (!course) return response.status(400).json({ message: 'Enter all required course details.' })
 
   try {
+    const courseWithTutor = { ...course, tutor_id: await findTutorIdByName(course.tutor) }
     const [updated] = await sql`
       UPDATE courses
-      SET ${sql(course)}, updated_at = NOW()
+      SET ${sql(courseWithTutor)}, updated_at = NOW()
       WHERE id = ${id}
       RETURNING id
     `

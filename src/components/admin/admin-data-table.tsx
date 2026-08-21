@@ -22,10 +22,12 @@ interface Props<T extends { id: number }> {
   rows: T[]
   columns: DataColumn<T>[]
   searchPlaceholder?: string
+  searchKeys?: Array<keyof T>
+  rowClick?: (row: T) => void
   actions?: (row: T) => ReactNode
 }
 
-const AdminDataTable = <T extends { id: number }>({ rows, columns, searchPlaceholder = 'Search records', actions }: Props<T>) => {
+const AdminDataTable = <T extends { id: number }>({ rows, columns, searchPlaceholder = 'Search records', searchKeys, rowClick, actions }: Props<T>) => {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(5)
@@ -33,8 +35,8 @@ const AdminDataTable = <T extends { id: number }>({ rows, columns, searchPlaceho
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const filteredRows = useMemo(
-    () => rows.filter((row) => Object.values(row).some((value) => String(value).toLowerCase().includes(query.toLowerCase()))),
-    [query, rows],
+    () => rows.filter((row) => (searchKeys ?? Object.keys(row) as Array<keyof T>).some((key) => String(row[key]).toLowerCase().includes(query.toLowerCase()))),
+    [query, rows, searchKeys],
   )
 
   const sortedRows = useMemo(
@@ -93,13 +95,13 @@ const AdminDataTable = <T extends { id: number }>({ rows, columns, searchPlaceho
           </TableHead>
           <TableBody>
             {visibleRows.length > 0 ? visibleRows.map((row) => (
-              <TableRow hover key={row.id}>
+              <TableRow hover key={row.id} onClick={() => rowClick?.(row)} sx={{ cursor: rowClick ? 'pointer' : 'default' }}>
                 {columns.map((column) => (
                   <TableCell key={String(column.key)}>
                     {column.render ? column.render(row[column.key], row) : String(row[column.key])}
                   </TableCell>
                 ))}
-                {actions && <TableCell align="right">{actions(row)}</TableCell>}
+                {actions && <TableCell align="right" onClick={(event) => event.stopPropagation()}>{actions(row)}</TableCell>}
               </TableRow>
             )) : (
               <TableRow>

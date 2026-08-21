@@ -57,9 +57,9 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
-import { createAdminCourse, deleteAdminCourse, getAdminCourse, getAdminCourses, signOut, updateAdminCourse } from '@/services/api'
+import { createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminTutor, getAdminTutors, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
-import { payments, registrations, tutors, users, type AdminCourse, type AdminLesson, type LessonType, type Registration } from './admin-data'
+import { payments, registrations, users, type AdminCourse, type AdminLesson, type AdminTutor, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
@@ -451,12 +451,12 @@ const createEmptyCourse = (): AdminCourse => ({
   modules: [],
 })
 
-const tutorOptions = ['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known']
-
 const CoursesPage: FC = () => {
   const [courseRows, setCourseRows] = useState<AdminCourse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'All' | AdminCourse['status']>('All')
+  const [programFilter, setProgramFilter] = useState('All')
 
   const reloadCourses = async () => {
     try {
@@ -495,40 +495,30 @@ const CoursesPage: FC = () => {
       await deleteAdminCourse(course.id)
       setCourseRows((rows) => rows.filter((row) => row.id !== course.id))
     } catch (error) {
-      toast.add({ title: 'Unable to delete course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
+      toast.add({ title: 'Unable to delete course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
     }
   }
+
+  const programs = useMemo(() => [...new Set(courseRows.map((course) => course.category))].sort(), [courseRows])
+  const filteredCourses = useMemo(() => courseRows.filter((course) => (statusFilter === 'All' || course.status === statusFilter) && (programFilter === 'All' || course.category === programFilter)), [courseRows, programFilter, statusFilter])
+  const columns: DataColumn<AdminCourse>[] = [
+    { key: 'title', label: 'Course' },
+    { key: 'category', label: 'Program' },
+    { key: 'tutor', label: 'Tutor' },
+    { key: 'status', label: 'Status', render: (value, course) => <Stack direction="row" alignItems="center" spacing={1}><StatusChip status={String(value)} /><Switch size="small" checked={course.status === 'Published'} onChange={() => void updateCourse({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `${course.status === 'Published' ? 'Unpublish' : 'Publish'} ${course.title}` }} /></Stack> },
+    { key: 'students', label: 'Students' },
+  ]
 
   return (
     <>
       <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" onClick={openNewCoursePage} disabled={isLoading} />} />
-      {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading courses" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadCourses() }} /></Paper> : (
-        <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
-          {courseRows.map((course) => (
-            <Box key={course.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', transition: 'background-color 160ms ease', '&:hover': { backgroundColor: 'action.hover' } }}>
-              <Box sx={{ flex: 1, minWidth: 240 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{course.title}</Typography>
-                <Typography variant="body2" color="text.secondary">{course.category} · {course.students} students · ${course.price}</Typography>
-              </Box>
-              <FormControl size="small" sx={{ minWidth: 170 }}>
-                <InputLabel>Tutor</InputLabel>
-                <Select label="Tutor" value={course.tutor} onChange={(event) => void updateCourse({ ...course, tutor: event.target.value })}>
-                  {tutorOptions.map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}
-                </Select>
-              </FormControl>
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <StatusChip status={course.status} />
-                <Switch checked={course.status === 'Published'} onChange={() => void updateCourse({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title}` }} />
-              </Stack>
-              <Stack direction="row" alignItems="center" spacing={0.5}>
-                <Button label="Curriculum" size="small" variant="text" onClick={() => openEditCoursePage(course)} />
-                <Tooltip title={`Edit ${course.title}`}><IconButton size="small" onClick={() => openEditCoursePage(course)} aria-label={`Edit ${course.title}`}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>
-                <Tooltip title={`Delete ${course.title}`}><IconButton size="small" color="error" onClick={() => void deleteCourse(course)} aria-label={`Delete ${course.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
-              </Stack>
-            </Box>
-          ))}
-        </Paper>
-      )}
+      {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading courses" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadCourses() }} /></Paper> : <>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+          <FormControl size="small" sx={{ minWidth: 150 }}><InputLabel>Status</InputLabel><Select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'All' | AdminCourse['status'])}><MenuItem value="All">All statuses</MenuItem><MenuItem value="Published">Published</MenuItem><MenuItem value="Draft">Draft</MenuItem></Select></FormControl>
+          <FormControl size="small" sx={{ minWidth: 170 }}><InputLabel>Program</InputLabel><Select label="Program" value={programFilter} onChange={(event) => setProgramFilter(event.target.value)}><MenuItem value="All">All programs</MenuItem>{programs.map((program) => <MenuItem key={program} value={program}>{program}</MenuItem>)}</Select></FormControl>
+        </Stack>
+        <AdminDataTable rows={filteredCourses} columns={columns} searchPlaceholder="Search courses" searchKeys={['title', 'category', 'tutor']} actions={(course) => <Stack direction="row" justifyContent="flex-end" spacing={0.5}><Button label="Edit" size="small" variant="text" onClick={() => openEditCoursePage(course)} /><Tooltip title={`Delete ${course.title}`}><IconButton size="small" color="error" onClick={() => void deleteCourse(course)} aria-label={`Delete ${course.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip></Stack>} />
+      </>}
     </>
   )
 }
@@ -629,13 +619,140 @@ const RegistrationsPage: FC = () => {
 }
 
 const TutorsPage: FC = () => {
-  const columns: DataColumn<(typeof tutors)[number]>[] = [
-    { key: 'name', label: 'Tutor' },
-    { key: 'specialty', label: 'Specialty' },
-    { key: 'courses', label: 'Courses' },
+  const [tutorRows, setTutorRows] = useState<AdminTutor[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'All' | AdminTutor['status']>('All')
+  const [programFilter, setProgramFilter] = useState('All')
+
+  const reloadTutors = async () => {
+    try {
+      const tutors = await getAdminTutors()
+      setTutorRows(tutors)
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load tutors.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void reloadTutors()
+  }, [])
+
+  const openNewTutorPage = () => navigateTo('/admin/tutors/new')
+  const openTutorDetails = (tutor: AdminTutor) => navigateTo(`/admin/tutors/${tutor.id}`)
+
+  const toggleTutorStatus = async (tutor: AdminTutor) => {
+    const status = tutor.status === 'Active' ? 'Inactive' : 'Active'
+    try {
+      const updatedTutor = await updateAdminTutorStatus(tutor.id, status)
+      setTutorRows((rows) => rows.map((row) => row.id === updatedTutor.id ? updatedTutor : row))
+    } catch (error) {
+      toast.add({ title: 'Unable to update tutor status', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
+  }
+
+  const deleteTutor = async (tutor: AdminTutor) => {
+    if (!window.confirm(`Delete ${tutor.name}? This cannot be undone.`)) return
+
+    try {
+      await deleteAdminTutor(tutor.id)
+      setTutorRows((rows) => rows.filter((row) => row.id !== tutor.id))
+    } catch (error) {
+      toast.add({ title: 'Unable to delete tutor', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
+  }
+
+  const programs = useMemo(() => [...new Set(tutorRows.flatMap((tutor) => tutor.assignedCourses.map((course) => course.category)))].sort(), [tutorRows])
+  const filteredTutors = useMemo(() => tutorRows.filter((tutor) => (statusFilter === 'All' || tutor.status === statusFilter) && (programFilter === 'All' || tutor.assignedCourses.some((course) => course.category === programFilter))), [programFilter, statusFilter, tutorRows])
+  const columns: DataColumn<AdminTutor>[] = [
+    { key: 'name', label: 'Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'assignedCourses', label: 'Assigned Courses', render: (value) => <Stack direction="row" flexWrap="wrap" gap={0.5}>{(value as AdminTutor['assignedCourses']).length ? (value as AdminTutor['assignedCourses']).map((course) => <Chip key={course.id} label={course.title} size="small" variant="outlined" />) : <Typography color="text.secondary" variant="body2">None</Typography>}</Stack> },
     { key: 'status', label: 'Status', render: (value) => <StatusChip status={String(value)} /> },
+    { key: 'createdAt', label: 'Date Joined' },
   ]
-  return <><PageHeading title="Tutors" description="Manage instructors and their course assignments." action={<Button label="Invite tutor" />} /><AdminDataTable rows={tutors} columns={columns} searchPlaceholder="Search tutors" /></>
+
+  return (
+    <>
+      <PageHeading title="Tutors" description="Manage tutor profiles and review their assigned courses." action={<Button label="New Tutor" onClick={openNewTutorPage} disabled={isLoading} />} />
+      {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading tutors" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadTutors() }} /></Paper> : <>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+          <FormControl size="small" sx={{ minWidth: 150 }}><InputLabel>Status</InputLabel><Select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'All' | AdminTutor['status'])}><MenuItem value="All">All statuses</MenuItem><MenuItem value="Active">Active</MenuItem><MenuItem value="Inactive">Inactive</MenuItem></Select></FormControl>
+          <FormControl size="small" sx={{ minWidth: 180 }}><InputLabel>Program</InputLabel><Select label="Program" value={programFilter} onChange={(event) => setProgramFilter(event.target.value)}><MenuItem value="All">All programs</MenuItem>{programs.map((program) => <MenuItem key={program} value={program}>{program}</MenuItem>)}</Select></FormControl>
+        </Stack>
+        <AdminDataTable rows={filteredTutors} columns={columns} searchPlaceholder="Search tutors" searchKeys={['name', 'email']} rowClick={openTutorDetails} actions={(tutor) => <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={0.5}><Button label="Edit" size="small" variant="text" onClick={() => openTutorDetails(tutor)} /><Switch size="small" checked={tutor.status === 'Active'} onChange={() => void toggleTutorStatus(tutor)} inputProps={{ 'aria-label': `${tutor.status === 'Active' ? 'Deactivate' : 'Activate'} ${tutor.name}` }} /><Tooltip title={`Delete ${tutor.name}`}><IconButton size="small" color="error" onClick={() => void deleteTutor(tutor)} aria-label={`Delete ${tutor.name}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip></Stack>} />
+      </>}
+    </>
+  )
+}
+
+type TutorEditorPageProps =
+  | { mode: 'new'; tutorId?: never }
+  | { mode: 'edit'; tutorId: number }
+
+const createEmptyTutor = (): AdminTutor => ({ id: 0, name: '', email: '', phone: '', bio: '', status: 'Active', createdAt: '', assignedCourses: [] })
+
+const TutorEditorPage: FC<TutorEditorPageProps> = ({ mode, tutorId }) => {
+  const [tutor, setTutor] = useState<AdminTutor | null>(() => mode === 'new' ? createEmptyTutor() : null)
+  const [isLoading, setIsLoading] = useState(mode === 'edit')
+  const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isCurrent = true
+    setTutor(mode === 'new' ? createEmptyTutor() : null)
+    setIsLoading(mode === 'edit')
+    setLoadError(null)
+    if (mode === 'new') return () => { isCurrent = false }
+
+    getAdminTutor(tutorId)
+      .then((loadedTutor) => { if (isCurrent) setTutor(loadedTutor) })
+      .catch((error) => { if (isCurrent) setLoadError(error instanceof Error ? error.message : 'Unable to load tutor.') })
+      .finally(() => { if (isCurrent) setIsLoading(false) })
+
+    return () => { isCurrent = false }
+  }, [mode, tutorId])
+
+  const saveTutor = async () => {
+    if (!tutor) return
+    const name = tutor.name.trim()
+    const email = tutor.email.trim()
+    if (!name || !email) {
+      toast.add({ title: 'Name and email are required', description: 'Add the tutor name and email before saving.', type: 'error', priority: 'high' })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const savedTutor = mode === 'new' ? await createAdminTutor({ name, email, phone: tutor.phone.trim(), bio: tutor.bio.trim(), status: tutor.status }) : await updateAdminTutor({ ...tutor, name, email, phone: tutor.phone.trim(), bio: tutor.bio.trim() })
+      setTutor(savedTutor)
+      toast.add({ title: mode === 'new' ? 'Tutor created' : 'Tutor saved', description: mode === 'new' ? 'An invite link is ready for this tutor.' : `${savedTutor.name} is now updated.`, type: 'success' })
+      if (mode === 'new') navigateTo(`/admin/tutors/${savedTutor.id}`, true)
+    } catch (error) {
+      toast.add({ title: 'Unable to save tutor', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) return <AdminLoadingState label="Loading tutor" />
+  if (loadError || !tutor) return <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError ?? 'Tutor not found.'}</Typography><Button label="Back to tutors" variant="text" onClick={() => navigateTo('/admin/tutors')} /></Paper>
+
+  return (
+    <>
+      <PageHeading title={mode === 'new' ? 'New Tutor' : tutor.name} description={mode === 'new' ? 'Create a tutor profile and generate an invite link.' : 'Edit profile information. Course assignment remains in Programs & Courses.'} action={<Stack direction="row" spacing={1}><Button label="Back to tutors" variant="text" onClick={() => navigateTo('/admin/tutors')} /><Button label={mode === 'new' ? 'Create Tutor' : 'Save changes'} onClick={() => void saveTutor()} disabled={isSaving} /></Stack>} />
+      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
+        <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>Profile information</Typography>
+          <Stack spacing={2}><TextField required fullWidth label="Name" value={tutor.name} onChange={(event) => setTutor({ ...tutor, name: event.target.value })} /><TextField required fullWidth type="email" label="Email" value={tutor.email} onChange={(event) => setTutor({ ...tutor, email: event.target.value })} /><TextField fullWidth label="Phone" value={tutor.phone} onChange={(event) => setTutor({ ...tutor, phone: event.target.value })} /><TextField fullWidth multiline minRows={5} label="Bio" value={tutor.bio} onChange={(event) => setTutor({ ...tutor, bio: event.target.value })} /><Stack direction="row" alignItems="center" justifyContent="space-between"><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>Status</Typography><Typography variant="caption" color="text.secondary">Inactive tutors remain available in existing course history.</Typography></Box><Switch checked={tutor.status === 'Active'} onChange={() => setTutor({ ...tutor, status: tutor.status === 'Active' ? 'Inactive' : 'Active' })} inputProps={{ 'aria-label': 'Tutor status' }} /></Stack></Stack>
+        </Paper>
+        {mode === 'edit' && <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}><Typography variant="h6" sx={{ mb: 0.5 }}>Assigned Courses</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Read-only. Reassign tutors from the Programs & Courses list.</Typography><Stack spacing={1}>{tutor.assignedCourses.length ? tutor.assignedCourses.map((course) => <Box key={course.id} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}><Typography variant="subtitle2">{course.title}</Typography><Typography color="text.secondary" variant="body2">{course.category} · {course.students} students</Typography></Box>) : <Typography color="text.secondary" variant="body2">No courses assigned.</Typography>}</Stack></Paper>}
+      </Stack>
+    </>
+  )
 }
 
 const PaymentsPage: FC = () => {
@@ -778,7 +895,12 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
         return <CoursesPage />
       }
       case 'registrations': return <RegistrationsPage />
-      case 'tutors': return <TutorsPage />
+      case 'tutors': {
+        if (/^\/admin\/tutors\/new\/?$/.test(pathname)) return <TutorEditorPage mode="new" />
+        const tutorMatch = pathname.match(/^\/admin\/tutors\/(\d+)\/?$/)
+        if (tutorMatch) return <TutorEditorPage mode="edit" tutorId={Number(tutorMatch[1])} />
+        return <TutorsPage />
+      }
       case 'blog': return <SimplePage title="Bookstore & Blog" description="Manage books, articles, and publishing content." icon={<BookOutlinedIcon fontSize="large" />} />
       case 'payments': return <PaymentsPage />
       case 'users': return <UsersPage />
