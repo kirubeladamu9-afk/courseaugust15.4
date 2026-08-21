@@ -4,6 +4,7 @@ import Container from '@mui/material/Container'
 import Paper from '@mui/material/Paper'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
@@ -16,6 +17,7 @@ interface SignInPageProps {
 const SignInPage: FC<SignInPageProps> = ({ mode }) => {
   const [toastOpen, setToastOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const isSignUp = mode === 'sign-up'
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -26,7 +28,8 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
       const { user } = await submitCredentials(mode, String(formData.get('email')), String(formData.get('password')))
       if (!isSignUp) {
         saveAuthenticatedUser(user)
-        window.location.assign(user.role === 'admin' ? '/admin' : '/')
+        setIsRedirecting(true)
+        window.setTimeout(() => window.location.assign(user.role === 'admin' ? '/admin' : '/'), 400)
         return
       }
       setToastMessage('Account created successfully.')
@@ -41,40 +44,49 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
     <Box sx={{ backgroundColor: 'background.default', minHeight: 'calc(100vh - 88px)', py: { xs: 6, md: 10 } }}>
       <Container maxWidth="sm">
         <Paper component="form" onSubmit={handleSubmit} elevation={2} sx={{ p: { xs: 3, md: 5 } }}>
-          <Typography component="h1" variant="h2" sx={{ mb: 1 }}>
-            {isSignUp ? 'Sign Up' : 'Sign In'}
-          </Typography>
-          <Typography variant="body1" sx={{ mb: 4 }}>
-            {isSignUp ? 'Create your Coursespace account.' : 'Welcome back to Coursespace.'}
-          </Typography>
-          <Box sx={{ display: 'grid', gap: 2 }}>
-            <TextField required fullWidth label="Email" name="email" type="email" autoComplete="email" />
-            <TextField required fullWidth label="Password" name="password" type="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} inputProps={isSignUp ? { minLength: 8 } : undefined} />
-            <Box sx={{ '& button': { width: '100%', justifyContent: 'center' } }}>
-              <StyledButton type="submit">{isSignUp ? 'Sign Up' : 'Sign In'}</StyledButton>
+          {isRedirecting ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 6 }} aria-live="polite">
+              <CircularProgress aria-label="Signing in" />
+              <Typography>Signing you in...</Typography>
             </Box>
-            {!isSignUp && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 2,
-                  p: 1.5,
-                  border: 1,
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  backgroundColor: 'background.default',
-                }}
-              >
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Admin User</Typography>
-                  <Typography variant="caption" color="text.secondary">admin@coursespace.com</Typography>
+          ) : (
+            <>
+              <Typography component="h1" variant="h2" sx={{ mb: 1 }}>
+                {isSignUp ? 'Sign Up' : 'Sign In'}
+              </Typography>
+              <Typography variant="body1" sx={{ mb: 4 }}>
+                {isSignUp ? 'Create your Coursespace account.' : 'Welcome back to Coursespace.'}
+              </Typography>
+              <Box sx={{ display: 'grid', gap: 2 }}>
+                <TextField required fullWidth label="Email" name="email" type="email" autoComplete="email" />
+                <TextField required fullWidth label="Password" name="password" type="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} inputProps={isSignUp ? { minLength: 8 } : undefined} />
+                <Box sx={{ '& button': { width: '100%', justifyContent: 'center' } }}>
+                  <StyledButton type="submit">{isSignUp ? 'Sign Up' : 'Sign In'}</StyledButton>
                 </Box>
-                <Typography variant="caption" color="primary.main">Administrator</Typography>
+                {!isSignUp && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      p: 1.5,
+                      border: 1,
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                      backgroundColor: 'background.default',
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Admin User</Typography>
+                      <Typography variant="caption" color="text.secondary">admin@coursespace.com</Typography>
+                    </Box>
+                    <Typography variant="caption" color="primary.main">Administrator</Typography>
+                  </Box>
+                )}
               </Box>
-            )}
-          </Box>
+            </>
+          )}
         </Paper>
       </Container>
       <Snackbar

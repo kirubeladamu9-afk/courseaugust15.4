@@ -1,6 +1,7 @@
 import { useMemo, useState, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import FormControl from '@mui/material/FormControl'
@@ -35,6 +36,7 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
+import { useEffect } from 'react'
 import { Logo } from '@/components/logo'
 import { clearAuthenticatedUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
@@ -365,6 +367,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [section, setSection] = useState<Section>('overview')
+  const [isLoading, setIsLoading] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
 
@@ -378,6 +381,11 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
     clearAuthenticatedUser()
     window.location.replace('/')
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsLoading(false), 400)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const currentPage = useMemo(() => {
     switch (section) {
@@ -441,7 +449,13 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             </Menu>
           </Stack>
         </Box>
-        <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440 }}>{currentPage}</Box>
+        <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440 }}>
+          {isLoading ? (
+            <Box sx={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-live="polite">
+              <CircularProgress aria-label="Loading admin workspace" />
+            </Box>
+          ) : currentPage}
+        </Box>
       </Box>
     </Box>
   )
