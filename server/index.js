@@ -228,13 +228,20 @@ const parseCoursePayload = (body) => {
   }
 }
 
+const deserializeCourse = (course) => course ? {
+  ...course,
+  learningOutcomes: typeof course.learningOutcomes === 'string' ? JSON.parse(course.learningOutcomes) : course.learningOutcomes,
+  requirements: typeof course.requirements === 'string' ? JSON.parse(course.requirements) : course.requirements,
+  modules: typeof course.modules === 'string' ? JSON.parse(course.modules) : course.modules,
+} : null
+
 const readCourse = async (id, publishedOnly = false) => {
   const [course] = await sql`
     SELECT ${courseColumns}
     FROM courses
     WHERE id = ${id} ${publishedOnly ? sql`AND status = 'Published'` : sql``}
   `
-  return course ?? null
+  return deserializeCourse(course)
 }
 
 app.use(express.json({ limit: '16kb' }))
@@ -251,7 +258,7 @@ app.get('/api/courses', async (_request, response) => {
     WHERE status = 'Published'
     ORDER BY id
   `
-  response.json(courses)
+  response.json(courses.map(deserializeCourse))
 })
 
 app.get('/api/courses/:id', async (request, response) => {
@@ -269,7 +276,7 @@ app.get('/api/admin/courses', requireAdmin, async (_request, response) => {
     FROM courses
     ORDER BY id
   `
-  response.json(courses)
+  response.json(courses.map(deserializeCourse))
 })
 
 app.get('/api/admin/courses/:id', requireAdmin, async (request, response) => {
