@@ -17,9 +17,10 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
-import { type FC, useMemo, useState } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { data as popularCourses } from '@/components/home/popular-course.data'
-import { type AdminCourse, type AdminLesson, loadAdminCourses } from '@/components/admin/admin-data'
+import { type AdminCourse, type AdminLesson } from '@/components/admin/admin-data'
+import { getCourse as getCourseFromApi } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
 const formatDuration = (seconds: number) => {
@@ -66,12 +67,39 @@ const getFallbackCourse = (courseId: string): AdminCourse | null => {
   }
 }
 
-const getCourse = (courseId: string) => loadAdminCourses().find((course) => String(course.id) === courseId) ?? getFallbackCourse(courseId)
-
 const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
-  const course = useMemo(() => getCourse(courseId), [courseId])
+  const [course, setCourse] = useState<AdminCourse | null>(null)
   const [expandedModules, setExpandedModules] = useState<number[]>([])
   const [isRegistered, setIsRegistered] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let isCurrent = true
+    setCourse(null)
+    setIsLoading(true)
+    setExpandedModules([])
+    setIsRegistered(false)
+
+    getCourseFromApi(courseId)
+      .then((nextCourse) => {
+        if (isCurrent) setCourse(nextCourse)
+      })
+      .catch((error) => {
+        if (!isCurrent) return
+        setCourse(error instanceof Error && error.message === 'Course not found.' ? null : getFallbackCourse(courseId))
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [courseId])
+
+  if (isLoading && !course) {
+    return <Container maxWidth="lg" sx={{ py: 12, textAlign: 'center' }}><Typography variant="h4">Loading course...</Typography></Container>
+  }
 
   if (!course) {
     return <Container maxWidth="lg" sx={{ py: 12, textAlign: 'center' }}><Typography variant="h4" sx={{ mb: 1 }}>Course not found</Typography><Typography color="text.secondary" sx={{ mb: 3 }}>This course may have been removed or is not available yet.</Typography><Button variant="contained" onClick={() => navigateTo('/')}>Back to courses</Button></Container>

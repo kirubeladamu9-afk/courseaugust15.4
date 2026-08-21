@@ -1,4 +1,4 @@
-import { useMemo, useState, type FC, type ReactNode } from 'react'
+import { useMemo, type FC, type ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import Accordion from '@mui/material/Accordion'
@@ -53,12 +53,13 @@ import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
 import QuizOutlinedIcon from '@mui/icons-material/QuizOutlined'
 import TitleIcon from '@mui/icons-material/Title'
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined'
-import { type FormEvent, useEffect } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
-import { clearAuthenticatedUser } from '@/services/api'
+import { createAdminCourse, deleteAdminCourse, getAdminCourses, signOut, updateAdminCourse } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
-import { loadAdminCourses, payments, registrations, saveAdminCourses, tutors, users, type AdminCourse, type AdminLesson, type LessonType, type Registration } from './admin-data'
+import { payments, registrations, tutors, users, type AdminCourse, type AdminLesson, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
@@ -427,20 +428,54 @@ const OverviewPage: FC = () => (
 )
 
 const CoursesPage: FC = () => {
-  const [courseRows, setCourseRows] = useState<AdminCourse[]>(loadAdminCourses)
-  const [selectedId, setSelectedId] = useState(() => loadAdminCourses()[0]?.id ?? -1)
+  const [courseRows, setCourseRows] = useState<AdminCourse[]>([])
+  const [selectedId, setSelectedId] = useState<AdminCourse['id'] | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const saveTimers = useRef(new Map<AdminCourse['id'], number>())
   const selectedCourse = courseRows.find((course) => course.id === selectedId) ?? courseRows[0]
   const tutorOptions = ['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known']
 
-  useEffect(() => {
-    saveAdminCourses(courseRows)
-  }, [courseRows])
+  const reloadCourses = async () => {
+    try {
+      const courses = await getAdminCourses()
+      setCourseRows(courses)
+      setSelectedId((currentId) => courses.some((course) => course.id === currentId) ? currentId : courses[0]?.id ?? null)
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load courses.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-  const openCourseDialog = () => {
+  useEffect(() => {
+    void reloadCourses()
+    return () => saveTimers.current.forEach((timer) => window.clearTimeout(timer))
+  }, [])
+
+  const persistCourse = (course: AdminCourse) => {
+    setCourseRows((rows) => rows.map((row) => row.id === course.id ? course : row))
+    const currentTimer = saveTimers.current.get(course.id)
+    if (currentTimer) window.clearTimeout(currentTimer)
+    saveTimers.current.set(course.id, window.setTimeout(() => {
+      void updateAdminCourse(course)
+        .then((savedCourse) => setCourseRows((rows) => rows.map((row) => row.id === savedCourse.id ? savedCourse : row)))
+        .catch((error) => {
+          toast.add({ title: 'Unable to save course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
+          void reloadCourses()
+        })
+        .finally(() => saveTimers.current.delete(course.id))
+    }, 500))
+  }
+
+  const openCourseDialog = async () => {
+    setIsCreating(true)
     const nextCourse: AdminCourse = {
-      id: Math.max(0, ...courseRows.map((course) => course.id)) + 1,
-      title: '',
-      category: '',
+      id: 0,
+      title: 'Untitled course',
+      category: 'Development',
       level: 'Beginner',
       tutor: tutorOptions[0],
       status: 'Draft',
@@ -455,9 +490,17 @@ const CoursesPage: FC = () => {
       updatedAt: 'Not published',
       modules: [],
     }
-    setCourseRows((rows) => [...rows, nextCourse])
-    setSelectedId(nextCourse.id)
-    window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+
+    try {
+      const createdCourse = await createAdminCourse(nextCourse)
+      setCourseRows((rows) => [...rows, createdCourse])
+      setSelectedId(createdCourse.id)
+      window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    } catch (error) {
+      toast.add({ title: 'Unable to create course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   const openEditDialog = (course: AdminCourse) => {
@@ -465,89 +508,77 @@ const CoursesPage: FC = () => {
     window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
   }
 
-  const deleteCourse = (course: AdminCourse) => {
+  const deleteCourse = async (course: AdminCourse) => {
     if (!window.confirm(`Delete ${course.title}? This cannot be undone.`)) return
 
-    const remainingCourses = courseRows.filter((row) => row.id !== course.id)
-    setCourseRows(remainingCourses)
-    if (selectedId === course.id) setSelectedId(remainingCourses[0]?.id ?? -1)
+    const currentTimer = saveTimers.current.get(course.id)
+    if (currentTimer) window.clearTimeout(currentTimer)
+
+    try {
+      await deleteAdminCourse(course.id)
+      const remainingCourses = courseRows.filter((row) => row.id !== course.id)
+      setCourseRows(remainingCourses)
+      if (selectedId === course.id) setSelectedId(remainingCourses[0]?.id ?? null)
+    } catch (error) {
+      toast.add({ title: 'Unable to delete course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
+    }
   }
 
   return (
     <>
-      <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" onClick={openCourseDialog} />} />
-      <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
-        {courseRows.map((course) => {
-          const isSelected = course.id === selectedId
+      <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" onClick={() => void openCourseDialog()} disabled={isCreating || isLoading} />} />
+      {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading courses" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadCourses() }} /></Paper> : (
+        <>
+          <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+            {courseRows.map((course) => {
+              const isSelected = course.id === selectedId
 
-          return (
-            <Box
-              key={course.id}
-              aria-current={isSelected ? 'true' : undefined}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                p: 2,
-                pl: isSelected ? 1.625 : 2,
-                backgroundColor: isSelected ? 'action.selected' : 'transparent',
-                borderBottom: 1,
-                borderLeft: isSelected ? 3 : 0,
-                borderColor: 'divider',
-                borderLeftColor: 'primary.main',
-                flexWrap: 'wrap',
-                transition: 'background-color 160ms ease',
-                '&:hover': { backgroundColor: isSelected ? 'action.selected' : 'action.hover' },
-              }}
-            >
-            <Box sx={{ flex: 1, minWidth: 240, cursor: 'pointer' }} onClick={() => setSelectedId(course.id)}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{course.title}</Typography>
-              <Typography variant="body2" color="text.secondary">{course.category} · {course.students} students · ${course.price}</Typography>
-            </Box>
-            <FormControl size="small" sx={{ minWidth: 170 }}>
-              <InputLabel>Tutor</InputLabel>
-              <Select
-                label="Tutor"
-                value={course.tutor}
-                onChange={(event) => setCourseRows((rows) => rows.map((row) => row.id === course.id ? { ...row, tutor: event.target.value } : row))}
-              >
-                {tutorOptions.map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <StatusChip status={course.status} />
-              <Switch
-                checked={course.status === 'Published'}
-                onChange={() => setCourseRows((rows) => rows.map((row) => row.id === course.id ? { ...row, status: row.status === 'Published' ? 'Draft' : 'Published' } : row))}
-                inputProps={{ 'aria-label': `Publish ${course.title}` }}
-              />
-            </Stack>
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              <Button
-                label="Curriculum"
-                size="small"
-                variant="text"
-                onClick={() => {
-                  setSelectedId(course.id)
-                  window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
-                }}
-              />
-              <Tooltip title={`Edit ${course.title}`}>
-                <IconButton size="small" onClick={() => openEditDialog(course)} aria-label={`Edit ${course.title}`}>
-                  <EditOutlinedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={`Delete ${course.title}`}>
-                <IconButton size="small" color="error" onClick={() => deleteCourse(course)} aria-label={`Delete ${course.title}`}>
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-            </Box>
-          )
-        })}
-      </Paper>
-      {selectedCourse && <CourseEditor course={selectedCourse} onChange={(next) => setCourseRows((rows) => rows.map((row) => row.id === next.id ? next : row))} />}
+              return (
+                <Box
+                  key={course.id}
+                  aria-current={isSelected ? 'true' : undefined}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    p: 2,
+                    pl: isSelected ? 1.625 : 2,
+                    backgroundColor: isSelected ? 'action.selected' : 'transparent',
+                    borderBottom: 1,
+                    borderLeft: isSelected ? 3 : 0,
+                    borderColor: 'divider',
+                    borderLeftColor: 'primary.main',
+                    flexWrap: 'wrap',
+                    transition: 'background-color 160ms ease',
+                    '&:hover': { backgroundColor: isSelected ? 'action.selected' : 'action.hover' },
+                  }}
+                >
+                  <Box sx={{ flex: 1, minWidth: 240, cursor: 'pointer' }} onClick={() => setSelectedId(course.id)}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{course.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">{course.category} · {course.students} students · ${course.price}</Typography>
+                  </Box>
+                  <FormControl size="small" sx={{ minWidth: 170 }}>
+                    <InputLabel>Tutor</InputLabel>
+                    <Select label="Tutor" value={course.tutor} onChange={(event) => persistCourse({ ...course, tutor: event.target.value })}>
+                      {tutorOptions.map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <StatusChip status={course.status} />
+                    <Switch checked={course.status === 'Published'} onChange={() => persistCourse({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title}` }} />
+                  </Stack>
+                  <Stack direction="row" alignItems="center" spacing={0.5}>
+                    <Button label="Curriculum" size="small" variant="text" onClick={() => { setSelectedId(course.id); window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0) }} />
+                    <Tooltip title={`Edit ${course.title}`}><IconButton size="small" onClick={() => openEditDialog(course)} aria-label={`Edit ${course.title}`}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+                    <Tooltip title={`Delete ${course.title}`}><IconButton size="small" color="error" onClick={() => void deleteCourse(course)} aria-label={`Delete ${course.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+                  </Stack>
+                </Box>
+              )
+            })}
+          </Paper>
+          {selectedCourse && <CourseEditor course={selectedCourse} onChange={persistCourse} />}
+        </>
+      )}
     </>
   )
 }
@@ -700,7 +731,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   }
 
   const handleSignOut = () => {
-    clearAuthenticatedUser()
+    void signOut()
     navigateTo('/', true)
   }
 
