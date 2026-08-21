@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useState } from 'react'
 import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import { Footer } from '@/components/footer'
 import { Header } from '@/components/header'
 import { SpinnerCustom } from '@/components/spinner'
@@ -27,13 +28,31 @@ interface AppProps {
   onToggleDarkMode: () => void
 }
 
+const RouteLoadingState: React.FC<{ message: string }> = ({ message }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      minHeight: '100vh',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      backgroundColor: 'background.default',
+    }}
+    aria-live="polite"
+  >
+    <SpinnerCustom />
+    <Typography color="text.secondary">{message}</Typography>
+  </Box>
+)
+
 const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up' | null>(null)
 
   if (window.location.pathname.startsWith('/admin')) {
     if (getAuthenticatedUser()?.role !== 'admin') {
       window.location.replace('/')
-      return null
+      return <RouteLoadingState message="Returning to Coursespace..." />
     }
 
     return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />

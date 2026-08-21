@@ -358,6 +358,24 @@ const Button: FC<{ label: string; onClick?: () => void; size?: 'small' | 'medium
   </Box>
 )
 
+const AdminLoadingState = () => (
+  <Box
+    sx={{
+      display: 'flex',
+      minHeight: '100vh',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      backgroundColor: 'background.default',
+    }}
+    aria-live="polite"
+  >
+    <CircularProgress aria-label="Loading admin workspace" />
+    <Typography color="text.secondary">Loading admin workspace...</Typography>
+  </Box>
+)
+
 interface AdminDashboardProps {
   darkMode: boolean
   onToggleDarkMode: () => void
@@ -398,6 +416,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       default: return <OverviewPage />
     }
   }, [section])
+
+  if (isLoading) return <AdminLoadingState />
 
   const sidebar = (
     <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column' }}>
@@ -450,11 +470,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
           </Stack>
         </Box>
         <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440 }}>
-          {isLoading ? (
-            <Box sx={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-live="polite">
-              <CircularProgress aria-label="Loading admin workspace" />
-            </Box>
-          ) : currentPage}
+          {currentPage}
         </Box>
       </Box>
     </Box>
