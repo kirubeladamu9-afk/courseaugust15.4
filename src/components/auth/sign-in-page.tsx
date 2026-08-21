@@ -2,12 +2,11 @@ import { useState, type FC, type FormEvent } from 'react'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import Paper from '@mui/material/Paper'
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { StyledButton } from '@/components/styled-button'
+import { toast } from '@/components/toast'
 import { saveAuthenticatedUser, submitCredentials } from '@/services/api'
 
 interface SignInPageProps {
@@ -15,8 +14,6 @@ interface SignInPageProps {
 }
 
 const SignInPage: FC<SignInPageProps> = ({ mode }) => {
-  const [toastOpen, setToastOpen] = useState(false)
-  const [toastMessage, setToastMessage] = useState('')
   const [isRedirecting, setIsRedirecting] = useState(false)
   const isSignUp = mode === 'sign-up'
 
@@ -32,12 +29,19 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
         window.setTimeout(() => window.location.assign(user.role === 'admin' ? '/admin' : '/'), 400)
         return
       }
-      setToastMessage('Account created successfully.')
+      toast.add({
+        title: 'Account created',
+        description: 'You can now sign in to Coursespace.',
+        type: 'success',
+      })
     } catch (error) {
-      setToastMessage(error instanceof Error ? error.message : 'Unable to complete your request.')
+      toast.add({
+        title: 'Unable to complete your request',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        type: 'error',
+        priority: 'high',
+      })
     }
-
-    setToastOpen(true)
   }
 
   return (
@@ -89,21 +93,6 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
           )}
         </Paper>
       </Container>
-      <Snackbar
-        open={toastOpen}
-        autoHideDuration={4000}
-        onClose={() => setToastOpen(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        sx={{ top: { xs: '80px !important', md: '104px !important' } }}
-      >
-        <Alert
-          onClose={() => setToastOpen(false)}
-          icon={false}
-          sx={{ backgroundColor: '#fff', color: '#000', '& .MuiAlert-action': { color: '#000' } }}
-        >
-          {toastMessage}
-        </Alert>
-      </Snackbar>
     </Box>
   )
 }

@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline'
 import { ThemeProvider } from '@mui/material/styles'
 
 import { createTheme } from '@/config/theme'
+import { Toaster } from '@/components/toast'
 import App from './App'
 
 import 'slick-carousel/slick/slick.css'
@@ -18,6 +19,7 @@ const Root = () => {
     <ThemeProvider theme={createTheme(darkMode)}>
       <CssBaseline />
       <App darkMode={darkMode} onToggleDarkMode={() => setDarkMode((current) => !current)} />
+      <Toaster />
     </ThemeProvider>
   )
 }
