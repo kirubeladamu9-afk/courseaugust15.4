@@ -46,6 +46,8 @@ export const getAdminCourses = async (): Promise<Array<AdminCourse>> => {
   return response.json()
 }
 
+export const getAdminCourse = async (id: AdminCourse['id']): Promise<AdminCourse> => requestCourse(`/api/admin/courses/${id}`)
+
 export const createAdminCourse = (course: AdminCourse) => requestCourse('/api/admin/courses', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },

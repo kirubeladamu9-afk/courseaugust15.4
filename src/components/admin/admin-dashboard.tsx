@@ -53,11 +53,11 @@ import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
 import QuizOutlinedIcon from '@mui/icons-material/QuizOutlined'
 import TitleIcon from '@mui/icons-material/Title'
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined'
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
-import { createAdminCourse, deleteAdminCourse, getAdminCourses, signOut, updateAdminCourse } from '@/services/api'
+import { createAdminCourse, deleteAdminCourse, getAdminCourse, getAdminCourses, signOut, updateAdminCourse } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import { payments, registrations, tutors, users, type AdminCourse, type AdminLesson, type LessonType, type Registration } from './admin-data'
 
@@ -427,21 +427,36 @@ const OverviewPage: FC = () => (
   </>
 )
 
+const createEmptyCourse = (): AdminCourse => ({
+  id: 0,
+  title: 'Untitled course',
+  category: 'Development',
+  level: 'Beginner',
+  tutor: 'Maya Chen',
+  status: 'Draft',
+  students: 0,
+  price: 0,
+  cover: '/images/courses/christopher-gower-m_HRfLhgABo-unsplash.jpg',
+  description: '',
+  longDescription: '',
+  learningOutcomes: [''],
+  requirements: [''],
+  certificate: false,
+  updatedAt: 'Not published',
+  modules: [],
+})
+
+const tutorOptions = ['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known']
+
 const CoursesPage: FC = () => {
   const [courseRows, setCourseRows] = useState<AdminCourse[]>([])
-  const [selectedId, setSelectedId] = useState<AdminCourse['id'] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isCreating, setIsCreating] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const saveTimers = useRef(new Map<AdminCourse['id'], number>())
-  const selectedCourse = courseRows.find((course) => course.id === selectedId) ?? courseRows[0]
-  const tutorOptions = ['Maya Chen', 'Leon Kennedy', 'Jhon Dwirian', 'Rizki Known']
 
   const reloadCourses = async () => {
     try {
       const courses = await getAdminCourses()
       setCourseRows(courses)
-      setSelectedId((currentId) => courses.some((course) => course.id === currentId) ? currentId : courses[0]?.id ?? null)
       setLoadError(null)
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Unable to load courses.')
@@ -452,73 +467,28 @@ const CoursesPage: FC = () => {
 
   useEffect(() => {
     void reloadCourses()
-    return () => saveTimers.current.forEach((timer) => window.clearTimeout(timer))
   }, [])
 
-  const persistCourse = (course: AdminCourse) => {
+  const updateCourse = async (course: AdminCourse) => {
     setCourseRows((rows) => rows.map((row) => row.id === course.id ? course : row))
-    const currentTimer = saveTimers.current.get(course.id)
-    if (currentTimer) window.clearTimeout(currentTimer)
-    saveTimers.current.set(course.id, window.setTimeout(() => {
-      void updateAdminCourse(course)
-        .then((savedCourse) => setCourseRows((rows) => rows.map((row) => row.id === savedCourse.id ? savedCourse : row)))
-        .catch((error) => {
-          toast.add({ title: 'Unable to save course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
-          void reloadCourses()
-        })
-        .finally(() => saveTimers.current.delete(course.id))
-    }, 500))
-  }
-
-  const openCourseDialog = async () => {
-    setIsCreating(true)
-    const nextCourse: AdminCourse = {
-      id: 0,
-      title: 'Untitled course',
-      category: 'Development',
-      level: 'Beginner',
-      tutor: tutorOptions[0],
-      status: 'Draft',
-      students: 0,
-      price: 0,
-      cover: '/images/courses/christopher-gower-m_HRfLhgABo-unsplash.jpg',
-      description: '',
-      longDescription: '',
-      learningOutcomes: [''],
-      requirements: [''],
-      certificate: false,
-      updatedAt: 'Not published',
-      modules: [],
-    }
-
     try {
-      const createdCourse = await createAdminCourse(nextCourse)
-      setCourseRows((rows) => [...rows, createdCourse])
-      setSelectedId(createdCourse.id)
-      window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+      const savedCourse = await updateAdminCourse(course)
+      setCourseRows((rows) => rows.map((row) => row.id === savedCourse.id ? savedCourse : row))
     } catch (error) {
-      toast.add({ title: 'Unable to create course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
-    } finally {
-      setIsCreating(false)
+      toast.add({ title: 'Unable to save course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
+      void reloadCourses()
     }
   }
 
-  const openEditDialog = (course: AdminCourse) => {
-    setSelectedId(course.id)
-    window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
-  }
+  const openNewCoursePage = () => navigateTo('/admin/courses/new')
+  const openEditCoursePage = (course: AdminCourse) => navigateTo(`/admin/courses/${course.id}/edit`)
 
   const deleteCourse = async (course: AdminCourse) => {
     if (!window.confirm(`Delete ${course.title}? This cannot be undone.`)) return
 
-    const currentTimer = saveTimers.current.get(course.id)
-    if (currentTimer) window.clearTimeout(currentTimer)
-
     try {
       await deleteAdminCourse(course.id)
-      const remainingCourses = courseRows.filter((row) => row.id !== course.id)
-      setCourseRows(remainingCourses)
-      if (selectedId === course.id) setSelectedId(remainingCourses[0]?.id ?? null)
+      setCourseRows((rows) => rows.filter((row) => row.id !== course.id))
     } catch (error) {
       toast.add({ title: 'Unable to delete course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
     }
@@ -526,59 +496,104 @@ const CoursesPage: FC = () => {
 
   return (
     <>
-      <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" onClick={() => void openCourseDialog()} disabled={isCreating || isLoading} />} />
+      <PageHeading title="Programs & Courses" description="Manage your catalog, tutors, and learning content." action={<Button label="New course" onClick={openNewCoursePage} disabled={isLoading} />} />
       {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading courses" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadCourses() }} /></Paper> : (
-        <>
-          <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
-            {courseRows.map((course) => {
-              const isSelected = course.id === selectedId
-
-              return (
-                <Box
-                  key={course.id}
-                  aria-current={isSelected ? 'true' : undefined}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    p: 2,
-                    pl: isSelected ? 1.625 : 2,
-                    backgroundColor: isSelected ? 'action.selected' : 'transparent',
-                    borderBottom: 1,
-                    borderLeft: isSelected ? 3 : 0,
-                    borderColor: 'divider',
-                    borderLeftColor: 'primary.main',
-                    flexWrap: 'wrap',
-                    transition: 'background-color 160ms ease',
-                    '&:hover': { backgroundColor: isSelected ? 'action.selected' : 'action.hover' },
-                  }}
-                >
-                  <Box sx={{ flex: 1, minWidth: 240, cursor: 'pointer' }} onClick={() => setSelectedId(course.id)}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{course.title}</Typography>
-                    <Typography variant="body2" color="text.secondary">{course.category} · {course.students} students · ${course.price}</Typography>
-                  </Box>
-                  <FormControl size="small" sx={{ minWidth: 170 }}>
-                    <InputLabel>Tutor</InputLabel>
-                    <Select label="Tutor" value={course.tutor} onChange={(event) => persistCourse({ ...course, tutor: event.target.value })}>
-                      {tutorOptions.map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <StatusChip status={course.status} />
-                    <Switch checked={course.status === 'Published'} onChange={() => persistCourse({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title}` }} />
-                  </Stack>
-                  <Stack direction="row" alignItems="center" spacing={0.5}>
-                    <Button label="Curriculum" size="small" variant="text" onClick={() => { setSelectedId(course.id); window.setTimeout(() => document.getElementById('course-curriculum-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0) }} />
-                    <Tooltip title={`Edit ${course.title}`}><IconButton size="small" onClick={() => openEditDialog(course)} aria-label={`Edit ${course.title}`}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title={`Delete ${course.title}`}><IconButton size="small" color="error" onClick={() => void deleteCourse(course)} aria-label={`Delete ${course.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
-                  </Stack>
-                </Box>
-              )
-            })}
-          </Paper>
-          {selectedCourse && <CourseEditor course={selectedCourse} onChange={persistCourse} />}
-        </>
+        <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+          {courseRows.map((course) => (
+            <Box key={course.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', transition: 'background-color 160ms ease', '&:hover': { backgroundColor: 'action.hover' } }}>
+              <Box sx={{ flex: 1, minWidth: 240 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{course.title}</Typography>
+                <Typography variant="body2" color="text.secondary">{course.category} · {course.students} students · ${course.price}</Typography>
+              </Box>
+              <FormControl size="small" sx={{ minWidth: 170 }}>
+                <InputLabel>Tutor</InputLabel>
+                <Select label="Tutor" value={course.tutor} onChange={(event) => void updateCourse({ ...course, tutor: event.target.value })}>
+                  {tutorOptions.map((tutor) => <MenuItem key={tutor} value={tutor}>{tutor}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <StatusChip status={course.status} />
+                <Switch checked={course.status === 'Published'} onChange={() => void updateCourse({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title}` }} />
+              </Stack>
+              <Stack direction="row" alignItems="center" spacing={0.5}>
+                <Button label="Curriculum" size="small" variant="text" onClick={() => openEditCoursePage(course)} />
+                <Tooltip title={`Edit ${course.title}`}><IconButton size="small" onClick={() => openEditCoursePage(course)} aria-label={`Edit ${course.title}`}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip title={`Delete ${course.title}`}><IconButton size="small" color="error" onClick={() => void deleteCourse(course)} aria-label={`Delete ${course.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
+              </Stack>
+            </Box>
+          ))}
+        </Paper>
       )}
+    </>
+  )
+}
+
+type CourseEditorPageProps =
+  | { mode: 'new'; courseId?: never }
+  | { mode: 'edit'; courseId: number }
+
+const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
+  const [course, setCourse] = useState<AdminCourse | null>(() => mode === 'new' ? createEmptyCourse() : null)
+  const [isLoading, setIsLoading] = useState(mode === 'edit')
+  const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isCurrent = true
+    setCourse(mode === 'new' ? createEmptyCourse() : null)
+    setIsLoading(mode === 'edit')
+    setLoadError(null)
+
+    if (mode === 'new') return () => { isCurrent = false }
+
+    getAdminCourse(courseId)
+      .then((loadedCourse) => {
+        if (isCurrent) setCourse(loadedCourse)
+      })
+      .catch((error) => {
+        if (isCurrent) setLoadError(error instanceof Error ? error.message : 'Unable to load course.')
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [mode, courseId])
+
+  const saveCourse = async () => {
+    if (!course) return
+    const title = course.title.trim()
+    if (!title) {
+      toast.add({ title: 'Course title is required', description: 'Add a title before saving the course.', type: 'error', priority: 'high' })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const savedCourse = mode === 'new' ? await createAdminCourse({ ...course, title }) : await updateAdminCourse({ ...course, title })
+      setCourse(savedCourse)
+      toast.add({ title: mode === 'new' ? 'Course created' : 'Course saved', description: `${savedCourse.title} is now stored in the database.`, type: 'success' })
+      if (mode === 'new') navigateTo(`/admin/courses/${savedCourse.id}/edit`, true)
+    } catch (error) {
+      toast.add({ title: 'Unable to save course', description: error instanceof Error ? error.message : 'Please try again.', type: 'error', priority: 'high' })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading course" /></Box>
+  if (loadError || !course) return <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError ?? 'Course not found.'}</Typography><Stack direction="row" spacing={1}><Button label="Back to courses" variant="text" onClick={() => navigateTo('/admin/courses')} /><Button label="Retry" onClick={() => window.location.reload()} /></Stack></Paper>
+
+  return (
+    <>
+      <PageHeading
+        title={mode === 'new' ? 'New course' : 'Edit course'}
+        description={mode === 'new' ? 'Create a course and build its learning path.' : `Update ${course.title} and its learning path.`}
+        action={<Stack direction="row" spacing={1}><Button label="Back to courses" variant="text" onClick={() => navigateTo('/admin/courses')} /><Button label={mode === 'new' ? 'Create course' : 'Save changes'} onClick={() => void saveCourse()} disabled={isSaving} /></Stack>}
+      />
+      <CourseEditor course={course} onChange={setCourse} />
     </>
   )
 }
@@ -720,6 +735,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [section, setSection] = useState<Section>(() => getSectionFromPath(window.location.pathname))
+  const [pathname, setPathname] = useState(() => window.location.pathname)
   const [isLoading, setIsLoading] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
@@ -737,7 +753,10 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 400)
-    const handlePopState = () => setSection(getSectionFromPath(window.location.pathname))
+    const handlePopState = () => {
+      setPathname(window.location.pathname)
+      setSection(getSectionFromPath(window.location.pathname))
+    }
     window.addEventListener('popstate', handlePopState)
 
     return () => {
@@ -748,7 +767,12 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
 
   const currentPage = useMemo(() => {
     switch (section) {
-      case 'courses': return <CoursesPage />
+      case 'courses': {
+        if (/^\/admin\/courses\/new\/?$/.test(pathname)) return <CourseEditorPage mode="new" />
+        const editMatch = pathname.match(/^\/admin\/courses\/(\d+)\/edit\/?$/)
+        if (editMatch) return <CourseEditorPage mode="edit" courseId={Number(editMatch[1])} />
+        return <CoursesPage />
+      }
       case 'registrations': return <RegistrationsPage />
       case 'tutors': return <TutorsPage />
       case 'blog': return <SimplePage title="Bookstore & Blog" description="Manage books, articles, and publishing content." icon={<BookOutlinedIcon fontSize="large" />} />
@@ -756,7 +780,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       case 'users': return <UsersPage />
       default: return <OverviewPage />
     }
-  }, [section])
+  }, [pathname, section])
 
   const sidebar = (
     <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column' }}>

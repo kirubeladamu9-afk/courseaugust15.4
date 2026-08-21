@@ -272,6 +272,15 @@ app.get('/api/admin/courses', requireAdmin, async (_request, response) => {
   response.json(courses)
 })
 
+app.get('/api/admin/courses/:id', requireAdmin, async (request, response) => {
+  const id = parseCourseId(request.params.id)
+  if (id === null) return response.status(400).json({ message: 'Invalid course id.' })
+
+  const course = await readCourse(id)
+  if (!course) return response.status(404).json({ message: 'Course not found.' })
+  return response.json(course)
+})
+
 app.post('/api/admin/courses', requireAdmin, async (request, response) => {
   const course = parseCoursePayload(request.body)
   if (!course) return response.status(400).json({ message: 'Enter all required course details.' })
