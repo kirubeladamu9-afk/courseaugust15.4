@@ -269,17 +269,26 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
 
   const handleVideoFile = (file: File) => {
     if (!lessonPanel) return
-    const videoUrl = URL.createObjectURL(file)
-    updateLessonDraft({ ...lessonPanel.lesson, videoUrl, duration: null })
-    setVideoUploadProgress(12)
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.onloadedmetadata = () => {
-      setLessonPanel((panel) => panel ? { ...panel, lesson: { ...panel.lesson, duration: Math.max(1, Math.round(video.duration)) } } : panel)
+    if (file.size > 6 * 1024 * 1024) {
+      toast.add({ title: 'Video is too large', description: 'Choose a video smaller than 6 MB.', type: 'error' })
+      return
     }
-    video.onerror = () => URL.revokeObjectURL(videoUrl)
-    video.src = videoUrl
-    window.setTimeout(() => setVideoUploadProgress(100), 700)
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result !== 'string' || !lessonPanel) return
+      const videoUrl = reader.result
+      updateLessonDraft({ ...lessonPanel.lesson, videoUrl, duration: null })
+      setVideoUploadProgress(12)
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.onloadedmetadata = () => {
+        setLessonPanel((panel) => panel ? { ...panel, lesson: { ...panel.lesson, duration: Math.max(1, Math.round(video.duration)) } } : panel)
+      }
+      video.src = videoUrl
+      window.setTimeout(() => setVideoUploadProgress(100), 700)
+    }
+    reader.readAsDataURL(file)
   }
 
   const addResources = (files: FileList | null) => {
