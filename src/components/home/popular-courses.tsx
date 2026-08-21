@@ -4,7 +4,6 @@ import Grid from '@mui/material/Grid'
 import Slider, { Settings } from 'react-slick'
 import { useEffect, useRef, useState } from 'react'
 import Container from '@mui/material/Container'
-import Typography from '@mui/material/Typography'
 import { useTheme, styled } from '@mui/material/styles'
 import { IconButton, useMediaQuery } from '@mui/material'
 import IconArrowBack from '@mui/icons-material/ArrowBack'
@@ -89,9 +88,6 @@ const HomePopularCourse: FC = () => {
                 justifyContent: { xs: 'center', md: 'flex-start' },
               }}
             >
-              <Typography variant="h1" sx={{ mt: { xs: 0, md: -5 }, fontSize: { xs: 30, md: 48 } }}>
-                Most Popular Courses
-              </Typography>
             </Box>
           </Grid>
 
