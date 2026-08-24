@@ -67,7 +67,7 @@ import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
-import { changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
+import { changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
 import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
@@ -184,7 +184,7 @@ const lessonTypeOptions: Array<{ type: LessonType; label: string; detail: string
 
 type LessonPanelState = { moduleId: number; lesson: AdminLesson; isNew: boolean }
 
-const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) => void }> = ({ course, onChange }) => {
+const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) => void; isClassLinked: boolean }> = ({ course, onChange, isClassLinked }) => {
   const [draggedModule, setDraggedModule] = useState<number | null>(null)
   const [draggedLesson, setDraggedLesson] = useState<{ moduleId: number; index: number } | null>(null)
   const [expandedModuleIds, setExpandedModuleIds] = useState<number[]>(() => course.modules.map((module) => module.id))
@@ -404,7 +404,7 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
                 <Tooltip title={`Edit ${lesson.title}`}><IconButton size="small" onClick={() => openLessonPanel(module.id, lesson, false)} aria-label={`Edit ${lesson.title}`}><EditOutlinedIcon fontSize="small" /></IconButton></Tooltip><Tooltip title={`Delete ${lesson.title}`}><IconButton size="small" color="error" onClick={() => deleteLesson(module.id, lesson.id)} aria-label={`Delete ${lesson.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
               </Box>)}
               {module.lessons.length === 0 && <Typography color="text.secondary" variant="body2" sx={{ py: 1 }}>No lessons yet</Typography>}
-              {addingLessonModuleId === module.id ? <Paper elevation={0} sx={{ p: 1.5, border: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}><Typography variant="body2" sx={{ fontWeight: 600 }}>Choose a lesson type</Typography><IconButton size="small" onClick={() => setAddingLessonModuleId(null)} aria-label="Cancel adding lesson"><CloseIcon fontSize="small" /></IconButton></Box><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>{lessonTypeOptions.map((option) => <Box key={option.type} component="button" type="button" onClick={() => openLessonPanel(module.id, createLesson(Math.max(0, ...course.modules.flatMap((currentModule) => currentModule.lessons.map((currentLesson) => currentLesson.id))) + 1, option.type), true)} sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1, p: 1, border: 1, borderColor: 'divider', borderRadius: 1, backgroundColor: 'background.default', color: 'text.primary', cursor: 'pointer', textAlign: 'left', font: 'inherit', '&:hover': { borderColor: 'primary.main', backgroundColor: 'action.hover' } }}><Box sx={{ color: 'primary.main', display: 'flex' }}><LessonTypeIcon type={option.type} /></Box><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{option.label}</Typography><Typography variant="caption" color="text.secondary">{option.detail}</Typography></Box></Box>)}</Stack></Paper> : <Box component="button" type="button" onClick={() => setAddingLessonModuleId(module.id)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}><AddIcon fontSize="small" /> Add lesson</Box>}
+              {addingLessonModuleId === module.id ? <Paper elevation={0} sx={{ p: 1.5, border: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}><Typography variant="body2" sx={{ fontWeight: 600 }}>Choose a lesson type</Typography>{isClassLinked && <Typography color="text.secondary" variant="caption" sx={{ display: 'block', mb: 1 }}>This course is linked to a Class. Use Video, Article, or Quiz for course content; the Class manages live sessions.</Typography>}<IconButton size="small" onClick={() => setAddingLessonModuleId(null)} aria-label="Cancel adding lesson"><CloseIcon fontSize="small" /></IconButton></Box><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>{lessonTypeOptions.filter((option) => !isClassLinked || option.type !== 'live').map((option) => <Box key={option.type} component="button" type="button" onClick={() => openLessonPanel(module.id, createLesson(Math.max(0, ...course.modules.flatMap((currentModule) => currentModule.lessons.map((currentLesson) => currentLesson.id))) + 1, option.type), true)} sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1, p: 1, border: 1, borderColor: 'divider', borderRadius: 1, backgroundColor: 'background.default', color: 'text.primary', cursor: 'pointer', textAlign: 'left', font: 'inherit', '&:hover': { borderColor: 'primary.main', backgroundColor: 'action.hover' } }}><Box sx={{ color: 'primary.main', display: 'flex' }}><LessonTypeIcon type={option.type} /></Box><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{option.label}</Typography><Typography variant="caption" color="text.secondary">{option.detail}</Typography></Box></Box>)}</Stack></Paper> : <Box component="button" type="button" onClick={() => setAddingLessonModuleId(module.id)} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, alignSelf: 'flex-start', p: 0.5, color: 'primary.main', background: 'none', border: 0, cursor: 'pointer', font: 'inherit' }}><AddIcon fontSize="small" /> Add lesson</Box>}
             </Stack>}
           </Paper>
         })}
@@ -598,14 +598,24 @@ const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
   const [isLoading, setIsLoading] = useState(mode === 'edit')
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [isClassLinked, setIsClassLinked] = useState(false)
 
   useEffect(() => {
     let isCurrent = true
     setCourse(mode === 'new' ? createEmptyCourse() : null)
+    setIsClassLinked(false)
     setIsLoading(mode === 'edit')
     setLoadError(null)
 
     if (mode === 'new') return () => { isCurrent = false }
+
+    getAdminClassesWorkspace()
+      .then((workspace) => {
+        if (isCurrent) setIsClassLinked(workspace.classes.some((classRecord) => classRecord.course_id === courseId))
+      })
+      .catch(() => {
+        if (isCurrent) setIsClassLinked(false)
+      })
 
     getAdminCourse(courseId)
       .then((loadedCourse) => {
@@ -659,7 +669,7 @@ const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
         description={mode === 'new' ? 'Create a course and build its learning path.' : `Update ${course.title} and its learning path.`}
         action={<Stack direction="row" spacing={1}><Button label="Back to courses" variant="text" onClick={() => navigateTo('/admin/courses')} /><Button label={mode === 'new' ? 'Create course' : 'Save changes'} onClick={() => void saveCourse()} disabled={isSaving} /></Stack>}
       />
-      <CourseEditor course={course} onChange={setCourse} />
+      <CourseEditor course={course} onChange={setCourse} isClassLinked={isClassLinked} />
     </>
   )
 }
