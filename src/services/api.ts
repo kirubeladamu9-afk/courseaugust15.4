@@ -193,6 +193,19 @@ export interface PendingClassStudent {
   age: number | null
 }
 
+export interface TrainingBatchRecord {
+  id: number
+  program_id: 'summer-camp' | 'ministry-exam-prep'
+  title: string
+  tutor: string
+  capacity: number
+  schedule: AdminClassSchedule
+  course_id: number
+  price: number
+  modules: Array<{ lessons?: unknown[] }>
+  enrolled: number
+}
+
 export interface AdminClassesWorkspace {
   classes: AdminClass[]
   enrollments: AdminClassEnrollment[]
@@ -203,6 +216,12 @@ export interface AdminClassesWorkspace {
 
 const requestClasses = async (url: string, init?: RequestInit): Promise<AdminClass> => {
   const response = await requestApi(url, init)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getTrainingBatches = async (): Promise<TrainingBatchRecord[]> => {
+  const response = await fetch('/api/training-batches')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

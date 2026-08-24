@@ -930,6 +930,30 @@ const refreshClassStatus = async (id) => {
   return readAdminClass(id)
 }
 
+app.get('/api/training-batches', async (_request, response) => {
+  const batches = await sql`
+    SELECT classes.id::INTEGER AS id,
+           classes.program_id,
+           classes.title,
+           classes.tutor_id::INTEGER AS tutor_id,
+           COALESCE(tutors.name, 'Tutor to be assigned') AS tutor,
+           classes.capacity,
+           classes.schedule,
+           classes.course_id::INTEGER AS course_id,
+           classes.price::FLOAT AS price,
+           courses.modules,
+           (SELECT COUNT(*)::INTEGER FROM enrollments WHERE enrollments.class_id = classes.id AND enrollments.class_status = 'enrolled') AS enrolled
+    FROM classes
+    LEFT JOIN tutors ON tutors.id = classes.tutor_id
+    LEFT JOIN courses ON courses.id = classes.course_id
+    WHERE classes.published = true
+      AND classes.program_id IN ('summer-camp', 'ministry-exam-prep')
+      AND classes.course_id IS NOT NULL
+    ORDER BY classes.program_id, classes.created_at, classes.id
+  `
+  response.json(batches)
+})
+
 app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
   const [classes, enrollments, pendingStudents, tutors, courses] = await Promise.all([
     sql`SELECT ${classColumns} FROM classes WHERE published = true ORDER BY created_at DESC, id DESC`,

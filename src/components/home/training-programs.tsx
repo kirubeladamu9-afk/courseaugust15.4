@@ -16,11 +16,12 @@ import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
-import { type FC, useState } from 'react'
+import { type FC, useEffect, useMemo, useState } from 'react'
+import { getTrainingBatches, type TrainingBatchRecord } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
 interface TrainingBatch {
-  id: string
+  id: number
   title: string
   schedule: string
   tutor: string
@@ -31,21 +32,22 @@ interface TrainingBatch {
   curriculum?: string
 }
 
-const summerCampBatches: TrainingBatch[] = [
-  { id: 'summer-july-morning', title: 'July Morning Camp', schedule: 'July 8–26 · Mon–Fri · 9:00 AM', tutor: 'Abel Tesfaye', enrolled: 6, capacity: 10, price: 180, courseId: 1 },
-  { id: 'summer-august-afternoon', title: 'August Afternoon Camp', schedule: 'August 5–23 · Mon–Fri · 2:00 PM', tutor: 'Mekdes Alemu', enrolled: 10, capacity: 10, price: 180, courseId: 1 },
-]
-
-const ministryBatches: Record<string, TrainingBatch[]> = {
-  'Grade 6': [
-    { id: 'ministry-grade-6-july', title: 'Grade 6 July Intensive', schedule: 'July 1–19 · Mon–Fri · 10:00 AM', tutor: 'Sara Bekele', enrolled: 6, capacity: 10, price: 220, courseId: 2, curriculum: '8 modules · 24 lessons' },
-    { id: 'ministry-grade-6-august', title: 'Grade 6 August Review', schedule: 'August 5–23 · Mon–Fri · 10:00 AM', tutor: 'Sara Bekele', enrolled: 4, capacity: 10, price: 220, courseId: 2, curriculum: '8 modules · 24 lessons' },
-  ],
-  'Grade 8': [
-    { id: 'ministry-grade-8-july', title: 'Grade 8 July Intensive', schedule: 'July 1–19 · Mon–Fri · 1:00 PM', tutor: 'Dawit Girma', enrolled: 10, capacity: 10, price: 240, courseId: 3, curriculum: '10 modules · 30 lessons' },
-    { id: 'ministry-grade-8-august', title: 'Grade 8 August Review', schedule: 'August 5–23 · Mon–Fri · 1:00 PM', tutor: 'Dawit Girma', enrolled: 7, capacity: 10, price: 240, courseId: 3, curriculum: '10 modules · 30 lessons' },
-  ],
+const getCurriculumSummary = (modules: TrainingBatchRecord['modules']) => {
+  const lessonCount = modules.reduce((total, module) => total + (Array.isArray(module.lessons) ? module.lessons.length : 0), 0)
+  return `${modules.length} modules · ${lessonCount} lessons`
 }
+
+const mapTrainingBatch = (batch: TrainingBatchRecord): TrainingBatch => ({
+  id: batch.id,
+  title: batch.title,
+  schedule: batch.schedule.flexible ? 'Flexible schedule' : `${batch.schedule.days.join(', ')} · ${batch.schedule.time}`,
+  tutor: batch.tutor,
+  enrolled: batch.enrolled,
+  capacity: batch.capacity,
+  price: batch.price,
+  courseId: batch.course_id,
+  curriculum: batch.program_id === 'ministry-exam-prep' ? getCurriculumSummary(batch.modules) : undefined,
+})
 
 const formatPrice = (price: number) => `$${price}`
 
@@ -77,7 +79,7 @@ const BatchCard: FC<{ batch: TrainingBatch }> = ({ batch }) => {
           <LinearProgress variant="determinate" value={Math.min(100, (batch.enrolled / batch.capacity) * 100)} color={isFull ? 'inherit' : 'primary'} sx={{ height: 6, borderRadius: 3 }} />
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button size="small" variant={isFull ? 'outlined' : 'contained'} onClick={() => navigateTo(`/courses/${batch.courseId}?batch=${encodeURIComponent(batch.id)}`)}>
+          <Button size="small" variant={isFull ? 'outlined' : 'contained'} onClick={() => navigateTo(`/courses/${batch.courseId}?batch=${batch.id}`)}>
             {isFull ? 'Join Waitlist' : 'Join'}
           </Button>
         </Box>
@@ -86,11 +88,29 @@ const BatchCard: FC<{ batch: TrainingBatch }> = ({ batch }) => {
   </Card>
 }
 
-const BatchList: FC<{ batches: TrainingBatch[] }> = ({ batches }) => <Stack spacing={1.5} sx={{ mt: 2 }}>{batches.map((batch) => <BatchCard key={batch.id} batch={batch} />)}</Stack>
+const BatchList: FC<{ batches: TrainingBatch[] }> = ({ batches }) => batches.length > 0 ? <Stack spacing={1.5} sx={{ mt: 2 }}>{batches.map((batch) => <BatchCard key={batch.id} batch={batch} />)}</Stack> : <Typography color="text.secondary" sx={{ mt: 2 }}>No published batches are available right now.</Typography>
 
 const TrainingPrograms: FC = () => {
   const [openProgram, setOpenProgram] = useState<string | false>(false)
   const [grade, setGrade] = useState('Grade 6')
+  const [batchRecords, setBatchRecords] = useState<TrainingBatchRecord[]>([])
+
+  useEffect(() => {
+    let isCurrent = true
+    getTrainingBatches().then((records) => {
+      if (isCurrent) setBatchRecords(records)
+    }).catch(() => {
+      if (isCurrent) setBatchRecords([])
+    })
+    return () => { isCurrent = false }
+  }, [])
+
+  const summerCampBatches = useMemo(() => batchRecords.filter((batch) => batch.program_id === 'summer-camp').map(mapTrainingBatch), [batchRecords])
+  const ministryBatches = useMemo(() => batchRecords.filter((batch) => batch.program_id === 'ministry-exam-prep').reduce<Record<string, TrainingBatch[]>>((groups, batch) => {
+    const level = batch.title.match(/Grade (6|8)/)?.[0] ?? 'Grade 6'
+    groups[level] = [...(groups[level] ?? []), mapTrainingBatch(batch)]
+    return groups
+  }, { 'Grade 6': [], 'Grade 8': [] }), [batchRecords])
 
   return <Box id="training-programs" sx={{ py: { xs: 7, md: 10 }, backgroundColor: 'background.paper', position: 'relative', overflow: 'hidden' }}>
     <Box sx={{ position: 'absolute', top: 80, right: -100, width: 260, height: 260, borderRadius: '50%', backgroundColor: 'primary.light', opacity: 0.12 }} />
