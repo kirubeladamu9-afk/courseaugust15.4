@@ -53,19 +53,28 @@ const HomePopularCourse: FC<{ courses: Course[] }> = ({ courses }) => {
       id="popular-course"
       sx={{
         pt: {
-          xs: 6,
-          md: 8,
+          xs: 7,
+          md: 10,
         },
         pb: 14,
         backgroundColor: 'background.default',
+        overflow: 'hidden',
       }}
     >
       <Container maxWidth="lg">
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={3}>
-            <Typography component="h2" variant="h3" sx={{ maxWidth: 170, fontSize: { xs: '2.25rem', md: '2.5rem' }, lineHeight: 1.2 }}>Most Popular Courses</Typography>
+        <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center">
+          <Grid item xs={12} md={4}>
+            <Box sx={{ maxWidth: 360 }}>
+              <Typography variant="overline" color="primary.main" sx={{ letterSpacing: 2, fontWeight: 700 }}>Learn with purpose</Typography>
+              <Typography component="h2" variant="h3" sx={{ mt: 1, mb: 2, fontSize: { xs: '2.5rem', md: '3.25rem' }, lineHeight: 1.08 }}>Most Popular Courses</Typography>
+              <Typography color="text.secondary" sx={{ lineHeight: 1.7 }}>Explore the courses learners are loving right now and find your next opportunity to grow.</Typography>
+              {courses.length > 0 && <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mt: 3 }}>
+                <Box sx={{ width: 42, height: 4, borderRadius: 2, backgroundColor: 'primary.main' }} />
+                <Typography variant="body2" color="text.secondary">{courses.length} courses available</Typography>
+              </Box>}
+            </Box>
           </Grid>
-          <Grid item xs={12} md={9} sx={{ minWidth: 0 }}>
+          <Grid item xs={12} md={8} sx={{ minWidth: 0 }}>
             {courses.length > 0 && <Box sx={{ width: '100%', minWidth: 0 }}>
               <Slider ref={sliderRef} {...sliderConfig}>
                 {courses.map((item) => (
@@ -73,7 +82,7 @@ const HomePopularCourse: FC<{ courses: Course[] }> = ({ courses }) => {
                 ))}
               </Slider>
             </Box>}
-            {courses.length > 0 && <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: { xs: 4, md: 2 } }}>
+            {courses.length > 0 && <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 1, mt: { xs: 4, md: 2 } }}>
               <IconButton
                 sx={{
                   backgroundColor: 'background.paper',
