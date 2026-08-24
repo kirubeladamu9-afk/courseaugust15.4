@@ -99,10 +99,10 @@ const TrainingPrograms: FC = () => {
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 220, lineHeight: 1.6 }}>Small groups. Expert tutors. Real progress.</Typography>
       </Box>
-      <Grid container spacing={3} alignItems="flex-start">
-        <Grid item xs={12} md={4}>
-          <Card elevation={1} sx={{ height: '100%', borderRadius: 4 }}>
-            <CardContent sx={{ p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
+      <Grid container spacing={3} alignItems="stretch">
+        <Grid item xs={12} md={4} sx={{ display: 'flex' }}>
+          <Card elevation={1} sx={{ width: '100%', height: '100%', borderRadius: 4 }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'primary.light', color: 'primary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Flexible start" color="primary" variant="outlined" size="small" /></Box>
               <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>International Online Interactive</Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Live, engaging online classes designed to build confident learners through interactive instruction and guided practice.</Typography>
@@ -111,14 +111,14 @@ const TrainingPrograms: FC = () => {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}><Typography color="text.secondary">Format</Typography><Typography sx={{ fontWeight: 600 }}>Live online</Typography></Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}><Typography color="text.secondary">Price</Typography><Typography color="primary.main" sx={{ fontWeight: 700 }}>$120</Typography></Box>
               </Stack>
-              <Button fullWidth variant="contained" size="large" onClick={() => navigateTo('/courses/1?program=international')}>Enroll Now</Button>
+              <Button fullWidth variant="contained" size="large" sx={{ mt: 'auto' }} onClick={() => navigateTo('/courses/1?program=international')}>Enroll Now</Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5, textAlign: 'center' }}>Pending — we'll contact you to schedule your class</Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
-          <Card elevation={1} sx={{ borderRadius: 4 }}>
-            <CardContent sx={{ p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'secondary.main', borderRadius: '16px 16px 0 0' }}>
+        <Grid item xs={12} md={4} sx={{ display: 'flex' }}>
+          <Card elevation={1} sx={{ width: '100%', height: '100%', borderRadius: 4 }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'secondary.main', borderRadius: '16px 16px 0 0' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'secondary.light', color: 'secondary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Live cohorts" color="secondary" variant="outlined" size="small" /></Box>
               <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>Summer Camp Packages</Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Make school breaks count with focused, social learning in small live cohorts.</Typography>
@@ -129,9 +129,9 @@ const TrainingPrograms: FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
-          <Card elevation={1} sx={{ borderRadius: 4 }}>
-            <CardContent sx={{ p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
+        <Grid item xs={12} md={4} sx={{ display: 'flex' }}>
+          <Card elevation={1} sx={{ width: '100%', height: '100%', borderRadius: 4 }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'primary.light', color: 'primary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Exam focused" color="primary" variant="outlined" size="small" /></Box>
               <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>Ministry Exam Prep</Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Structured revision and exam-focused support aligned to each learner’s grade level.</Typography>
