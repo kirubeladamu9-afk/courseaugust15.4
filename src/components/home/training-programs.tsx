@@ -6,10 +6,12 @@ import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Container from '@mui/material/Container'
+import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import Grid from '@mui/material/Grid'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
+import LinearProgress from '@mui/material/LinearProgress'
 import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
@@ -50,18 +52,27 @@ const formatPrice = (price: number) => `$${price}`
 const BatchCard: FC<{ batch: TrainingBatch }> = ({ batch }) => {
   const isFull = batch.enrolled >= batch.capacity
 
-  return <Card variant="outlined" sx={{ borderRadius: 2 }}>
+  return <Card variant="outlined" sx={{ borderRadius: 2.5, borderColor: isFull ? 'divider' : 'primary.light', backgroundColor: 'background.default' }}>
     <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
       <Stack spacing={1.25}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{batch.title}</Typography>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{batch.title}</Typography>
+            {isFull && <Chip label="Full" size="small" variant="outlined" sx={{ mt: 0.75, height: 22 }} />}
+          </Box>
           <Typography variant="subtitle1" color="primary.main" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{formatPrice(batch.price)}</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary">{batch.schedule}</Typography>
         <Typography variant="body2" color="text.secondary">Tutor: {batch.tutor}</Typography>
         {batch.curriculum && <Typography variant="body2" color="text.secondary">{batch.curriculum}</Typography>}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>{batch.enrolled}/{batch.capacity} spots filled</Typography>
+        <Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
+            <Typography variant="caption" color="text.secondary">Availability</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700 }}>{batch.enrolled}/{batch.capacity} spots</Typography>
+          </Box>
+          <LinearProgress variant="determinate" value={Math.min(100, (batch.enrolled / batch.capacity) * 100)} color={isFull ? 'inherit' : 'primary'} sx={{ height: 6, borderRadius: 3 }} />
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button size="small" variant={isFull ? 'outlined' : 'contained'} onClick={() => navigateTo(`/courses/${batch.courseId}?batch=${encodeURIComponent(batch.id)}`)}>
             {isFull ? 'Join Waitlist' : 'Join'}
           </Button>
@@ -77,17 +88,22 @@ const TrainingPrograms: FC = () => {
   const [openProgram, setOpenProgram] = useState<string | false>(false)
   const [grade, setGrade] = useState('Grade 6')
 
-  return <Box id="training-programs" sx={{ py: { xs: 7, md: 10 }, backgroundColor: 'background.paper' }}>
-    <Container maxWidth="lg">
-      <Box sx={{ mb: 5, maxWidth: 650 }}>
-        <Typography component="h2" variant="h3" sx={{ mb: 1.5, fontSize: { xs: '2.25rem', md: '2.75rem' } }}>Our Training Programs</Typography>
-        <Typography color="text.secondary" sx={{ lineHeight: 1.7 }}>Choose the learning experience that fits your goals, schedule, and stage.</Typography>
+  return <Box id="training-programs" sx={{ py: { xs: 7, md: 10 }, backgroundColor: 'background.paper', position: 'relative', overflow: 'hidden' }}>
+    <Box sx={{ position: 'absolute', top: 80, right: -100, width: 260, height: 260, borderRadius: '50%', backgroundColor: 'primary.light', opacity: 0.12 }} />
+    <Container maxWidth="lg" sx={{ position: 'relative' }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { md: 'flex-end' }, gap: 2, mb: 5 }}>
+        <Box sx={{ maxWidth: 650 }}>
+          <Typography variant="overline" color="primary.main" sx={{ letterSpacing: 2, fontWeight: 700 }}>Find your path</Typography>
+          <Typography component="h2" variant="h3" sx={{ mt: 1, mb: 1.5, fontSize: { xs: '2.25rem', md: '2.75rem' } }}>Our Training Programs</Typography>
+          <Typography color="text.secondary" sx={{ lineHeight: 1.7 }}>Choose the learning experience that fits your goals, schedule, and stage.</Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 220, lineHeight: 1.6 }}>Small groups. Expert tutors. Real progress.</Typography>
       </Box>
       <Grid container spacing={3} alignItems="flex-start">
         <Grid item xs={12} md={4}>
           <Card elevation={1} sx={{ height: '100%', borderRadius: 4 }}>
-            <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
-              <SchoolOutlinedIcon color="primary" sx={{ fontSize: 38, mb: 2 }} />
+            <CardContent sx={{ p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'primary.light', color: 'primary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Flexible start" color="primary" variant="outlined" size="small" /></Box>
               <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>International Online Interactive</Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Live, engaging online classes designed to build confident learners through interactive instruction and guided practice.</Typography>
               <Stack divider={<Divider flexItem />} spacing={1.25} sx={{ mb: 3 }}>
@@ -102,8 +118,8 @@ const TrainingPrograms: FC = () => {
         </Grid>
         <Grid item xs={12} md={4}>
           <Card elevation={1} sx={{ borderRadius: 4 }}>
-            <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
-              <SchoolOutlinedIcon color="primary" sx={{ fontSize: 38, mb: 2 }} />
+            <CardContent sx={{ p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'secondary.main', borderRadius: '16px 16px 0 0' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'secondary.light', color: 'secondary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Live cohorts" color="secondary" variant="outlined" size="small" /></Box>
               <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>Summer Camp Packages</Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Make school breaks count with focused, social learning in small live cohorts.</Typography>
               <Accordion expanded={openProgram === 'summer'} onChange={(_, expanded) => setOpenProgram(expanded ? 'summer' : false)} disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
@@ -115,8 +131,8 @@ const TrainingPrograms: FC = () => {
         </Grid>
         <Grid item xs={12} md={4}>
           <Card elevation={1} sx={{ borderRadius: 4 }}>
-            <CardContent sx={{ p: { xs: 3, md: 3.5 } }}>
-              <SchoolOutlinedIcon color="primary" sx={{ fontSize: 38, mb: 2 }} />
+            <CardContent sx={{ p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'primary.light', color: 'primary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Exam focused" color="primary" variant="outlined" size="small" /></Box>
               <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>Ministry Exam Prep</Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Structured revision and exam-focused support aligned to each learner’s grade level.</Typography>
               <Tabs value={grade} onChange={(_, value: string) => setGrade(value)} variant="fullWidth" sx={{ mb: 1 }}>
