@@ -155,6 +155,92 @@ export const deleteAdminTutor = async (id: AdminTutor['id']) => {
   if (!response.ok) throw new Error(await getErrorMessage(response))
 }
 
+export type AdminClassProgram = 'international-online-interactive' | 'summer-camp' | 'ministry-exam-prep'
+export type AdminClassStatus = 'pending_schedule' | 'open' | 'full' | 'closed'
+
+export interface AdminClassSchedule {
+  days: string[]
+  time: string
+  flexible: boolean
+}
+
+export interface AdminClass {
+  id: number
+  program_id: AdminClassProgram
+  title: string
+  tutor_id: number
+  capacity: number
+  schedule: AdminClassSchedule
+  meeting_link: string
+  course_id: number | null
+  price: number
+  status: AdminClassStatus
+  published: boolean
+}
+
+export interface AdminClassEnrollment {
+  id: number
+  class_id: number
+  student_name: string
+  enrolled_date: string
+  status: 'enrolled' | 'waitlisted'
+}
+
+export interface PendingClassStudent {
+  id: number
+  student_name: string
+  enrolled_date: string
+  age: number | null
+}
+
+export interface AdminClassesWorkspace {
+  classes: AdminClass[]
+  enrollments: AdminClassEnrollment[]
+  pendingStudents: PendingClassStudent[]
+  tutors: Array<{ id: number; name: string }>
+  courses: Array<{ id: number; title: string }>
+}
+
+const requestClasses = async (url: string, init?: RequestInit): Promise<AdminClass> => {
+  const response = await requestApi(url, init)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getAdminClassesWorkspace = async (): Promise<AdminClassesWorkspace> => {
+  const response = await requestApi('/api/admin/classes')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const createAdminClass = (classRecord: Omit<AdminClass, 'id' | 'status'>) => requestClasses('/api/admin/classes', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(classRecord),
+})
+
+export const updateAdminClass = (classRecord: Omit<AdminClass, 'status'>) => requestClasses(`/api/admin/classes/${classRecord.id}`, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(classRecord),
+})
+
+export const assignAdminClass = (enrollmentId: number, values: Omit<AdminClass, 'id' | 'status' | 'program_id' | 'course_id' | 'published'>) => requestClasses('/api/admin/classes/assign', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ enrollmentId, ...values }),
+})
+
+export const updateAdminClassEnrollment = async (id: number, status: AdminClassEnrollment['status']) => {
+  const response = await requestApi(`/api/admin/classes/enrollments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+}
+
+export const removeAdminClassEnrollment = async (id: number) => {
+  const response = await requestApi(`/api/admin/classes/enrollments/${id}`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+}
+
 export const getAdminUsers = async (): Promise<Array<AdminUser>> => {
   const response = await requestApi('/api/admin/users')
   if (!response.ok) throw new Error(await getErrorMessage(response))

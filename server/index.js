@@ -164,6 +164,26 @@ const initializeDatabase = async () => {
     )
   `
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS classes (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      program_id TEXT NOT NULL CHECK (program_id IN ('international-online-interactive', 'summer-camp', 'ministry-exam-prep')),
+      title TEXT NOT NULL,
+      tutor_id BIGINT REFERENCES tutors(id) ON DELETE SET NULL,
+      capacity INTEGER NOT NULL CHECK (capacity > 0),
+      schedule JSONB NOT NULL DEFAULT '{"days": [], "time": "", "flexible": false}'::jsonb,
+      meeting_link TEXT NOT NULL,
+      course_id BIGINT REFERENCES courses(id) ON DELETE SET NULL,
+      price NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (price >= 0),
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('pending_schedule', 'open', 'full', 'closed')),
+      published BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
+  await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_status TEXT CHECK (class_status IN ('enrolled', 'waitlisted'))`
+
   for (const seedTutor of seedTutors) {
     await sql`
       INSERT INTO tutors ${sql(seedTutor)}
@@ -860,6 +880,115 @@ app.delete('/api/admin/courses/:id', requireAdmin, async (request, response) => 
 
   const [deleted] = await sql`DELETE FROM courses WHERE id = ${id} RETURNING id`
   if (!deleted) return response.status(404).json({ message: 'Course not found.' })
+  return response.status(204).end()
+})
+
+const classPrograms = ['international-online-interactive', 'summer-camp', 'ministry-exam-prep']
+const classStatuses = ['pending_schedule', 'open', 'full', 'closed']
+
+const parseClassPayload = (body) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+  const title = typeof body.title === 'string' ? body.title.trim() : ''
+  const programId = body.program_id
+  const tutorId = Number(body.tutor_id)
+  const capacity = Number(body.capacity)
+  const schedule = body.schedule
+  const meetingLink = typeof body.meeting_link === 'string' ? body.meeting_link.trim() : ''
+  const courseId = body.course_id === null ? null : Number(body.course_id)
+  const price = Number(body.price)
+  const published = body.published
+  const validSchedule = schedule && typeof schedule === 'object' && !Array.isArray(schedule) && Array.isArray(schedule.days) && schedule.days.every((day) => typeof day === 'string' && day.length <= 3) && typeof schedule.time === 'string' && typeof schedule.flexible === 'boolean'
+  if (!title || title.length > 200 || !classPrograms.includes(programId) || !Number.isInteger(tutorId) || tutorId < 1 || !Number.isInteger(capacity) || capacity < 1 || !validSchedule || meetingLink.length > 2000 || !meetingLink || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean' || (courseId !== null && (!Number.isInteger(courseId) || courseId < 1))) return null
+  return { program_id: programId, title, tutor_id: tutorId, capacity, schedule: JSON.stringify(schedule), meeting_link: meetingLink, course_id: courseId, price, published }
+}
+
+const classColumns = sql.unsafe(`
+  classes.id::INTEGER AS id,
+  classes.program_id,
+  classes.title,
+  classes.tutor_id::INTEGER AS tutor_id,
+  classes.capacity,
+  classes.schedule,
+  classes.meeting_link,
+  classes.course_id::INTEGER AS course_id,
+  classes.price::FLOAT AS price,
+  classes.status,
+  classes.published
+`)
+
+const readAdminClass = async (id) => {
+  const [classRecord] = await sql`SELECT ${classColumns} FROM classes WHERE classes.id = ${id}`
+  return classRecord ?? null
+}
+
+const refreshClassStatus = async (id) => {
+  const [classRecord] = await sql`SELECT capacity, published, status FROM classes WHERE id = ${id} FOR UPDATE`
+  if (!classRecord) return null
+  const [counts] = await sql`SELECT COUNT(*) FILTER (WHERE class_status = 'enrolled')::INTEGER AS enrolled FROM enrollments WHERE class_id = ${id}`
+  const status = !classRecord.published ? 'closed' : classRecord.status === 'closed' ? 'closed' : counts.enrolled >= classRecord.capacity ? 'full' : 'open'
+  await sql`UPDATE classes SET status = ${status}, updated_at = NOW() WHERE id = ${id}`
+  return readAdminClass(id)
+}
+
+app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
+  const [classes, enrollments, pendingStudents, tutors, courses] = await Promise.all([
+    sql`SELECT ${classColumns} FROM classes WHERE published = true ORDER BY created_at DESC, id DESC`,
+    sql`SELECT enrollments.id::INTEGER AS id, enrollments.class_id::INTEGER AS class_id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, enrollments.class_status AS status FROM enrollments INNER JOIN students ON students.id = enrollments.student_id WHERE enrollments.class_id IS NOT NULL ORDER BY enrollments.created_at DESC`,
+    sql`SELECT enrollments.id::INTEGER AS id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, NULLIF(regexp_replace(students.age_or_grade, '\\D', '', 'g'), '')::INTEGER AS age FROM enrollments INNER JOIN students ON students.id = enrollments.student_id INNER JOIN payments ON payments.id = enrollments.payment_id INNER JOIN courses ON courses.id = enrollments.course_id WHERE payments.status = 'paid' AND enrollments.class_id IS NULL AND LOWER(courses.category) = 'international online interactive' ORDER BY enrollments.created_at DESC`,
+    sql`SELECT id::INTEGER AS id, name FROM tutors WHERE status = 'Active' ORDER BY name`,
+    sql`SELECT id::INTEGER AS id, title FROM courses ORDER BY title`,
+  ])
+  response.json({ classes, enrollments, pendingStudents, tutors, courses })
+})
+
+app.post('/api/admin/classes', requireAdmin, async (request, response) => {
+  const classPayload = parseClassPayload(request.body)
+  if (!classPayload) return response.status(400).json({ message: 'Enter valid class details.' })
+  const [created] = await sql`INSERT INTO classes ${sql({ ...classPayload, status: classPayload.published ? 'open' : 'closed' })} RETURNING id`
+  return response.status(201).json(await readAdminClass(Number(created.id)))
+})
+
+app.put('/api/admin/classes/:id', requireAdmin, async (request, response) => {
+  const id = parseCourseId(request.params.id)
+  const classPayload = parseClassPayload(request.body)
+  if (id === null || !classPayload) return response.status(400).json({ message: 'Enter valid class details.' })
+  const [updated] = await sql`UPDATE classes SET ${sql(classPayload)}, updated_at = NOW() WHERE id = ${id} RETURNING id`
+  if (!updated) return response.status(404).json({ message: 'Class not found.' })
+  return response.json(await refreshClassStatus(id))
+})
+
+app.post('/api/admin/classes/assign', requireAdmin, async (request, response) => {
+  const enrollmentId = parseCourseId(String(request.body?.enrollmentId ?? ''))
+  const classPayload = parseClassPayload({ ...request.body, program_id: 'international-online-interactive', title: request.body?.title, price: request.body?.price ?? 0, published: true, course_id: null })
+  if (enrollmentId === null || !classPayload) return response.status(400).json({ message: 'Enter valid class assignment details.' })
+  const created = await sql.begin(async (transaction) => {
+    const [enrollment] = await transaction`SELECT id FROM enrollments WHERE id = ${enrollmentId} AND class_id IS NULL FOR UPDATE`
+    if (!enrollment) return null
+    const [newClass] = await transaction`INSERT INTO classes ${transaction({ ...classPayload, status: 'open' })} RETURNING id`
+    await transaction`UPDATE enrollments SET class_id = ${newClass.id}, class_status = 'enrolled' WHERE id = ${enrollmentId}`
+    await transaction`UPDATE classes SET status = CASE WHEN capacity <= 1 THEN 'full' ELSE 'open' END WHERE id = ${newClass.id}`
+    return newClass
+  })
+  if (!created) return response.status(404).json({ message: 'Pending enrollment not found.' })
+  return response.status(201).json(await readAdminClass(Number(created.id)))
+})
+
+app.patch('/api/admin/classes/enrollments/:id', requireAdmin, async (request, response) => {
+  const id = parseCourseId(request.params.id)
+  const status = request.body?.status
+  if (id === null || !['enrolled', 'waitlisted'].includes(status)) return response.status(400).json({ message: 'Enter a valid enrollment status.' })
+  const [enrollment] = await sql`UPDATE enrollments SET class_status = ${status} WHERE id = ${id} AND class_id IS NOT NULL RETURNING class_id`
+  if (!enrollment) return response.status(404).json({ message: 'Class enrollment not found.' })
+  await refreshClassStatus(Number(enrollment.class_id))
+  return response.status(204).end()
+})
+
+app.delete('/api/admin/classes/enrollments/:id', requireAdmin, async (request, response) => {
+  const id = parseCourseId(request.params.id)
+  if (id === null) return response.status(400).json({ message: 'Invalid enrollment id.' })
+  const [enrollment] = await sql`UPDATE enrollments SET class_id = NULL, class_status = NULL WHERE id = ${id} AND class_id IS NOT NULL RETURNING class_id`
+  if (!enrollment) return response.status(404).json({ message: 'Class enrollment not found.' })
+  await refreshClassStatus(Number(enrollment.class_id))
   return response.status(204).end()
 })
 

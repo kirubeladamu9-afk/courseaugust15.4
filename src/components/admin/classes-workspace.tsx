@@ -32,6 +32,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { type FC, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
+import { assignAdminClass, createAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 
 type ProgramId = 'international-online-interactive' | 'summer-camp' | 'ministry-exam-prep'
@@ -71,7 +72,7 @@ interface PendingStudent {
   id: number
   student_name: string
   enrolled_date: string
-  age: number
+  age: number | null
 }
 
 interface TutorOption {
@@ -112,88 +113,8 @@ const programLabels: Record<ProgramId, string> = {
 const manageablePrograms: ProgramId[] = ['summer-camp', 'ministry-exam-prep']
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-const tutors: TutorOption[] = [
-  { id: 1, name: 'Maya Chen' },
-  { id: 2, name: 'Leon Kennedy' },
-  { id: 3, name: 'Jhon Dwirian' },
-  { id: 4, name: 'Rizki Known' },
-]
-
-const linkedCourses: CourseOption[] = [
-  { id: 101, title: 'Foundations of Ministry Examination' },
-  { id: 102, title: 'Ministry Exam Practice Sessions' },
-  { id: 103, title: 'Summer Discovery Lab' },
-]
-
-const initialClasses: AdminClass[] = [
-  {
-    id: 1,
-    program_id: 'international-online-interactive',
-    title: 'International Interactive · Evening A',
-    tutor_id: 1,
-    capacity: 8,
-    schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false },
-    meeting_link: 'https://meet.example.com/international-evening-a',
-    course_id: null,
-    price: 120,
-    status: 'open',
-    published: true,
-  },
-  {
-    id: 2,
-    program_id: 'summer-camp',
-    title: 'Summer Camp · Junior Explorers',
-    tutor_id: 4,
-    capacity: 12,
-    schedule: { days: ['Tue', 'Thu'], time: '10:00', flexible: false },
-    meeting_link: 'https://meet.example.com/junior-explorers',
-    course_id: 103,
-    price: 85,
-    status: 'open',
-    published: true,
-  },
-  {
-    id: 3,
-    program_id: 'ministry-exam-prep',
-    title: 'Ministry Exam Prep · May Cohort',
-    tutor_id: 2,
-    capacity: 2,
-    schedule: { days: ['Sat'], time: '09:30', flexible: false },
-    meeting_link: 'https://meet.example.com/ministry-may',
-    course_id: 101,
-    price: 150,
-    status: 'full',
-    published: true,
-  },
-  {
-    id: 4,
-    program_id: 'summer-camp',
-    title: 'Summer Camp · Creative Studio',
-    tutor_id: 3,
-    capacity: 10,
-    schedule: { days: ['Fri'], time: '14:00', flexible: false },
-    meeting_link: 'https://meet.example.com/creative-studio',
-    course_id: null,
-    price: 75,
-    status: 'closed',
-    published: true,
-  },
-]
-
-const initialEnrollments: ClassEnrollment[] = [
-  { id: 1, class_id: 1, student_name: 'Noah Williams', enrolled_date: 'May 3, 2026', status: 'enrolled' },
-  { id: 2, class_id: 1, student_name: 'Priya Shah', enrolled_date: 'May 5, 2026', status: 'enrolled' },
-  { id: 3, class_id: 2, student_name: 'Emma Davis', enrolled_date: 'May 1, 2026', status: 'enrolled' },
-  { id: 4, class_id: 3, student_name: 'Liam Brown', enrolled_date: 'Apr 22, 2026', status: 'enrolled' },
-  { id: 5, class_id: 3, student_name: 'Ava Johnson', enrolled_date: 'Apr 24, 2026', status: 'enrolled' },
-  { id: 6, class_id: 3, student_name: 'Sofia Martinez', enrolled_date: 'Apr 28, 2026', status: 'waitlisted' },
-]
-
-const initialPendingStudents: PendingStudent[] = [
-  { id: 1, student_name: 'Daniel Okafor', enrolled_date: 'May 8, 2026', age: 14 },
-  { id: 2, student_name: 'Hana Tesfaye', enrolled_date: 'May 7, 2026', age: 12 },
-  { id: 3, student_name: 'Samuel Brooks', enrolled_date: 'May 6, 2026', age: 16 },
-]
+let tutors: TutorOption[] = []
+let linkedCourses: CourseOption[] = []
 
 const formatTime = (time: string) => {
   if (!time) return 'Time to be confirmed'
@@ -364,74 +285,81 @@ interface ClassesWorkspaceProps {
 }
 
 const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
-  const [classes, setClasses] = useState<AdminClass[]>(initialClasses)
-  const [classEnrollments, setClassEnrollments] = useState<ClassEnrollment[]>(initialEnrollments)
-  const [pendingStudents, setPendingStudents] = useState<PendingStudent[]>(initialPendingStudents)
+  const [classes, setClasses] = useState<AdminClass[]>([])
+  const [classEnrollments, setClassEnrollments] = useState<ClassEnrollment[]>([])
+  const [pendingStudents, setPendingStudents] = useState<PendingStudent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [assignmentStudent, setAssignmentStudent] = useState<PendingStudent | null>(null)
   const [editingClassId, setEditingClassId] = useState<number | null>(null)
 
-  const enrolledCount = (targetClassId: number, enrollments = classEnrollments) => enrollments.filter((enrollment) => enrollment.class_id === targetClassId && enrollment.status === 'enrolled').length
-  const updateCapacityStatus = (targetClassId: number, enrollments = classEnrollments) => {
-    setClasses((currentClasses) => currentClasses.map((classRecord) => {
-      if (classRecord.id !== targetClassId || classRecord.status === 'closed') return classRecord
-      const status: ClassStatus = enrolledCount(targetClassId, enrollments) >= classRecord.capacity ? 'full' : 'open'
-      return { ...classRecord, status }
-    }))
-  }
-
-  const handleAssignStudent = (student: PendingStudent, values: PendingAssignmentValue) => {
-    const nextClassId = Math.max(0, ...classes.map((classRecord) => classRecord.id)) + 1
-    const nextEnrollmentId = Math.max(0, ...classEnrollments.map((enrollment) => enrollment.id)) + 1
-    const classRecord: AdminClass = {
-      id: nextClassId,
-      program_id: 'international-online-interactive',
-      title: `International Interactive · ${student.student_name}`,
-      tutor_id: values.tutor_id,
-      capacity: values.capacity,
-      schedule: { ...values.schedule, days: [...values.schedule.days] },
-      meeting_link: values.meeting_link.trim(),
-      course_id: null,
-      price: 120,
-      status: 'open',
-      published: true,
+  const loadWorkspace = async () => {
+    setIsLoading(true)
+    try {
+      const workspace = await getAdminClassesWorkspace()
+      tutors = workspace.tutors
+      linkedCourses = workspace.courses
+      setClasses(workspace.classes)
+      setClassEnrollments(workspace.enrollments)
+      setPendingStudents(workspace.pendingStudents)
+    } catch (error) {
+      toast.add({ title: 'Unable to load classes', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    } finally {
+      setIsLoading(false)
     }
-    const enrollment: ClassEnrollment = { id: nextEnrollmentId, class_id: nextClassId, student_name: student.student_name, enrolled_date: student.enrolled_date, status: 'enrolled' }
-    const nextEnrollments = [...classEnrollments, enrollment]
-    setClasses([...classes, { ...classRecord, status: values.capacity === 1 ? 'full' : 'open' }])
-    setClassEnrollments(nextEnrollments)
-    setPendingStudents((students) => students.filter((pendingStudent) => pendingStudent.id !== student.id))
-    setAssignmentStudent(null)
-    toast.add({ title: 'Class created', description: `${student.student_name} has been added to the new class roster.`, type: 'success' })
-    navigateTo(`/admin/classes/${nextClassId}`)
   }
 
-  const handleSaveClass = (values: ClassFormValue) => {
+  useEffect(() => { void loadWorkspace() }, [])
+
+  const enrolledCount = (targetClassId: number, enrollments = classEnrollments) => enrollments.filter((enrollment) => enrollment.class_id === targetClassId && enrollment.status === 'enrolled').length
+
+  const handleAssignStudent = async (student: PendingStudent, values: PendingAssignmentValue) => {
+    try {
+      const classRecord = await assignAdminClass(student.id, { title: `International Interactive · ${student.student_name}`, tutor_id: values.tutor_id, capacity: values.capacity, schedule: values.schedule, meeting_link: values.meeting_link.trim(), price: 0 })
+      setAssignmentStudent(null)
+      await loadWorkspace()
+      toast.add({ title: 'Class created', description: `${student.student_name} has been added to the new class roster.`, type: 'success' })
+      navigateTo(`/admin/classes/${classRecord.id}`)
+    } catch (error) {
+      toast.add({ title: 'Unable to create class', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
+  }
+
+  const handleSaveClass = async (values: ClassFormValue) => {
     const editingClass = classes.find((classRecord) => classRecord.id === editingClassId)
-    const nextClassId = editingClass?.id ?? Math.max(0, ...classes.map((classRecord) => classRecord.id)) + 1
-    const enrollmentTotal = enrolledCount(nextClassId)
-    const status: ClassStatus = values.published ? (editingClass?.status === 'closed' ? 'closed' : enrollmentTotal >= values.capacity ? 'full' : 'open') : 'closed'
-    const nextClass: AdminClass = { id: nextClassId, ...values, title: values.title.trim(), meeting_link: values.meeting_link.trim(), schedule: { ...values.schedule, days: [...values.schedule.days] }, status }
-    setClasses((currentClasses) => editingClass ? currentClasses.map((classRecord) => classRecord.id === editingClass.id ? nextClass : classRecord) : [...currentClasses, nextClass])
-    setEditingClassId(null)
-    toast.add({ title: editingClass ? 'Class saved' : 'Class created', description: `${nextClass.title} is ready to manage.`, type: 'success' })
-    navigateTo(`/admin/classes/${nextClassId}`)
+    try {
+      const classRecord = editingClass
+        ? await updateAdminClass({ ...editingClass, ...values, title: values.title.trim(), meeting_link: values.meeting_link.trim() })
+        : await createAdminClass({ ...values, title: values.title.trim(), meeting_link: values.meeting_link.trim() })
+      setEditingClassId(null)
+      await loadWorkspace()
+      toast.add({ title: editingClass ? 'Class saved' : 'Class created', description: `${classRecord.title} is ready to manage.`, type: 'success' })
+      navigateTo(`/admin/classes/${classRecord.id}`)
+    } catch (error) {
+      toast.add({ title: 'Unable to save class', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
   }
 
-  const handleRemoveEnrollment = (enrollment: ClassEnrollment) => {
+  const handleRemoveEnrollment = async (enrollment: ClassEnrollment) => {
     if (!window.confirm(`Remove ${enrollment.student_name} from this class roster?`)) return
-    const nextEnrollments = classEnrollments.filter((currentEnrollment) => currentEnrollment.id !== enrollment.id)
-    setClassEnrollments(nextEnrollments)
-    updateCapacityStatus(enrollment.class_id, nextEnrollments)
-    toast.add({ title: 'Student removed', description: `${enrollment.student_name} has been removed from the roster.`, type: 'success' })
+    try {
+      await removeAdminClassEnrollment(enrollment.id)
+      await loadWorkspace()
+      toast.add({ title: 'Student removed', description: `${enrollment.student_name} has been removed from the roster.`, type: 'success' })
+    } catch (error) {
+      toast.add({ title: 'Unable to remove student', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
   }
 
-  const handlePromoteEnrollment = (enrollment: ClassEnrollment) => {
+  const handlePromoteEnrollment = async (enrollment: ClassEnrollment) => {
     const classRecord = classes.find((currentClass) => currentClass.id === enrollment.class_id)
     if (!classRecord || enrolledCount(classRecord.id) >= classRecord.capacity) return
-    const nextEnrollments = classEnrollments.map((currentEnrollment) => currentEnrollment.id === enrollment.id ? { ...currentEnrollment, status: 'enrolled' as const } : currentEnrollment)
-    setClassEnrollments(nextEnrollments)
-    updateCapacityStatus(classRecord.id, nextEnrollments)
-    toast.add({ title: 'Student promoted', description: `${enrollment.student_name} has been moved to the class roster.`, type: 'success' })
+    try {
+      await updateAdminClassEnrollment(enrollment.id, 'enrolled')
+      await loadWorkspace()
+      toast.add({ title: 'Student promoted', description: `${enrollment.student_name} has been moved to the class roster.`, type: 'success' })
+    } catch (error) {
+      toast.add({ title: 'Unable to promote student', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
   }
 
   const activeClasses = useMemo(() => classes.filter((classRecord) => classRecord.published), [classes])
