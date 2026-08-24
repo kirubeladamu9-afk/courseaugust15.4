@@ -64,6 +64,7 @@ const initializeDatabase = async () => {
     CREATE TABLE IF NOT EXISTS users (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       name TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'student',
@@ -73,6 +74,7 @@ const initializeDatabase = async () => {
   `
 
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT ''`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Active'`
 
   await sql`
@@ -82,6 +84,21 @@ const initializeDatabase = async () => {
       expires_at TIMESTAMPTZ NOT NULL
     )
   `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS students (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      full_name TEXT NOT NULL,
+      age_or_grade TEXT NOT NULL,
+      relationship TEXT NOT NULL CHECK (relationship IN ('Parent', 'Guardian', 'Self')),
+      preferred_language TEXT NOT NULL,
+      emergency_phone TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+
 
   await sql`
     CREATE TABLE IF NOT EXISTS courses (
@@ -120,6 +137,32 @@ const initializeDatabase = async () => {
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate BOOLEAN NOT NULL DEFAULT false`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS modules JSONB NOT NULL DEFAULT '[]'::jsonb`
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS payments (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      reference TEXT NOT NULL UNIQUE,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,
+      student_data JSONB NOT NULL,
+      amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      paid_at TIMESTAMPTZ
+    )
+  `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS enrollments (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,
+      payment_id BIGINT NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (student_id, course_id, payment_id)
+    )
+  `
 
   for (const seedTutor of seedTutors) {
     await sql`
@@ -254,19 +297,29 @@ const getSessionToken = (request) => {
   return bearerToken ?? cookieToken
 }
 
-const requireAdmin = async (request, response, next) => {
+const requireAuthenticated = async (request, response, next) => {
   const sessionToken = getSessionToken(request)
-  if (!sessionToken) return response.status(401).json({ message: 'Admin authentication is required.' })
+  if (!sessionToken) return response.status(401).json({ message: 'Authentication is required.' })
 
   const [session] = await sql`
-    SELECT auth_sessions.token, users.role
+    SELECT auth_sessions.user_id AS "userId", users.role
     FROM auth_sessions
     INNER JOIN users ON users.id = auth_sessions.user_id
     WHERE auth_sessions.token = ${sessionToken}
       AND auth_sessions.expires_at > NOW()
+      AND users.status = 'Active'
   `
-  if (!session || session.role !== 'admin') return response.status(401).json({ message: 'Admin authentication is required.' })
+  if (!session) return response.status(401).json({ message: 'Authentication is required.' })
+  request.userId = Number(session.userId)
+  request.userRole = session.role
   return next()
+}
+
+const requireAdmin = async (request, response, next) => {
+  await requireAuthenticated(request, response, () => {
+    if (request.userRole !== 'admin') return response.status(401).json({ message: 'Admin authentication is required.' })
+    return next()
+  })
 }
 
 const isValidCourseCover = (cover) => cover.length <= 10 * 1024 * 1024 && (cover.startsWith('/') || /^https?:\/\//i.test(cover) || /^data:image\/(?:avif|gif|jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(cover))
@@ -324,6 +377,78 @@ const readCourse = async (id, publishedOnly = false) => {
   return deserializeCourse(course)
 }
 
+const parseEnrollmentStudents = (value) => {
+  if (!Array.isArray(value) || !value.length || value.length > 10) return null
+  const students = value.map((student) => {
+    if (!student || typeof student !== 'object' || Array.isArray(student)) return null
+    const fullName = typeof student.fullName === 'string' ? student.fullName.trim() : ''
+    const ageOrGrade = typeof student.ageOrGrade === 'string' ? student.ageOrGrade.trim() : ''
+    const relationship = student.relationship
+    const preferredLanguage = typeof student.preferredLanguage === 'string' ? student.preferredLanguage.trim() : ''
+    const emergencyPhone = typeof student.emergencyPhone === 'string' ? student.emergencyPhone.trim() : ''
+    const notes = typeof student.notes === 'string' ? student.notes.trim() : ''
+    if (!fullName || fullName.length > 120 || !ageOrGrade || ageOrGrade.length > 80 || !['Parent', 'Guardian', 'Self'].includes(relationship) || !preferredLanguage || preferredLanguage.length > 80 || emergencyPhone.length > 50 || notes.length > 1000) return null
+    return { fullName, ageOrGrade, relationship, preferredLanguage, emergencyPhone, notes }
+  })
+  return students.every(Boolean) ? students : null
+}
+
+const getChapaStatus = (verification) => {
+  const status = String(verification?.data?.status ?? verification?.status ?? '').toLowerCase()
+  if (['success', 'paid', 'completed'].includes(status)) return 'paid'
+  if (['failed', 'cancelled', 'canceled', 'expired'].includes(status)) return 'failed'
+  return 'pending'
+}
+
+const verifyChapaTransaction = async (reference) => {
+  const secretKey = process.env.CHAPA_SECRET_KEY
+  if (!secretKey) throw new Error('Chapa checkout has not been configured.')
+  const response = await fetch(`https://api.chapa.global/v2/payments/${encodeURIComponent(reference)}/verify`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  })
+  if (!response.ok) throw new Error('Chapa could not verify this payment.')
+  return getChapaStatus(await response.json())
+}
+
+const updatePaymentStatus = async (reference, status) => sql.begin(async (transaction) => {
+  const [payment] = await transaction`
+    SELECT id, user_id AS "userId", course_id AS "courseId", student_data AS "studentData", status
+    FROM payments
+    WHERE reference = ${reference}
+    FOR UPDATE
+  `
+  if (!payment || payment.status === status || payment.status === 'paid') return payment?.status ?? null
+
+  await transaction`
+    UPDATE payments
+    SET status = ${status}, paid_at = ${status === 'paid' ? new Date() : null}
+    WHERE id = ${payment.id}
+  `
+  if (status !== 'paid') return status
+
+  const students = typeof payment.studentData === 'string' ? JSON.parse(payment.studentData) : payment.studentData
+  for (const student of students) {
+    const [savedStudent] = await transaction`
+      INSERT INTO students ${transaction({
+        user_id: payment.userId,
+        full_name: student.fullName,
+        age_or_grade: student.ageOrGrade,
+        relationship: student.relationship,
+        preferred_language: student.preferredLanguage,
+        emergency_phone: student.emergencyPhone,
+        notes: student.notes,
+      })}
+      RETURNING id
+    `
+    await transaction`
+      INSERT INTO enrollments ${transaction({ user_id: payment.userId, student_id: savedStudent.id, course_id: payment.courseId, payment_id: payment.id })}
+      ON CONFLICT (student_id, course_id, payment_id) DO NOTHING
+    `
+  }
+  await transaction`UPDATE courses SET students = students + ${students.length} WHERE id = ${payment.courseId}`
+  return 'paid'
+})
+
 app.use(express.json({ limit: '10mb' }))
 
 app.get('/api/health', async (_request, response) => {
@@ -348,6 +473,122 @@ app.get('/api/courses/:id', async (request, response) => {
   const course = await readCourse(id, true)
   if (!course) return response.status(404).json({ message: 'Course not found.' })
   return response.json(course)
+})
+
+app.get('/api/students', requireAuthenticated, async (request, response) => {
+  const students = await sql`
+    SELECT id::INTEGER AS id,
+           full_name AS "fullName",
+           age_or_grade AS "ageOrGrade",
+           relationship,
+           preferred_language AS "preferredLanguage",
+           emergency_phone AS "emergencyPhone",
+           notes
+    FROM students
+    WHERE user_id = ${request.userId}
+    ORDER BY created_at DESC
+  `
+  response.json(students)
+})
+
+app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
+  const enrollments = await sql`
+    SELECT enrollments.id::INTEGER AS id,
+           courses.id::INTEGER AS "courseId",
+           courses.title AS "courseTitle",
+           courses.cover AS "courseCover",
+           students.full_name AS "studentName"
+    FROM enrollments
+    INNER JOIN courses ON courses.id = enrollments.course_id
+    INNER JOIN students ON students.id = enrollments.student_id
+    WHERE enrollments.user_id = ${request.userId}
+    ORDER BY enrollments.created_at DESC
+  `
+  response.json(enrollments)
+})
+
+app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
+  const courseId = parseCourseId(String(request.body?.courseId ?? ''))
+  const students = parseEnrollmentStudents(request.body?.students)
+  if (courseId === null || !students) return response.status(400).json({ message: 'Enter valid enrollment details.' })
+  if (!process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
+
+  const [course] = await sql`
+    SELECT courses.id, courses.title, courses.price::FLOAT AS price, users.name, users.email, users.phone
+    FROM courses
+    INNER JOIN users ON users.id = ${request.userId}
+    WHERE courses.id = ${courseId}
+      AND courses.status = 'Published'
+  `
+  if (!course) return response.status(404).json({ message: 'This course is not available for enrollment.' })
+
+  const reference = `course-${course.id}-${randomBytes(12).toString('hex')}`
+  const amount = course.price * students.length
+  const [payment] = await sql`
+    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course.id, student_data: JSON.stringify(students), amount })}
+    RETURNING id
+  `
+
+  const baseUrl = process.env.APP_URL ?? `${request.protocol}://${request.get('host')}`
+  const nameParts = course.name.trim().split(/\s+/)
+  try {
+    const chapaResponse = await fetch('https://api.chapa.global/v2/payments/hosted', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount,
+        currency: process.env.CHAPA_CURRENCY ?? 'ETB',
+        customer: {
+          first_name: nameParts[0] || 'Student',
+          last_name: nameParts.slice(1).join(' '),
+          email: course.email,
+          phone_number: course.phone || undefined,
+        },
+        meta: { order_id: reference, course_id: course.id },
+        return_url: `${baseUrl}/courses/${course.id}?payment=${reference}`,
+        callback_url: `${baseUrl}/api/payments/chapa/webhook`,
+      }),
+    })
+    const chapaPayment = await chapaResponse.json().catch(() => null)
+    const checkoutUrl = chapaPayment?.data?.checkout_url
+    if (!chapaResponse.ok || typeof checkoutUrl !== 'string') throw new Error('Chapa did not return a checkout link.')
+    return response.status(201).json({ checkoutUrl })
+  } catch (error) {
+    await sql`UPDATE payments SET status = 'failed' WHERE id = ${payment.id}`
+    throw error
+  }
+})
+
+app.get('/api/payments/chapa/:reference', requireAuthenticated, async (request, response) => {
+  const reference = request.params.reference
+  const [payment] = await sql`
+    SELECT status
+    FROM payments
+    WHERE reference = ${reference}
+      AND user_id = ${request.userId}
+  `
+  if (!payment) return response.status(404).json({ message: 'Payment not found.' })
+  if (payment.status === 'pending') {
+    const status = await verifyChapaTransaction(reference)
+    if (status !== 'pending') await updatePaymentStatus(reference, status)
+    return response.json({ status })
+  }
+  return response.json({ status: payment.status })
+})
+
+app.post('/api/payments/chapa/webhook', async (request, response, next) => {
+  const reference = request.body?.tx_ref ?? request.body?.data?.tx_ref ?? request.body?.meta?.order_id
+  if (typeof reference !== 'string' || reference.length > 200) return response.status(400).json({ message: 'Invalid payment reference.' })
+  try {
+    const status = await verifyChapaTransaction(reference)
+    if (status !== 'pending') await updatePaymentStatus(reference, status)
+    return response.status(204).end()
+  } catch (error) {
+    return next(error)
+  }
 })
 
 app.get('/api/admin/overview', requireAdmin, async (_request, response) => {
@@ -616,9 +857,9 @@ app.delete('/api/admin/courses/:id', requireAdmin, async (request, response) => 
 })
 
 app.post('/api/auth/sign-up', async (request, response) => {
-  const { email, password } = request.body ?? {}
-  if (!isValidCredentials(email, password)) {
-    return response.status(400).json({ message: 'Enter a valid email and a password between 8 and 128 characters.' })
+  const { email, password, name, phone } = request.body ?? {}
+  if (!isValidCredentials(email, password) || typeof name !== 'string' || !name.trim() || name.trim().length > 120 || typeof phone !== 'string' || !phone.trim() || phone.trim().length > 50) {
+    return response.status(400).json({ message: 'Enter your full name, phone number, valid email, and a password between 8 and 128 characters.' })
   }
 
   const normalizedEmail = email.trim().toLowerCase()
@@ -626,7 +867,7 @@ app.post('/api/auth/sign-up', async (request, response) => {
 
   try {
     const [user] = await sql`
-      INSERT INTO users ${sql({ email: normalizedEmail, password_hash: passwordHash })}
+      INSERT INTO users ${sql({ name: name.trim(), phone: phone.trim(), email: normalizedEmail, password_hash: passwordHash })}
       RETURNING id, email, role, created_at AS "createdAt"
     `
     return response.status(201).json({ user })

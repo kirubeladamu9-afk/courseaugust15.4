@@ -17,6 +17,7 @@ import Typography from '@mui/material/Typography'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
 import { type FC, useEffect, useState } from 'react'
 import { type AdminCourse, type AdminLesson } from '@/components/admin/admin-data'
+import EnrollmentModal from '@/components/course/enrollment-modal'
 import { getAuthenticatedUser, getAdminCourse, getCourse as getCourseFromApi } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
@@ -43,7 +44,9 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   const [course, setCourse] = useState<AdminCourse | null>(null)
   const [expandedModules, setExpandedModules] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isEnrollmentOpen, setIsEnrollmentOpen] = useState(false)
   const isAdmin = getAuthenticatedUser()?.role === 'admin'
+  const paymentReference = new URLSearchParams(window.location.search).get('payment')
 
   useEffect(() => {
     let isCurrent = true
@@ -117,7 +120,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
         <Grid item xs={12} md={4}>
           <Card elevation={2} sx={{ position: { md: 'sticky' }, top: { md: 24 }, p: { xs: 2.5, md: 3 }, borderRadius: 3 }}>
             <Typography variant="h3" sx={{ mb: 2 }}>${course.price}</Typography>
-            <Button fullWidth variant="contained" size="large" onClick={() => document.getElementById('course-content')?.scrollIntoView({ behavior: 'smooth' })}>ENROLL NOW</Button>
+            <Button fullWidth variant="contained" size="large" onClick={() => setIsEnrollmentOpen(true)}>ENROLL NOW</Button>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1.5 }}>Full lifetime access</Typography>
             <Divider sx={{ my: 2.5 }} />
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>This course includes</Typography>
@@ -148,6 +151,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
         </Grid>
       </Grid>
     </Container>
+    <EnrollmentModal course={course} open={isEnrollmentOpen} paymentReference={paymentReference} onClose={() => setIsEnrollmentOpen(false)} />
   </Box>
 }
 

@@ -1,4 +1,5 @@
 import { type AdminCourse, type AdminTutor, type AdminUser } from '@/components/admin/admin-data'
+import { type AdminCourse } from '@/components/admin/admin-data'
 import { type Course } from '@/interfaces/course'
 
 export interface AuthUser {
@@ -11,6 +12,36 @@ export interface AuthUser {
 interface AuthResponse {
   user: AuthUser
   sessionToken?: string
+}
+
+interface AccountDetails {
+  name: string
+  phone: string
+}
+
+export interface EnrollmentStudent {
+  fullName: string
+  ageOrGrade: string
+  relationship: 'Parent' | 'Guardian' | 'Self'
+  preferredLanguage: string
+  emergencyPhone?: string
+  notes?: string
+}
+
+export interface SavedStudent extends EnrollmentStudent {
+  id: number
+}
+
+interface PaymentStatus {
+  status: 'pending' | 'paid' | 'failed'
+}
+
+export interface MyEnrollment {
+  id: number
+  courseId: number
+  courseTitle: string
+  courseCover: string
+  studentName: string
 }
 
 const authStorageKey = 'coursespace-auth-user'
@@ -149,11 +180,11 @@ export const resetAdminUserPassword = async (accountType: AdminUser['accountType
 
 export const getCourse = async (id: Course['id']): Promise<AdminCourse> => requestCourse(`/api/courses/${id}`)
 
-export const submitCredentials = async (mode: 'sign-in' | 'sign-up', email: string, password: string): Promise<AuthResponse> => {
+export const submitCredentials = async (mode: 'sign-in' | 'sign-up', email: string, password: string, accountDetails?: AccountDetails): Promise<AuthResponse> => {
   const response = await fetch(`/api/auth/${mode}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, ...accountDetails }),
   })
 
   if (!response.ok) throw new Error(await getErrorMessage(response))
@@ -180,6 +211,34 @@ export const getAuthenticatedUser = (): AuthUser | null => {
 export const clearAuthenticatedUser = () => {
   sessionStorage.removeItem(authStorageKey)
   sessionStorage.removeItem(authSessionTokenKey)
+}
+
+export const getSavedStudents = async (): Promise<SavedStudent[]> => {
+  const response = await requestApi('/api/students')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const createChapaCheckout = async (courseId: AdminCourse['id'], students: EnrollmentStudent[]): Promise<{ checkoutUrl: string }> => {
+  const response = await requestApi('/api/payments/chapa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId, students }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const verifyChapaPayment = async (reference: string): Promise<PaymentStatus> => {
+  const response = await requestApi(`/api/payments/chapa/${encodeURIComponent(reference)}`)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getMyEnrollments = async (): Promise<MyEnrollment[]> => {
+  const response = await requestApi('/api/enrollments')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
 }
 
 export const signOut = async () => {
