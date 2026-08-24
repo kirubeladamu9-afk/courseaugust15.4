@@ -3,6 +3,7 @@ import { type Course } from '@/interfaces/course'
 
 export interface AuthUser {
   id: number | string
+  name?: string
   email: string
   role: string
   createdAt: string

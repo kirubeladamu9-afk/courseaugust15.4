@@ -1,4 +1,5 @@
 import { useMemo, type FC, type ReactNode } from 'react'
+import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import Accordion from '@mui/material/Accordion'
@@ -6,15 +7,11 @@ import AccordionDetails from '@mui/material/AccordionDetails'
 import AccordionSummary from '@mui/material/AccordionSummary'
 import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
-import Dialog from '@mui/material/Dialog'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
 import Drawer from '@mui/material/Drawer'
 import FormControl from '@mui/material/FormControl'
 import IconButton from '@mui/material/IconButton'
 import InputLabel from '@mui/material/InputLabel'
 import LinearProgress from '@mui/material/LinearProgress'
-import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
@@ -26,6 +23,7 @@ import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
+import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
@@ -46,6 +44,7 @@ import BlockIcon from '@mui/icons-material/Block'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
+import MailOutlineIcon from '@mui/icons-material/MailOutline'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
@@ -63,8 +62,9 @@ import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
+import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
-import { type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus } from '@/services/api'
+import { type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
@@ -962,6 +962,81 @@ interface AdminDashboardProps {
   onToggleDarkMode: () => void
 }
 
+const ProfileDetail: FC<{ icon: ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 2, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, flexShrink: 0, borderRadius: 1.5, backgroundColor: 'action.hover', color: 'primary.main' }}>{icon}</Box>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="overline" color="text.secondary">{label}</Typography>
+      <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</Typography>
+    </Box>
+  </Box>
+)
+
+const AdminProfilePage: FC<{ user: AuthUser | null; onSignOut: () => void }> = ({ user, onSignOut }) => {
+  const displayName = user?.name || 'Admin User'
+  const email = user?.email || 'Administrator account'
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'Not available'
+  const initials = displayName.split(/\\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+
+  return (
+    <>
+      <PageHeading
+        title="Admin profile"
+        description="Review your account details and workspace access."
+        action={<StyledButton variant="outlined" onClick={() => navigateTo('/admin')}>Back to dashboard</StyledButton>}
+      />
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(280px, 0.8fr) minmax(0, 1.2fr)' }, gap: 3 }}>
+        <Paper elevation={0} sx={{ overflow: 'hidden', border: 1, borderColor: 'divider', borderRadius: 2 }}>
+          <Box sx={{ p: { xs: 3, md: 4 }, backgroundColor: 'primary.main', color: 'primary.contrastText' }}>
+            <Avatar sx={{ width: 76, height: 76, mb: 2.5, backgroundColor: 'primary.contrastText', color: 'primary.main', fontSize: 28, fontWeight: 700 }}>{initials || 'AU'}</Avatar>
+            <Typography variant="h4" sx={{ mb: 0.5, color: 'inherit' }}>{displayName}</Typography>
+            <Typography sx={{ mb: 2, color: 'inherit', opacity: 0.84, overflow: 'hidden', textOverflow: 'ellipsis' }}>{email}</Typography>
+            <Chip label="Administrator" size="small" sx={{ backgroundColor: 'rgba(255, 255, 255, 0.18)', color: 'inherit', fontWeight: 600 }} />
+          </Box>
+          <Box sx={{ p: { xs: 3, md: 4 } }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Workspace access</Typography>
+            <Typography variant="body2" color="text.secondary">You have full access to Coursespace administration, reporting, and content management.</Typography>
+            <Box sx={{ mt: 3, '& button': { width: '100%', justifyContent: 'center' } }}>
+              <StyledButton variant="outlined" startIcon={<LogoutIcon />} onClick={onSignOut}>Sign out</StyledButton>
+            </Box>
+          </Box>
+        </Paper>
+        <Stack spacing={3}>
+          <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+            <Typography variant="h5" sx={{ mb: 0.5 }}>Account details</Typography>
+            <Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>Your administrator account information.</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>
+              <ProfileDetail icon={<AccountCircleOutlinedIcon fontSize="small" />} label="Name" value={displayName} />
+              <ProfileDetail icon={<MailOutlineIcon fontSize="small" />} label="Email address" value={email} />
+              <ProfileDetail icon={<PersonOutlineIcon fontSize="small" />} label="Role" value="Administrator" />
+              <ProfileDetail icon={<CalendarTodayOutlinedIcon fontSize="small" />} label="Member since" value={memberSince} />
+            </Box>
+          </Paper>
+          <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 1 }}>
+              <Box>
+                <Typography variant="h5" sx={{ mb: 0.5 }}>Security and access</Typography>
+                <Typography color="text.secondary" variant="body2">Your account is protected by authenticated workspace access.</Typography>
+              </Box>
+              <Chip label="Active" color="success" size="small" />
+            </Box>
+            <Divider sx={{ my: 2.5 }} />
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+              <LockResetIcon color="primary" />
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Administrator permissions</Typography>
+                <Typography color="text.secondary" variant="body2">Manage courses, tutors, users, registrations, and payment reports from this workspace.</Typography>
+              </Box>
+            </Box>
+          </Paper>
+        </Stack>
+      </Box>
+    </>
+  )
+}
+
 const getSectionFromPath = (pathname: string): Section => {
   const pathSection = pathname.split('/')[2]
   return navigation.some(({ key }) => key === pathSection) ? (pathSection as Section) : 'overview'
@@ -974,8 +1049,6 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   const [pathname, setPathname] = useState(() => window.location.pathname)
   const [isLoading, setIsLoading] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
-  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
   const adminUser = getAuthenticatedUser()
 
   const selectSection = (next: Section) => {
@@ -1004,6 +1077,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   }, [])
 
   const currentPage = useMemo(() => {
+    if (/^\/admin\/profile\/?$/.test(pathname)) return <AdminProfilePage user={adminUser} onSignOut={handleSignOut} />
+
     switch (section) {
       case 'courses': {
         if (/^\/admin\/courses\/new\/?$/.test(pathname)) return <CourseEditorPage mode="new" />
@@ -1023,7 +1098,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       case 'users': return <UsersPage />
       default: return <OverviewPage />
     }
-  }, [pathname, section])
+  }, [adminUser, pathname, section])
 
   const sidebar = (
     <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column' }}>
@@ -1071,62 +1146,10 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
               </IconButton>
             </Tooltip>
             <Tooltip title="Admin profile">
-              <IconButton
-                id="admin-profile-button"
-                onClick={(event) => setProfileAnchor(event.currentTarget)}
-                aria-label="Open admin profile"
-                aria-controls={profileAnchor ? 'admin-profile-menu' : undefined}
-                aria-haspopup="true"
-                aria-expanded={profileAnchor ? 'true' : undefined}
-              >
+              <IconButton id="admin-profile-button" onClick={() => navigateTo('/admin/profile')} aria-label="Open admin profile">
                 <AccountCircleOutlinedIcon />
               </IconButton>
             </Tooltip>
-            <Menu
-              id="admin-profile-menu"
-              anchorEl={profileAnchor}
-              open={Boolean(profileAnchor)}
-              onClose={() => setProfileAnchor(null)}
-              MenuListProps={{ 'aria-labelledby': 'admin-profile-button' }}
-              PaperProps={{ sx: { minWidth: 260, borderRadius: 2, p: 1 } }}
-            >
-              <Box sx={{ px: 1.5, pt: 1, pb: 1.5 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Admin User</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>{adminUser?.email ?? 'Administrator account'}</Typography>
-                <Chip label="Administrator" color="primary" size="small" />
-              </Box>
-              <Divider sx={{ mb: 1 }} />
-              <MenuItem title="Admin profile" onClick={() => { setProfileAnchor(null); setIsProfileDialogOpen(true) }}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />Admin profile</MenuItem>
-              <MenuItem title="Sign out" onClick={handleSignOut}><LogoutIcon fontSize="small" sx={{ mr: 1 }} />Sign out</MenuItem>
-            </Menu>
-            <Dialog open={isProfileDialogOpen} onClose={() => setIsProfileDialogOpen(false)} fullWidth maxWidth="xs" aria-labelledby="admin-profile-dialog-title">
-              <DialogTitle id="admin-profile-dialog-title" sx={{ pr: 7 }}>
-                Admin profile
-                <IconButton aria-label="Close admin profile" onClick={() => setIsProfileDialogOpen(false)} sx={{ position: 'absolute', top: 12, right: 12 }}>
-                  <CloseIcon />
-                </IconButton>
-              </DialogTitle>
-              <DialogContent dividers>
-                <Stack spacing={2}>
-                  <Box sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.default' }}>
-                    <Typography variant="h6" sx={{ mb: 0.5 }}>Admin User</Typography>
-                    <Typography color="text.secondary">Platform administrator</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="overline" color="text.secondary">Email address</Typography>
-                    <Typography>{adminUser?.email ?? 'Not available'}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="overline" color="text.secondary">Role</Typography>
-                    <Typography>Administrator</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="overline" color="text.secondary">Member since</Typography>
-                    <Typography>{adminUser?.createdAt ? new Date(adminUser.createdAt).toLocaleDateString() : 'Not available'}</Typography>
-                  </Box>
-                </Stack>
-              </DialogContent>
-            </Dialog>
           </Stack>
         </Box>
         <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>

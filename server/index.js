@@ -868,7 +868,7 @@ app.post('/api/auth/sign-up', async (request, response) => {
   try {
     const [user] = await sql`
       INSERT INTO users ${sql({ name: name.trim(), phone: phone.trim(), email: normalizedEmail, password_hash: passwordHash })}
-      RETURNING id, email, role, created_at AS "createdAt"
+      RETURNING id, name, email, role, created_at AS "createdAt"
     `
     const sessionToken = randomBytes(32).toString('hex')
     await sql`
@@ -892,7 +892,7 @@ app.post('/api/auth/sign-in', async (request, response) => {
 
   const normalizedEmail = email.trim().toLowerCase()
   const [user] = await sql`
-    SELECT id, email, password_hash, role, status, created_at AS "createdAt"
+    SELECT id, name, email, password_hash, role, status, created_at AS "createdAt"
     FROM users
     WHERE email = ${normalizedEmail}
   `
