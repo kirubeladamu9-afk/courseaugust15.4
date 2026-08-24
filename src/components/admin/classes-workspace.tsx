@@ -124,7 +124,11 @@ const formatTime = (time: string) => {
   return `${displayHour}:${String(minute).padStart(2, '0')} ${suffix}`
 }
 
-const formatSchedule = (schedule: ClassSchedule) => schedule.flexible ? 'Flexible' : `${schedule.days.join(', ')} · ${formatTime(schedule.time)}`
+const formatSchedule = (schedule?: Partial<ClassSchedule> | null) => {
+  if (!schedule || !Array.isArray(schedule.days)) return 'Schedule to be confirmed'
+  if (schedule.flexible) return 'Flexible'
+  return `${schedule.days.join(', ')} · ${formatTime(schedule.time ?? '')}`
+}
 const tutorName = (tutorId: number) => tutors.find((tutor) => tutor.id === tutorId)?.name ?? 'Unassigned tutor'
 const courseName = (courseId: number | null) => linkedCourses.find((course) => course.id === courseId)?.title ?? 'No linked course'
 

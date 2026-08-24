@@ -1229,7 +1229,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
           </Box>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-              <IconButton title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                 {darkMode ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
               </IconButton>
             </Tooltip>
