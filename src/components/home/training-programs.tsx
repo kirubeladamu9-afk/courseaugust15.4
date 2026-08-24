@@ -1,6 +1,3 @@
-import Accordion from '@mui/material/Accordion'
-import AccordionDetails from '@mui/material/AccordionDetails'
-import AccordionSummary from '@mui/material/AccordionSummary'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
@@ -8,8 +5,11 @@ import CardContent from '@mui/material/CardContent'
 import Container from '@mui/material/Container'
 import Chip from '@mui/material/Chip'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import CloseIcon from '@mui/icons-material/Close'
+import Drawer from '@mui/material/Drawer'
 import Grid from '@mui/material/Grid'
+import IconButton from '@mui/material/IconButton'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import LinearProgress from '@mui/material/LinearProgress'
 import Stack from '@mui/material/Stack'
@@ -125,10 +125,10 @@ const TrainingPrograms: FC = () => {
               <Typography variant="h3" color="primary.main" sx={{ mb: 1.5, fontWeight: 700 }}>From $180<Typography component="span" variant="body2" color="text.secondary"> / package</Typography></Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Make school breaks count with focused, social learning in small live cohorts.</Typography>
               <PackageFeatures items={['Small live learning groups', 'Weekday camp schedules', 'Tutor-led practice and support']} />
-              <Accordion expanded={openProgram === 'summer'} onChange={(_, expanded) => setOpenProgram(expanded ? 'summer' : false)} disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 48 }}><Typography sx={{ fontWeight: 700 }}>View open batches</Typography></AccordionSummary>
-                <AccordionDetails sx={{ px: 0, pt: 0 }}><BatchList batches={summerCampBatches} /></AccordionDetails>
-              </Accordion>
+              <Box component="button" type="button" onClick={() => setOpenProgram(openProgram === 'summer' ? false : 'summer')} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', px: 0, py: 1.5, border: 0, borderTop: 1, borderColor: 'divider', backgroundColor: 'transparent', color: 'text.primary', cursor: 'pointer', font: 'inherit', textAlign: 'left', '&:hover': { color: 'secondary.main' } }}>
+                <Typography sx={{ fontWeight: 700 }}>View open batches</Typography>
+                <ChevronRightIcon color="secondary" />
+              </Box>
             </CardContent>
           </Card>
         </Grid>
@@ -140,20 +140,28 @@ const TrainingPrograms: FC = () => {
               <Typography variant="h3" color="primary.main" sx={{ mb: 1.5, fontWeight: 700 }}>From $220<Typography component="span" variant="body2" color="text.secondary"> / package</Typography></Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Structured revision and exam-focused support aligned to each learner’s grade level.</Typography>
               <PackageFeatures items={['Grade-specific preparation', 'Linked course curriculum', 'Small-group exam support']} />
-              <Accordion expanded={openProgram === 'ministry'} onChange={(_, expanded) => setOpenProgram(expanded ? 'ministry' : false)} disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 48 }}><Typography sx={{ fontWeight: 700 }}>View exam prep batches</Typography></AccordionSummary>
-                <AccordionDetails sx={{ px: 0, pt: 0 }}>
-                  <Tabs value={grade} onChange={(_, value: string) => setGrade(value)} variant="fullWidth" sx={{ mb: 1 }}>
-                    {Object.keys(ministryBatches).map((level) => <Tab key={level} value={level} label={level} />)}
-                  </Tabs>
-                  <BatchList batches={ministryBatches[grade]} />
-                </AccordionDetails>
-              </Accordion>
+              <Box component="button" type="button" onClick={() => setOpenProgram(openProgram === 'ministry' ? false : 'ministry')} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', px: 0, py: 1.5, border: 0, borderTop: 1, borderColor: 'divider', backgroundColor: 'transparent', color: 'text.primary', cursor: 'pointer', font: 'inherit', textAlign: 'left', '&:hover': { color: 'primary.main' } }}>
+                <Typography sx={{ fontWeight: 700 }}>View exam prep batches</Typography>
+                <ChevronRightIcon color="primary" />
+              </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
     </Container>
+    <Drawer anchor="right" open={Boolean(openProgram)} onClose={() => setOpenProgram(false)} PaperProps={{ sx: { width: { xs: '100%', sm: 440 }, p: { xs: 2.5, sm: 3.5 }, backgroundColor: 'background.default' } }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 3 }}>
+        <Box>
+          <Typography variant="overline" color="primary.main" sx={{ letterSpacing: 1.5, fontWeight: 700 }}>Available sessions</Typography>
+          <Typography variant="h5" sx={{ mt: 0.5 }}>{openProgram === 'summer' ? 'Summer Camp Packages' : 'Ministry Exam Prep'}</Typography>
+        </Box>
+        <IconButton aria-label="Close batch panel" title="Close batch panel" onClick={() => setOpenProgram(false)}><CloseIcon /></IconButton>
+      </Box>
+      {openProgram === 'ministry' && <Tabs value={grade} onChange={(_, value: string) => setGrade(value)} variant="fullWidth" sx={{ mb: 1 }}>
+        {Object.keys(ministryBatches).map((level) => <Tab key={level} value={level} label={level} />)}
+      </Tabs>}
+      <BatchList batches={openProgram === 'summer' ? summerCampBatches : ministryBatches[grade]} />
+    </Drawer>
   </Box>
 }
 
