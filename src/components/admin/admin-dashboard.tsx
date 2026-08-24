@@ -13,6 +13,7 @@ import FormControl from '@mui/material/FormControl'
 import IconButton from '@mui/material/IconButton'
 import InputLabel from '@mui/material/InputLabel'
 import LinearProgress from '@mui/material/LinearProgress'
+import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
@@ -1100,6 +1101,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   const [pathname, setPathname] = useState(() => window.location.pathname)
   const [isLoading, setIsLoading] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
   const adminUser = getAuthenticatedUser()
 
   const selectSection = (next: Section) => {
@@ -1197,10 +1199,34 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
               </IconButton>
             </Tooltip>
             <Tooltip title="Admin profile">
-              <IconButton id="admin-profile-button" onClick={() => navigateTo('/admin/profile')} aria-label="Open admin profile">
+              <IconButton
+                id="admin-profile-button"
+                onClick={(event) => setProfileAnchor(event.currentTarget)}
+                aria-label="Open admin profile"
+                aria-controls={profileAnchor ? 'admin-profile-menu' : undefined}
+                aria-haspopup="true"
+                aria-expanded={profileAnchor ? 'true' : undefined}
+              >
                 <AccountCircleOutlinedIcon />
               </IconButton>
             </Tooltip>
+            <Menu
+              id="admin-profile-menu"
+              anchorEl={profileAnchor}
+              open={Boolean(profileAnchor)}
+              onClose={() => setProfileAnchor(null)}
+              MenuListProps={{ 'aria-labelledby': 'admin-profile-button' }}
+              PaperProps={{ sx: { minWidth: 190, borderRadius: 2, p: 0.75 } }}
+            >
+              <MenuItem onClick={() => { setProfileAnchor(null); navigateTo('/admin/profile') }}>
+                <PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />
+                Admin profile
+              </MenuItem>
+              <MenuItem onClick={() => { setProfileAnchor(null); handleSignOut() }}>
+                <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+                Sign out
+              </MenuItem>
+            </Menu>
           </Stack>
         </Box>
         <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
