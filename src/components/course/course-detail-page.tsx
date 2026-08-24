@@ -49,6 +49,10 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   const paymentReference = new URLSearchParams(window.location.search).get('payment')
 
   useEffect(() => {
+    if (paymentReference) setIsEnrollmentOpen(true)
+  }, [paymentReference])
+
+  useEffect(() => {
     let isCurrent = true
     setCourse(null)
     setIsLoading(true)

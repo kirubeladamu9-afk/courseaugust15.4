@@ -172,7 +172,7 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
   }
 
   const renderAccountStep = () => (
-    <Box component="form" onSubmit={handleAccountSubmit} noValidate>
+    <Box component="form" onSubmit={handleAccountSubmit}>
       <Tabs value={accountMode} onChange={(_event, value: AccountMode) => { setAccountMode(value); setAccountError(null) }} aria-label="Enrollment account options" sx={{ mb: 3 }}>
         <Tab label="Create account" value="create" />
         <Tab label="Log in" value="login" />
@@ -184,7 +184,7 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
           <TextField required fullWidth label="Phone" name="phone" type="tel" autoComplete="tel" />
           <TextField required fullWidth label="Password" name="password" type="password" autoComplete="new-password" inputProps={{ minLength: 8 }} />
           <TextField required fullWidth label="Confirm Password" name="confirmPassword" type="password" autoComplete="new-password" inputProps={{ minLength: 8 }} />
-          <FormControlLabel required control={<Checkbox name="terms" />} label="I agree to the Terms of Service and Privacy Policy" />
+          <FormControlLabel required control={<Checkbox name="terms" required />} label="I agree to the Terms of Service and Privacy Policy" />
         </>}
         {accountMode === 'login' && <>
           <TextField required fullWidth label="Email" name="email" type="email" autoComplete="email" />
@@ -204,7 +204,14 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
         {savedStudents.length > 0 && <TextField select fullWidth label="Use a saved student" value={selectedSavedStudentId} onChange={(event) => {
           setSelectedSavedStudentId(event.target.value)
           const savedStudent = savedStudents.find((student) => student.id === Number(event.target.value))
-          if (savedStudent) setStudents([{ ...savedStudent }])
+          setStudents(savedStudent ? [{
+            fullName: savedStudent.fullName,
+            ageOrGrade: savedStudent.ageOrGrade,
+            relationship: savedStudent.relationship,
+            preferredLanguage: savedStudent.preferredLanguage,
+            emergencyPhone: savedStudent.emergencyPhone ?? '',
+            notes: savedStudent.notes ?? '',
+          }] : [emptyStudent()])
         }} helperText="Choose a saved student to fill in their details.">
           <MenuItem value="">Enter student details</MenuItem>
           {savedStudents.map((student) => <MenuItem key={student.id} value={student.id}>{student.fullName}</MenuItem>)}

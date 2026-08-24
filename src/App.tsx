@@ -7,6 +7,7 @@ import { SpinnerCustom } from '@/components/spinner'
 import SignInPage from '@/components/auth/sign-in-page'
 import AdminDashboard from '@/components/admin/admin-dashboard'
 import CourseDetailPage from '@/components/course/course-detail-page'
+import StudentDashboard from '@/components/course/student-dashboard'
 import { navigateTo } from '@/lib/navigation'
 import { type Course } from '@/interfaces/course'
 import { getAuthenticatedUser, getCourses } from '@/services/api'
@@ -48,8 +49,11 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname)
   const [homeCourses, setHomeCourses] = useState<Course[] | null>(null)
   const isAdminPath = /^\/admin(?:\/|$)/.test(currentPath)
+  const isDashboardPath = /^\/dashboard\/?$/.test(currentPath)
   const courseMatch = currentPath.match(/^\/courses\/([^/]+)\/?$/)
-  const canAccessAdmin = getAuthenticatedUser()?.role === 'admin'
+  const currentUser = getAuthenticatedUser()
+  const isAuthenticated = currentUser !== null
+  const canAccessAdmin = currentUser?.role === 'admin'
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname)
@@ -59,11 +63,12 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
 
   useEffect(() => {
     if (isAdminPath && !canAccessAdmin) navigateTo('/', true)
-    if (!isAdminPath) setAuthMode(null)
-  }, [canAccessAdmin, isAdminPath])
+    if (isDashboardPath && !isAuthenticated) navigateTo('/', true)
+    if (!isAdminPath && !isDashboardPath) setAuthMode(null)
+  }, [canAccessAdmin, isAdminPath, isAuthenticated, isDashboardPath])
 
   useEffect(() => {
-    if (isAdminPath || courseMatch) {
+    if (isAdminPath || isDashboardPath || courseMatch) {
       setHomeCourses(null)
       return
     }
@@ -81,10 +86,11 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
     return () => {
       isCurrent = false
     }
-  }, [currentPath, isAdminPath])
+  }, [currentPath, isAdminPath, isDashboardPath])
 
-  if (isAdminPath && !canAccessAdmin) return <RouteLoadingState message="Returning to Coursespace..." />
+  if ((isAdminPath && !canAccessAdmin) || (isDashboardPath && !isAuthenticated)) return <RouteLoadingState message="Returning to Coursespace..." />
   if (isAdminPath) return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
+  if (isDashboardPath) return <StudentDashboard />
   if (!courseMatch && homeCourses === null) return <div className="page-loading-state"><SpinnerCustom /></div>
 
   return (

@@ -1,5 +1,4 @@
 import { type AdminCourse, type AdminTutor, type AdminUser } from '@/components/admin/admin-data'
-import { type AdminCourse } from '@/components/admin/admin-data'
 import { type Course } from '@/interfaces/course'
 
 export interface AuthUser {

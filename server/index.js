@@ -870,7 +870,12 @@ app.post('/api/auth/sign-up', async (request, response) => {
       INSERT INTO users ${sql({ name: name.trim(), phone: phone.trim(), email: normalizedEmail, password_hash: passwordHash })}
       RETURNING id, email, role, created_at AS "createdAt"
     `
-    return response.status(201).json({ user })
+    const sessionToken = randomBytes(32).toString('hex')
+    await sql`
+      INSERT INTO auth_sessions ${sql({ token: sessionToken, user_id: user.id, expires_at: new Date(Date.now() + sessionDuration) })}
+    `
+    response.setHeader('Set-Cookie', `${sessionCookieName}=${sessionToken}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${sessionDuration / 1000}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`)
+    return response.status(201).json({ user, sessionToken })
   } catch (error) {
     if (error.code === '23505') {
       return response.status(409).json({ message: 'An account with this email already exists.' })
