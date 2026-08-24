@@ -123,7 +123,8 @@ const TrainingPrograms: FC = () => {
 
   const summerCampBatches = useMemo(() => batchRecords.filter((batch) => batch.program_id === 'summer-camp').map(mapTrainingBatch), [batchRecords])
   const ministryBatches = useMemo(() => batchRecords.filter((batch) => batch.program_id === 'ministry-exam-prep').reduce<Record<string, TrainingBatch[]>>((groups, batch) => {
-    const level = batch.title.match(/Grade (6|8)/)?.[0] ?? 'Grade 6'
+    const levelMatch = batch.title.match(/grade (6|8)/i)
+    const level = levelMatch ? `Grade ${levelMatch[1]}` : 'Grade 6'
     groups[level] = [...(groups[level] ?? []), mapTrainingBatch(batch)]
     return groups
   }, { 'Grade 6': [], 'Grade 8': [] }), [batchRecords])

@@ -124,17 +124,31 @@ const formatTime = (time: string) => {
   return `${displayHour}:${String(minute).padStart(2, '0')} ${suffix}`
 }
 
-const formatSchedule = (schedule?: Partial<ClassSchedule> | null) => {
-  if (!schedule || !Array.isArray(schedule.days)) return 'Schedule to be confirmed'
-  if (schedule.flexible) return 'Flexible'
-  return `${schedule.days.join(', ')} · ${formatTime(schedule.time ?? '')}`
+const normalizeSchedule = (schedule?: Partial<ClassSchedule> | string | null): ClassSchedule => {
+  let value: Partial<ClassSchedule> | null = null
+  if (typeof schedule === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(schedule)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) value = parsed as Partial<ClassSchedule>
+    } catch {
+      value = null
+    }
+  } else {
+    value = schedule ?? null
+  }
+  return {
+    days: Array.isArray(value?.days) ? value.days : [],
+    time: typeof value?.time === 'string' ? value.time : '',
+    flexible: value?.flexible === true,
+  }
 }
 
-const normalizeSchedule = (schedule?: Partial<ClassSchedule> | null): ClassSchedule => ({
-  days: Array.isArray(schedule?.days) ? schedule.days : [],
-  time: typeof schedule?.time === 'string' ? schedule.time : '',
-  flexible: schedule?.flexible === true,
-})
+const formatSchedule = (schedule?: Partial<ClassSchedule> | string | null) => {
+  const normalized = normalizeSchedule(schedule)
+  if (normalized.flexible) return 'Flexible'
+  if (!normalized.days.length) return 'Schedule to be confirmed'
+  return `${normalized.days.join(', ')} · ${formatTime(normalized.time)}`
+}
 
 const tutorName = (tutorId: number) => tutors.find((tutor) => tutor.id === tutorId)?.name ?? 'Unassigned tutor'
 const courseName = (courseId: number | null) => linkedCourses.find((course) => course.id === courseId)?.title ?? 'No linked course'
