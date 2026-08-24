@@ -1223,12 +1223,12 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       <Box sx={{ flex: 1, minWidth: 0, ml: { xs: 0, md: `${drawerWidth}px` } }}>
         <Box component="header" sx={{ height: 72, px: { xs: 2, md: 4 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isMobile && <IconButton onClick={() => setMobileOpen(true)} aria-label="Open admin menu"><MenuIcon /></IconButton>}
+            {isMobile && <IconButton title="Open admin menu" onClick={() => setMobileOpen(true)} aria-label="Open admin menu"><MenuIcon /></IconButton>}
             <Typography variant="h5" sx={{ display: { xs: 'none', sm: 'block' } }}>Admin workspace</Typography>
           </Box>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-              <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <IconButton title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                 {darkMode ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
               </IconButton>
             </Tooltip>
@@ -1252,11 +1252,11 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
               MenuListProps={{ 'aria-labelledby': 'admin-profile-button' }}
               PaperProps={{ sx: { minWidth: 190, borderRadius: 2, p: 0.75 } }}
             >
-              <MenuItem onClick={() => { setProfileAnchor(null); navigateTo('/admin/profile') }}>
+              <MenuItem title="Admin profile" onClick={() => { setProfileAnchor(null); navigateTo('/admin/profile') }}>
                 <PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />
                 Admin profile
               </MenuItem>
-              <MenuItem onClick={() => { setProfileAnchor(null); handleSignOut() }}>
+              <MenuItem title="Sign out" onClick={() => { setProfileAnchor(null); handleSignOut() }}>
                 <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
                 Sign out
               </MenuItem>
