@@ -46,11 +46,13 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [isEnrollmentOpen, setIsEnrollmentOpen] = useState(false)
   const isAdmin = getAuthenticatedUser()?.role === 'admin'
-  const paymentReference = new URLSearchParams(window.location.search).get('payment')
+  const searchParams = new URLSearchParams(window.location.search)
+  const paymentReference = searchParams.get('payment')
+  const shouldOpenEnrollment = Boolean(paymentReference || searchParams.get('batch') || searchParams.get('program'))
 
   useEffect(() => {
-    if (paymentReference) setIsEnrollmentOpen(true)
-  }, [paymentReference])
+    if (shouldOpenEnrollment) setIsEnrollmentOpen(true)
+  }, [shouldOpenEnrollment])
 
   useEffect(() => {
     let isCurrent = true
