@@ -509,8 +509,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
 
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
   const courseId = parseCourseId(String(request.body?.courseId ?? ''))
-  const students = parseEnrollmentStudents(request.body?.students)
-  if (courseId === null || !students) return response.status(400).json({ message: 'Enter valid enrollment details.' })
+  if (courseId === null) return response.status(400).json({ message: 'Choose a valid course.' })
   if (!process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
 
   const [course] = await sql`
@@ -522,6 +521,14 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
   `
   if (!course) return response.status(404).json({ message: 'This course is not available for enrollment.' })
 
+  const students = [{
+    fullName: course.name.trim() || 'Student',
+    ageOrGrade: 'Not provided',
+    relationship: 'Self',
+    preferredLanguage: 'Not provided',
+    emergencyPhone: '',
+    notes: '',
+  }]
   const reference = `course-${course.id}-${randomBytes(12).toString('hex')}`
   const amount = course.price * students.length
   const [payment] = await sql`
@@ -857,9 +864,9 @@ app.delete('/api/admin/courses/:id', requireAdmin, async (request, response) => 
 })
 
 app.post('/api/auth/sign-up', async (request, response) => {
-  const { email, password, name, phone } = request.body ?? {}
-  if (!isValidCredentials(email, password) || typeof name !== 'string' || !name.trim() || name.trim().length > 120 || typeof phone !== 'string' || !phone.trim() || phone.trim().length > 50) {
-    return response.status(400).json({ message: 'Enter your full name, phone number, valid email, and a password between 8 and 128 characters.' })
+  const { email, password, name } = request.body ?? {}
+  if (!isValidCredentials(email, password) || typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
+    return response.status(400).json({ message: 'Enter your full name, valid email, and a password between 8 and 128 characters.' })
   }
 
   const normalizedEmail = email.trim().toLowerCase()
@@ -867,7 +874,7 @@ app.post('/api/auth/sign-up', async (request, response) => {
 
   try {
     const [user] = await sql`
-      INSERT INTO users ${sql({ name: name.trim(), phone: phone.trim(), email: normalizedEmail, password_hash: passwordHash })}
+      INSERT INTO users ${sql({ name: name.trim(), phone: '', email: normalizedEmail, password_hash: passwordHash })}
       RETURNING id, name, email, role, created_at AS "createdAt"
     `
     const sessionToken = randomBytes(32).toString('hex')

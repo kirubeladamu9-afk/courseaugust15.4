@@ -16,7 +16,6 @@ interface AuthResponse {
 
 interface AccountDetails {
   name: string
-  phone: string
 }
 
 export interface EnrollmentStudent {
@@ -228,11 +227,11 @@ export const getSavedStudents = async (): Promise<SavedStudent[]> => {
   return response.json()
 }
 
-export const createChapaCheckout = async (courseId: AdminCourse['id'], students: EnrollmentStudent[]): Promise<{ checkoutUrl: string }> => {
+export const createChapaCheckout = async (courseId: AdminCourse['id']): Promise<{ checkoutUrl: string }> => {
   const response = await requestApi('/api/payments/chapa', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ courseId, students }),
+    body: JSON.stringify({ courseId }),
   })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
