@@ -7,7 +7,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Container from '@mui/material/Container'
 import Chip from '@mui/material/Chip'
-import Divider from '@mui/material/Divider'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import Grid from '@mui/material/Grid'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
@@ -48,6 +48,10 @@ const ministryBatches: Record<string, TrainingBatch[]> = {
 }
 
 const formatPrice = (price: number) => `$${price}`
+
+const PackageFeatures: FC<{ items: string[] }> = ({ items }) => <Stack spacing={1.25} sx={{ mb: 3 }}>
+  {items.map((item) => <Box key={item} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><CheckCircleOutlineIcon color="primary" fontSize="small" /><Typography variant="body2">{item}</Typography></Box>)}
+</Stack>
 
 const BatchCard: FC<{ batch: TrainingBatch }> = ({ batch }) => {
   const isFull = batch.enrolled >= batch.capacity
@@ -104,13 +108,10 @@ const TrainingPrograms: FC = () => {
           <Card elevation={1} sx={{ width: '100%', height: '100%', borderRadius: 4 }}>
             <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'primary.light', color: 'primary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Flexible start" color="primary" variant="outlined" size="small" /></Box>
-              <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>International Online Interactive</Typography>
+              <Typography component="h3" variant="h5" sx={{ mb: 1 }}>International Online Interactive</Typography>
+              <Typography variant="h3" color="primary.main" sx={{ mb: 1.5, fontWeight: 700 }}>$120<Typography component="span" variant="body2" color="text.secondary"> / package</Typography></Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Live, engaging online classes designed to build confident learners through interactive instruction and guided practice.</Typography>
-              <Stack divider={<Divider flexItem />} spacing={1.25} sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}><Typography color="text.secondary">Age range</Typography><Typography sx={{ fontWeight: 600 }}>Ages 8–18</Typography></Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}><Typography color="text.secondary">Format</Typography><Typography sx={{ fontWeight: 600 }}>Live online</Typography></Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}><Typography color="text.secondary">Price</Typography><Typography color="primary.main" sx={{ fontWeight: 700 }}>$120</Typography></Box>
-              </Stack>
+              <PackageFeatures items={['Ages 8–18', 'Live online instruction', 'Flexible scheduling after payment']} />
               <Button fullWidth variant="contained" size="large" sx={{ mt: 'auto' }} onClick={() => navigateTo('/courses/1?program=international')}>Enroll Now</Button>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5, textAlign: 'center' }}>Pending — we'll contact you to schedule your class</Typography>
             </CardContent>
@@ -120,8 +121,10 @@ const TrainingPrograms: FC = () => {
           <Card elevation={1} sx={{ width: '100%', height: '100%', borderRadius: 4 }}>
             <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'secondary.main', borderRadius: '16px 16px 0 0' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'secondary.light', color: 'secondary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Live cohorts" color="secondary" variant="outlined" size="small" /></Box>
-              <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>Summer Camp Packages</Typography>
+              <Typography component="h3" variant="h5" sx={{ mb: 1 }}>Summer Camp Packages</Typography>
+              <Typography variant="h3" color="primary.main" sx={{ mb: 1.5, fontWeight: 700 }}>From $180<Typography component="span" variant="body2" color="text.secondary"> / package</Typography></Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Make school breaks count with focused, social learning in small live cohorts.</Typography>
+              <PackageFeatures items={['Small live learning groups', 'Weekday camp schedules', 'Tutor-led practice and support']} />
               <Accordion expanded={openProgram === 'summer'} onChange={(_, expanded) => setOpenProgram(expanded ? 'summer' : false)} disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 48 }}><Typography sx={{ fontWeight: 700 }}>View open batches</Typography></AccordionSummary>
                 <AccordionDetails sx={{ px: 0, pt: 0 }}><BatchList batches={summerCampBatches} /></AccordionDetails>
@@ -133,12 +136,19 @@ const TrainingPrograms: FC = () => {
           <Card elevation={1} sx={{ width: '100%', height: '100%', borderRadius: 4 }}>
             <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 3, md: 3.5 }, borderTop: 4, borderColor: 'primary.main', borderRadius: '16px 16px 0 0' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}><Box sx={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', backgroundColor: 'primary.light', color: 'primary.main' }}><SchoolOutlinedIcon /></Box><Chip label="Exam focused" color="primary" variant="outlined" size="small" /></Box>
-              <Typography component="h3" variant="h5" sx={{ mb: 1.5 }}>Ministry Exam Prep</Typography>
+              <Typography component="h3" variant="h5" sx={{ mb: 1 }}>Ministry Exam Prep</Typography>
+              <Typography variant="h3" color="primary.main" sx={{ mb: 1.5, fontWeight: 700 }}>From $220<Typography component="span" variant="body2" color="text.secondary"> / package</Typography></Typography>
               <Typography color="text.secondary" sx={{ lineHeight: 1.7, mb: 2.5 }}>Structured revision and exam-focused support aligned to each learner’s grade level.</Typography>
-              <Tabs value={grade} onChange={(_, value: string) => setGrade(value)} variant="fullWidth" sx={{ mb: 1 }}>
-                {Object.keys(ministryBatches).map((level) => <Tab key={level} value={level} label={level} />)}
-              </Tabs>
-              <BatchList batches={ministryBatches[grade]} />
+              <PackageFeatures items={['Grade-specific preparation', 'Linked course curriculum', 'Small-group exam support']} />
+              <Accordion expanded={openProgram === 'ministry'} onChange={(_, expanded) => setOpenProgram(expanded ? 'ministry' : false)} disableGutters elevation={0} sx={{ '&::before': { display: 'none' } }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 48 }}><Typography sx={{ fontWeight: 700 }}>View exam prep batches</Typography></AccordionSummary>
+                <AccordionDetails sx={{ px: 0, pt: 0 }}>
+                  <Tabs value={grade} onChange={(_, value: string) => setGrade(value)} variant="fullWidth" sx={{ mb: 1 }}>
+                    {Object.keys(ministryBatches).map((level) => <Tab key={level} value={level} label={level} />)}
+                  </Tabs>
+                  <BatchList batches={ministryBatches[grade]} />
+                </AccordionDetails>
+              </Accordion>
             </CardContent>
           </Card>
         </Grid>
