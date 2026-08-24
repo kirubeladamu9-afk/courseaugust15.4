@@ -80,20 +80,17 @@ type AdminNavigationItem = {
   key: Section
   label: string
   icon: ReactNode
-  path: string
+  subviews?: Array<{ label: string; path: string }>
 }
 
 const navigation: AdminNavigationItem[] = [
-  { key: 'overview', label: 'Overview', icon: <DashboardOutlinedIcon />, path: '/admin' },
-  { key: 'courses', label: 'Programs & Courses', icon: <SchoolOutlinedIcon />, path: '/admin/courses' },
-  { key: 'registrations', label: 'Registrations', icon: <SchoolOutlinedIcon />, path: '/admin/registrations' },
-  { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, path: '/admin/classes' },
-  { key: 'classes', label: 'Pending Scheduling', icon: <ClassOutlinedIcon />, path: '/admin/classes/pending' },
-  { key: 'classes', label: 'Active Classes', icon: <ClassOutlinedIcon />, path: '/admin/classes/active' },
-  { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon />, path: '/admin/tutors' },
-  { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon />, path: '/admin/blog' },
-  { key: 'payments', label: 'Payments & Reports', icon: <PaymentsOutlinedIcon />, path: '/admin/payments' },
-  { key: 'users', label: 'Users', icon: <GroupOutlinedIcon />, path: '/admin/users' },
+  { key: 'overview', label: 'Overview', icon: <DashboardOutlinedIcon /> },
+  { key: 'courses', label: 'Programs & Courses', icon: <SchoolOutlinedIcon />, subviews: [{ label: 'Registrations', path: '/admin/registrations' }] },
+  { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, subviews: [{ label: 'Pending Scheduling', path: '/admin/classes/pending' }, { label: 'Active Classes', path: '/admin/classes/active' }] },
+  { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon /> },
+  { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon /> },
+  { key: 'payments', label: 'Payments & Reports', icon: <PaymentsOutlinedIcon /> },
+  { key: 'users', label: 'Users', icon: <GroupOutlinedIcon /> },
 ]
 
 const statusColor = (status: string): 'success' | 'warning' | 'error' | 'info' | 'default' => {
@@ -1127,9 +1124,9 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
   const adminUser = getAuthenticatedUser()
 
-  const selectSection = (item: AdminNavigationItem) => {
-    navigateTo(item.path)
-    setSection(item.key)
+  const selectSection = (next: Section) => {
+    navigateTo(next === 'overview' ? '/admin' : `/admin/${next}`)
+    setSection(next)
     setMobileOpen(false)
   }
 
@@ -1190,16 +1187,28 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       <Divider />
       <Box component="nav" aria-label="Admin navigation" sx={{ p: 1.5, flex: 1 }}>
         <Typography title="Main menu" variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Main menu</Typography>
-        {navigation.map((item) => {
-          const isActive = pathname === item.path || (item.path === '/admin/courses' && pathname.match(/^\/admin\/courses(?:\/new|\/\d+\/edit)\/?$/)) || (item.path === '/admin/classes' && pathname.match(/^\/admin\/classes\/\d+\/?$/))
-          return <Box key={item.path} component="button" title={item.label} aria-label={item.label} onClick={() => selectSection(item)} sx={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5,
-            backgroundColor: isActive ? 'primary.main' : 'transparent', color: isActive ? 'primary.contrastText' : 'text.secondary',
-            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: isActive ? 'primary.dark' : 'action.hover' },
-          }}>
-            {item.icon}<Typography variant="body2" sx={{ flex: 1, fontWeight: isActive ? 600 : 400 }}>{item.label}</Typography>
+        {navigation.map((item) => <Box key={item.key}>
+          <Box
+            component="button"
+            title={item.label}
+            aria-label={item.label}
+            aria-expanded={item.subviews ? section === item.key : undefined}
+            onClick={() => selectSection(item.key)}
+            sx={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5,
+              backgroundColor: section === item.key ? 'primary.main' : 'transparent', color: section === item.key ? 'primary.contrastText' : 'text.secondary',
+              cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: section === item.key ? 'primary.dark' : 'action.hover' },
+            }}
+          >
+            {item.icon}<Typography variant="body2" sx={{ flex: 1, fontWeight: section === item.key ? 600 : 400 }}>{item.label}</Typography>{item.subviews && (section === item.key ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />)}
           </Box>
-        })}
+          {item.subviews && section === item.key && <Box sx={{ ml: 2, mb: 1 }}>
+            {item.subviews.map((subview) => {
+              const isActiveSubview = pathname === subview.path
+              return <Box key={subview.path} component="button" type="button" title={subview.label} aria-label={subview.label} onClick={() => { navigateTo(subview.path); setSection(item.key); setMobileOpen(false) }} sx={{ width: '100%', border: 0, borderLeft: 2, borderColor: isActiveSubview ? 'primary.main' : 'divider', py: 0.75, pl: 1.5, pr: 1, backgroundColor: 'transparent', color: isActiveSubview ? 'primary.main' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: isActiveSubview ? 600 : 400, textAlign: 'left', '&:hover': { color: 'primary.main', backgroundColor: 'action.hover' } }}>{subview.label}</Box>
+            })}
+          </Box>}
+        </Box>)}
       </Box>
       <Box sx={{ p: 2 }}>
         <Typography title="Preferences" variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Preferences</Typography>
