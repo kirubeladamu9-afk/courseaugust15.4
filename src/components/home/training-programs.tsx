@@ -96,13 +96,12 @@ const TrainingPrograms: FC = () => {
   const [batchRecords, setBatchRecords] = useState<TrainingBatchRecord[]>([])
 
   useEffect(() => {
-    let isCurrent = true
-    getTrainingBatches().then((records) => {
-      if (isCurrent) setBatchRecords(records)
-    }).catch(() => {
-      if (isCurrent) setBatchRecords([])
+    const controller = new AbortController()
+    getTrainingBatches(controller.signal).then(setBatchRecords).catch((error) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setBatchRecords([])
     })
-    return () => { isCurrent = false }
+    return () => controller.abort()
   }, [])
 
   const summerCampBatches = useMemo(() => batchRecords.filter((batch) => batch.program_id === 'summer-camp').map(mapTrainingBatch), [batchRecords])

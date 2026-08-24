@@ -129,6 +129,13 @@ const formatSchedule = (schedule?: Partial<ClassSchedule> | null) => {
   if (schedule.flexible) return 'Flexible'
   return `${schedule.days.join(', ')} · ${formatTime(schedule.time ?? '')}`
 }
+
+const normalizeSchedule = (schedule?: Partial<ClassSchedule> | null): ClassSchedule => ({
+  days: Array.isArray(schedule?.days) ? schedule.days : [],
+  time: typeof schedule?.time === 'string' ? schedule.time : '',
+  flexible: schedule?.flexible === true,
+})
+
 const tutorName = (tutorId: number) => tutors.find((tutor) => tutor.id === tutorId)?.name ?? 'Unassigned tutor'
 const courseName = (courseId: number | null) => linkedCourses.find((course) => course.id === courseId)?.title ?? 'No linked course'
 
@@ -213,7 +220,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
 
   useEffect(() => {
     if (!open) return
-    setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: { ...classRecord.schedule, days: [...classRecord.schedule.days] }, meeting_link: classRecord.meeting_link, course_id: classRecord.course_id, price: classRecord.price, published: classRecord.published } : emptyClassForm())
+    setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: normalizeSchedule(classRecord.schedule), meeting_link: classRecord.meeting_link, course_id: classRecord.course_id, price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
   const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))

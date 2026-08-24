@@ -220,8 +220,8 @@ const requestClasses = async (url: string, init?: RequestInit): Promise<AdminCla
   return response.json()
 }
 
-export const getTrainingBatches = async (): Promise<TrainingBatchRecord[]> => {
-  const response = await fetch('/api/training-batches')
+export const getTrainingBatches = async (signal?: AbortSignal): Promise<TrainingBatchRecord[]> => {
+  const response = await fetch('/api/training-batches', { signal })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
