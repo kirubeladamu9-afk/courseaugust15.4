@@ -26,6 +26,7 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { useTheme } from '@mui/material/styles'
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined'
+import ClassOutlinedIcon from '@mui/icons-material/ClassOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
@@ -68,16 +69,25 @@ import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
 import { changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
+import ClassesWorkspace from './classes-workspace'
 import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
-type Section = 'overview' | 'courses' | 'registrations' | 'tutors' | 'blog' | 'payments' | 'users'
+type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'payments' | 'users'
 
-const navigation: Array<{ key: Section; label: string; icon: ReactNode }> = [
+type AdminNavigationItem = {
+  key: Section
+  label: string
+  icon: ReactNode
+  subviews?: Array<{ label: string; path: string }>
+}
+
+const navigation: AdminNavigationItem[] = [
   { key: 'overview', label: 'Overview', icon: <DashboardOutlinedIcon /> },
   { key: 'courses', label: 'Programs & Courses', icon: <SchoolOutlinedIcon /> },
   { key: 'registrations', label: 'Registrations', icon: <PeopleOutlineIcon /> },
+  { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, subviews: [{ label: 'Pending Scheduling', path: '/admin/classes/pending' }, { label: 'Active Classes', path: '/admin/classes/active' }] },
   { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon /> },
   { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon /> },
   { key: 'payments', label: 'Payments & Reports', icon: <PaymentsOutlinedIcon /> },
@@ -1140,6 +1150,13 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
         return <CoursesPage />
       }
       case 'registrations': return <RegistrationsPage />
+      case 'classes': {
+        if (/^\/admin\/classes\/pending\/?$/.test(pathname)) return <ClassesWorkspace view="pending" />
+        if (/^\/admin\/classes\/new\/?$/.test(pathname)) return <ClassesWorkspace view="new" />
+        const classMatch = pathname.match(/^\/admin\/classes\/(\d+)\/?$/)
+        if (classMatch) return <ClassesWorkspace view="detail" classId={Number(classMatch[1])} />
+        return <ClassesWorkspace view="active" />
+      }
       case 'tutors': {
         if (/^\/admin\/tutors\/new\/?$/.test(pathname)) return <TutorEditorPage mode="new" />
         const tutorMatch = pathname.match(/^\/admin\/tutors\/(\d+)\/?$/)
@@ -1159,9 +1176,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       <Divider />
       <Box component="nav" aria-label="Admin navigation" sx={{ p: 1.5, flex: 1 }}>
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Main menu</Typography>
-        {navigation.map((item) => (
+        {navigation.map((item) => <Box key={item.key}>
           <Box
-            key={item.key}
             component="button"
             title={item.label}
             aria-label={item.label}
@@ -1174,7 +1190,13 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
           >
             {item.icon}<Typography variant="body2" sx={{ fontWeight: section === item.key ? 600 : 400 }}>{item.label}</Typography>
           </Box>
-        ))}
+          {item.subviews && section === item.key && <Box sx={{ ml: 2, mb: 1 }}>
+            {item.subviews.map((subview) => {
+              const isActiveSubview = pathname === subview.path
+              return <Box key={subview.path} component="button" type="button" onClick={() => { navigateTo(subview.path); setSection(item.key); setMobileOpen(false) }} sx={{ width: '100%', border: 0, borderLeft: 2, borderColor: isActiveSubview ? 'primary.main' : 'divider', py: 0.75, pl: 1.5, pr: 1, backgroundColor: 'transparent', color: isActiveSubview ? 'primary.main' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: isActiveSubview ? 600 : 400, textAlign: 'left', '&:hover': { color: 'primary.main', backgroundColor: 'action.hover' } }}>{subview.label}</Box>
+            })}
+          </Box>}
+        </Box>)}
       </Box>
       <Box sx={{ p: 2 }}>
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Preferences</Typography>
