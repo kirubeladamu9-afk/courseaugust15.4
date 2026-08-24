@@ -1186,8 +1186,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       <Box sx={{ px: 3, py: 2.5 }}><Logo /></Box>
       <Divider />
       <Box component="nav" aria-label="Admin navigation" sx={{ p: 1.5, flex: 1 }}>
-        <Typography title="Main menu" variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Main menu</Typography>
         {navigation.map((item) => <Box key={item.key}>
+          <Typography title={item.label} variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>{item.label}</Typography>
           <Box
             component="button"
             title={item.label}
@@ -1212,6 +1212,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       </Box>
       <Box sx={{ p: 2 }}>
         <Typography title="Preferences" variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Preferences</Typography>
+        <Typography title="Settings" variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Settings</Typography>
         <Box title="Settings" aria-label="Settings" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, backgroundColor: 'background.default', borderRadius: 2 }}><SettingsOutlinedIcon color="disabled" fontSize="small" /><Typography variant="body2" color="text.secondary">Settings</Typography></Box>
       </Box>
     </Box>
