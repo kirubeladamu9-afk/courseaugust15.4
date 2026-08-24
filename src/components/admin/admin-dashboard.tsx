@@ -6,6 +6,9 @@ import AccordionDetails from '@mui/material/AccordionDetails'
 import AccordionSummary from '@mui/material/AccordionSummary'
 import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
+import Dialog from '@mui/material/Dialog'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import Drawer from '@mui/material/Drawer'
 import FormControl from '@mui/material/FormControl'
 import IconButton from '@mui/material/IconButton'
@@ -61,7 +64,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { navigateTo } from '@/lib/navigation'
-import { type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus } from '@/services/api'
+import { type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
@@ -972,6 +975,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   const [isLoading, setIsLoading] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null)
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
+  const adminUser = getAuthenticatedUser()
 
   const selectSection = (next: Section) => {
     navigateTo(next === 'overview' ? '/admin' : `/admin/${next}`)
@@ -1066,14 +1071,62 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
               </IconButton>
             </Tooltip>
             <Tooltip title="Admin profile">
-              <IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="Open admin profile">
+              <IconButton
+                id="admin-profile-button"
+                onClick={(event) => setProfileAnchor(event.currentTarget)}
+                aria-label="Open admin profile"
+                aria-controls={profileAnchor ? 'admin-profile-menu' : undefined}
+                aria-haspopup="true"
+                aria-expanded={profileAnchor ? 'true' : undefined}
+              >
                 <AccountCircleOutlinedIcon />
               </IconButton>
             </Tooltip>
-            <Menu anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)}>
-              <MenuItem title="Admin profile" onClick={() => setProfileAnchor(null)}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />Admin profile</MenuItem>
+            <Menu
+              id="admin-profile-menu"
+              anchorEl={profileAnchor}
+              open={Boolean(profileAnchor)}
+              onClose={() => setProfileAnchor(null)}
+              MenuListProps={{ 'aria-labelledby': 'admin-profile-button' }}
+              PaperProps={{ sx: { minWidth: 260, borderRadius: 2, p: 1 } }}
+            >
+              <Box sx={{ px: 1.5, pt: 1, pb: 1.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Admin User</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>{adminUser?.email ?? 'Administrator account'}</Typography>
+                <Chip label="Administrator" color="primary" size="small" />
+              </Box>
+              <Divider sx={{ mb: 1 }} />
+              <MenuItem title="Admin profile" onClick={() => { setProfileAnchor(null); setIsProfileDialogOpen(true) }}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />Admin profile</MenuItem>
               <MenuItem title="Sign out" onClick={handleSignOut}><LogoutIcon fontSize="small" sx={{ mr: 1 }} />Sign out</MenuItem>
             </Menu>
+            <Dialog open={isProfileDialogOpen} onClose={() => setIsProfileDialogOpen(false)} fullWidth maxWidth="xs" aria-labelledby="admin-profile-dialog-title">
+              <DialogTitle id="admin-profile-dialog-title" sx={{ pr: 7 }}>
+                Admin profile
+                <IconButton aria-label="Close admin profile" onClick={() => setIsProfileDialogOpen(false)} sx={{ position: 'absolute', top: 12, right: 12 }}>
+                  <CloseIcon />
+                </IconButton>
+              </DialogTitle>
+              <DialogContent dividers>
+                <Stack spacing={2}>
+                  <Box sx={{ p: 2, borderRadius: 2, backgroundColor: 'background.default' }}>
+                    <Typography variant="h6" sx={{ mb: 0.5 }}>Admin User</Typography>
+                    <Typography color="text.secondary">Platform administrator</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="overline" color="text.secondary">Email address</Typography>
+                    <Typography>{adminUser?.email ?? 'Not available'}</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="overline" color="text.secondary">Role</Typography>
+                    <Typography>Administrator</Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="overline" color="text.secondary">Member since</Typography>
+                    <Typography>{adminUser?.createdAt ? new Date(adminUser.createdAt).toLocaleDateString() : 'Not available'}</Typography>
+                  </Box>
+                </Stack>
+              </DialogContent>
+            </Dialog>
           </Stack>
         </Box>
         <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
