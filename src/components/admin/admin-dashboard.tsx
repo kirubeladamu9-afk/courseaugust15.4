@@ -1205,7 +1205,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
           {item.subviews && section === item.key && <Box sx={{ ml: 2, mb: 1 }}>
             {item.subviews.map((subview) => {
               const isActiveSubview = pathname === subview.path
-              return <Box key={subview.path} component="button" type="button" onClick={() => { navigateTo(subview.path); setSection(item.key); setMobileOpen(false) }} sx={{ width: '100%', border: 0, borderLeft: 2, borderColor: isActiveSubview ? 'primary.main' : 'divider', py: 0.75, pl: 1.5, pr: 1, backgroundColor: 'transparent', color: isActiveSubview ? 'primary.main' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: isActiveSubview ? 600 : 400, textAlign: 'left', '&:hover': { color: 'primary.main', backgroundColor: 'action.hover' } }}>{subview.label}</Box>
+              return <Box key={subview.path} component="button" type="button" title={subview.label} onClick={() => { navigateTo(subview.path); setSection(item.key); setMobileOpen(false) }} sx={{ width: '100%', border: 0, borderLeft: 2, borderColor: isActiveSubview ? 'primary.main' : 'divider', py: 0.75, pl: 1.5, pr: 1, backgroundColor: 'transparent', color: isActiveSubview ? 'primary.main' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: isActiveSubview ? 600 : 400, textAlign: 'left', '&:hover': { color: 'primary.main', backgroundColor: 'action.hover' } }}>{subview.label}</Box>
             })}
           </Box>}
         </Box>)}
