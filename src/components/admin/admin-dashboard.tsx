@@ -1,4 +1,5 @@
 import { useMemo, type FC, type ReactNode } from 'react'
+import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
@@ -64,7 +65,7 @@ import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
-import { type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
+import { changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
@@ -973,12 +974,44 @@ const ProfileDetail: FC<{ icon: ReactNode; label: string; value: string }> = ({ 
 )
 
 const AdminProfilePage: FC<{ user: AuthUser | null; onSignOut: () => void }> = ({ user, onSignOut }) => {
+  const [isPasswordFormOpen, setIsPasswordFormOpen] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
   const displayName = user?.name || 'Admin User'
   const email = user?.email || 'Administrator account'
   const memberSince = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
     : 'Not available'
-  const initials = displayName.split(/\\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+  const initials = displayName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+
+  const handleChangePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const formElement = event.currentTarget
+    const formData = new FormData(formElement)
+    const currentPassword = String(formData.get('currentPassword') ?? '')
+    const newPassword = String(formData.get('newPassword') ?? '')
+    const confirmPassword = String(formData.get('confirmPassword') ?? '')
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('The new passwords do not match.')
+      return
+    }
+
+    setPasswordError(null)
+    setPasswordSuccess(false)
+    setIsChangingPassword(true)
+    try {
+      await changePassword(currentPassword, newPassword)
+      setIsPasswordFormOpen(false)
+      setPasswordSuccess(true)
+      formElement.reset()
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'We could not update your password.')
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
 
   return (
     <>
@@ -1030,6 +1063,24 @@ const AdminProfilePage: FC<{ user: AuthUser | null; onSignOut: () => void }> = (
                 <Typography color="text.secondary" variant="body2">Manage courses, tutors, users, registrations, and payment reports from this workspace.</Typography>
               </Box>
             </Box>
+            <Divider sx={{ my: 2.5 }} />
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Password</Typography>
+                <Typography color="text.secondary" variant="body2">Update your password regularly to keep your account secure.</Typography>
+              </Box>
+              <Button label={isPasswordFormOpen ? 'Cancel' : 'Change password'} variant="outlined" size="small" onClick={() => { setIsPasswordFormOpen((current) => !current); setPasswordError(null); setPasswordSuccess(false) }} />
+            </Box>
+            {passwordSuccess && <Alert severity="success" sx={{ mt: 2 }}>Your password has been changed successfully.</Alert>}
+            {isPasswordFormOpen && <Box component="form" onSubmit={(event) => void handleChangePassword(event)} sx={{ display: 'grid', gap: 2, mt: 2.5 }}>
+              <TextField required fullWidth label="Current password" name="currentPassword" type="password" autoComplete="current-password" />
+              <TextField required fullWidth label="New password" name="newPassword" type="password" autoComplete="new-password" inputProps={{ minLength: 8 }} helperText="Use 8 to 128 characters." />
+              <TextField required fullWidth label="Confirm new password" name="confirmPassword" type="password" autoComplete="new-password" inputProps={{ minLength: 8 }} />
+              {passwordError && <Alert severity="error">{passwordError}</Alert>}
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button label={isChangingPassword ? 'Changing password...' : 'Save new password'} type="submit" disabled={isChangingPassword} />
+              </Box>
+            </Box>}
           </Paper>
         </Stack>
       </Box>

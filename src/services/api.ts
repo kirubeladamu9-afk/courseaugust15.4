@@ -178,6 +178,15 @@ export const resetAdminUserPassword = async (accountType: AdminUser['accountType
   return response.json()
 }
 
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  const response = await requestApi('/api/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+}
+
 export const getCourse = async (id: Course['id']): Promise<AdminCourse> => requestCourse(`/api/courses/${id}`)
 
 export const submitCredentials = async (mode: 'sign-in' | 'sign-up', email: string, password: string, accountDetails?: AccountDetails): Promise<AuthResponse> => {

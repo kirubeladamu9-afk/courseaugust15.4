@@ -910,6 +910,29 @@ app.post('/api/auth/sign-in', async (request, response) => {
   return response.json({ user: account, sessionToken })
 })
 
+app.post('/api/auth/change-password', requireAuthenticated, async (request, response) => {
+  const { currentPassword, newPassword } = request.body ?? {}
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
+    return response.status(400).json({ message: 'Your new password must be between 8 and 128 characters.' })
+  }
+
+  const [user] = await sql`
+    SELECT password_hash
+    FROM users
+    WHERE id = ${request.userId}
+  `
+  if (!user || !(await verifyPassword(currentPassword, user.password_hash))) {
+    return response.status(401).json({ message: 'Your current password is incorrect.' })
+  }
+
+  await sql`
+    UPDATE users
+    SET password_hash = ${await hashPassword(newPassword)}
+    WHERE id = ${request.userId}
+  `
+  return response.status(204).end()
+})
+
 app.post('/api/auth/sign-out', async (request, response) => {
   const sessionToken = getSessionToken(request)
   if (sessionToken) await sql`DELETE FROM auth_sessions WHERE token = ${sessionToken}`
