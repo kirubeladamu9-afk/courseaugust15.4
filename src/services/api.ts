@@ -199,10 +199,10 @@ export interface TrainingBatchRecord {
   title: string
   tutor: string
   capacity: number
-  schedule: AdminClassSchedule
-  course_id: number
+  schedule: AdminClassSchedule | string
+  course_id: number | null
   price: number
-  modules: Array<{ lessons?: unknown[] }>
+  modules: Array<{ lessons?: unknown[] }> | null
   enrolled: number
 }
 

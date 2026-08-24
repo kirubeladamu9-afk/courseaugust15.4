@@ -17,7 +17,7 @@ import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
 import { type FC, useEffect, useMemo, useState } from 'react'
-import { getTrainingBatches, type TrainingBatchRecord } from '@/services/api'
+import { getTrainingBatches, type AdminClassSchedule, type TrainingBatchRecord } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
 interface TrainingBatch {
@@ -28,26 +28,43 @@ interface TrainingBatch {
   enrolled: number
   capacity: number
   price: number
-  courseId: number
+  courseId: number | null
   curriculum?: string
 }
 
-const getCurriculumSummary = (modules: TrainingBatchRecord['modules']) => {
-  const lessonCount = modules.reduce((total, module) => total + (Array.isArray(module.lessons) ? module.lessons.length : 0), 0)
-  return `${modules.length} modules · ${lessonCount} lessons`
+const getCurriculumSummary = (modules: TrainingBatchRecord['modules'] | null = []) => {
+  const normalizedModules = modules ?? []
+  const lessonCount = normalizedModules.reduce((total, module) => total + (Array.isArray(module.lessons) ? module.lessons.length : 0), 0)
+  return `${normalizedModules.length} modules · ${lessonCount} lessons`
 }
 
-const mapTrainingBatch = (batch: TrainingBatchRecord): TrainingBatch => ({
+const parseSchedule = (value: TrainingBatchRecord['schedule']): AdminClassSchedule => {
+  try {
+    const schedule = typeof value === 'string' ? JSON.parse(value) as Partial<AdminClassSchedule> : value
+    return {
+      days: Array.isArray(schedule?.days) ? schedule.days : [],
+      time: typeof schedule?.time === 'string' ? schedule.time : '',
+      flexible: schedule?.flexible === true,
+    }
+  } catch {
+    return { days: [], time: '', flexible: false }
+  }
+}
+
+const mapTrainingBatch = (batch: TrainingBatchRecord): TrainingBatch => {
+  const schedule = parseSchedule(batch.schedule)
+  return {
   id: batch.id,
   title: batch.title,
-  schedule: batch.schedule.flexible ? 'Flexible schedule' : `${batch.schedule.days.join(', ')} · ${batch.schedule.time}`,
+  schedule: schedule.flexible ? 'Flexible schedule' : `${schedule.days.join(', ')} · ${schedule.time}`,
   tutor: batch.tutor,
   enrolled: batch.enrolled,
   capacity: batch.capacity,
   price: batch.price,
   courseId: batch.course_id,
   curriculum: batch.program_id === 'ministry-exam-prep' ? getCurriculumSummary(batch.modules) : undefined,
-})
+  }
+}
 
 const formatPrice = (price: number) => `$${price}`
 
@@ -79,8 +96,8 @@ const BatchCard: FC<{ batch: TrainingBatch }> = ({ batch }) => {
           <LinearProgress variant="determinate" value={Math.min(100, (batch.enrolled / batch.capacity) * 100)} color={isFull ? 'inherit' : 'primary'} sx={{ height: 6, borderRadius: 3 }} />
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button size="small" variant={isFull ? 'outlined' : 'contained'} onClick={() => navigateTo(`/courses/${batch.courseId}?batch=${batch.id}`)}>
-            {isFull ? 'Join Waitlist' : 'Join'}
+          <Button size="small" variant={isFull ? 'outlined' : 'contained'} disabled={!batch.courseId} onClick={() => batch.courseId && navigateTo(`/courses/${batch.courseId}?batch=${batch.id}`)}>
+            {!batch.courseId ? 'Enrollment unavailable' : isFull ? 'Join Waitlist' : 'Join'}
           </Button>
         </Box>
       </Stack>

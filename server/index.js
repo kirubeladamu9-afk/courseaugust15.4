@@ -948,7 +948,6 @@ app.get('/api/training-batches', async (_request, response) => {
     LEFT JOIN courses ON courses.id = classes.course_id
     WHERE classes.published = true
       AND classes.program_id IN ('summer-camp', 'ministry-exam-prep')
-      AND classes.course_id IS NOT NULL
     ORDER BY classes.program_id, classes.created_at, classes.id
   `
   response.json(batches)
