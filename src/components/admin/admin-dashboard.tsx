@@ -85,8 +85,7 @@ type AdminNavigationItem = {
 
 const navigation: AdminNavigationItem[] = [
   { key: 'overview', label: 'Overview', icon: <DashboardOutlinedIcon /> },
-  { key: 'courses', label: 'Programs & Courses', icon: <SchoolOutlinedIcon /> },
-  { key: 'registrations', label: 'Registrations', icon: <PeopleOutlineIcon /> },
+  { key: 'courses', label: 'Programs & Courses', icon: <SchoolOutlinedIcon />, subviews: [{ label: 'Registrations', path: '/admin/registrations' }] },
   { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, subviews: [{ label: 'Pending Scheduling', path: '/admin/classes/pending' }, { label: 'Active Classes', path: '/admin/classes/active' }] },
   { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon /> },
   { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon /> },
@@ -1111,6 +1110,7 @@ const AdminProfilePage: FC<{ user: AuthUser | null; onSignOut: () => void }> = (
 
 const getSectionFromPath = (pathname: string): Section => {
   const pathSection = pathname.split('/')[2]
+  if (pathSection === 'registrations') return 'courses'
   return navigation.some(({ key }) => key === pathSection) ? (pathSection as Section) : 'overview'
 }
 
@@ -1154,6 +1154,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
 
     switch (section) {
       case 'courses': {
+        if (/^\/admin\/registrations\/?$/.test(pathname)) return <RegistrationsPage />
         if (/^\/admin\/courses\/new\/?$/.test(pathname)) return <CourseEditorPage mode="new" />
         const editMatch = pathname.match(/^\/admin\/courses\/(\d+)\/edit\/?$/)
         if (editMatch) return <CourseEditorPage mode="edit" courseId={Number(editMatch[1])} />
@@ -1191,6 +1192,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             component="button"
             title={item.label}
             aria-label={item.label}
+            aria-expanded={item.subviews ? section === item.key : undefined}
             onClick={() => selectSection(item.key)}
             sx={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5,
@@ -1198,7 +1200,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
               cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: section === item.key ? 'primary.dark' : 'action.hover' },
             }}
           >
-            {item.icon}<Typography variant="body2" sx={{ fontWeight: section === item.key ? 600 : 400 }}>{item.label}</Typography>
+            {item.icon}<Typography variant="body2" sx={{ flex: 1, fontWeight: section === item.key ? 600 : 400 }}>{item.label}</Typography>{item.subviews && (section === item.key ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />)}
           </Box>
           {item.subviews && section === item.key && <Box sx={{ ml: 2, mb: 1 }}>
             {item.subviews.map((subview) => {
