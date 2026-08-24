@@ -32,8 +32,17 @@ interface TrainingBatch {
   curriculum?: string
 }
 
-const getCurriculumSummary = (modules: TrainingBatchRecord['modules'] | null = []) => {
-  const normalizedModules = modules ?? []
+const getCurriculumSummary = (modules: TrainingBatchRecord['modules'] = []) => {
+  let normalizedModules: Array<{ lessons?: unknown[] }> = []
+  if (Array.isArray(modules)) normalizedModules = modules
+  if (typeof modules === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(modules)
+      if (Array.isArray(parsed)) normalizedModules = parsed as Array<{ lessons?: unknown[] }>
+    } catch {
+      normalizedModules = []
+    }
+  }
   const lessonCount = normalizedModules.reduce((total, module) => total + (Array.isArray(module.lessons) ? module.lessons.length : 0), 0)
   return `${normalizedModules.length} modules · ${lessonCount} lessons`
 }
@@ -113,12 +122,13 @@ const TrainingPrograms: FC = () => {
   const [batchRecords, setBatchRecords] = useState<TrainingBatchRecord[]>([])
 
   useEffect(() => {
-    const controller = new AbortController()
-    getTrainingBatches(controller.signal).then(setBatchRecords).catch((error) => {
-      if (error instanceof DOMException && error.name === 'AbortError') return
-      setBatchRecords([])
+    let isCurrent = true
+    getTrainingBatches().then((records) => {
+      if (isCurrent) setBatchRecords(records)
+    }).catch(() => {
+      if (isCurrent) setBatchRecords([])
     })
-    return () => controller.abort()
+    return () => { isCurrent = false }
   }, [])
 
   const summerCampBatches = useMemo(() => batchRecords.filter((batch) => batch.program_id === 'summer-camp').map(mapTrainingBatch), [batchRecords])

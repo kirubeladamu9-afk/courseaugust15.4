@@ -202,7 +202,7 @@ export interface TrainingBatchRecord {
   schedule: AdminClassSchedule | string
   course_id: number | null
   price: number
-  modules: Array<{ lessons?: unknown[] }> | null
+  modules: Array<{ lessons?: unknown[] }> | string | null
   enrolled: number
 }
 
@@ -220,8 +220,8 @@ const requestClasses = async (url: string, init?: RequestInit): Promise<AdminCla
   return response.json()
 }
 
-export const getTrainingBatches = async (signal?: AbortSignal): Promise<TrainingBatchRecord[]> => {
-  const response = await fetch('/api/training-batches', { signal })
+export const getTrainingBatches = async (): Promise<TrainingBatchRecord[]> => {
+  const response = await fetch('/api/training-batches')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
