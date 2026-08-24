@@ -167,10 +167,10 @@ const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSc
 }
 
 const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => void; onSave: (student: PendingStudent, values: PendingAssignmentValue) => void }> = ({ student, onClose, onSave }) => {
-  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: tutors[0].id, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false }, meeting_link: '' })
+  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false }, meeting_link: '' })
 
   useEffect(() => {
-    if (student) setValues({ tutor_id: tutors[0].id, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false }, meeting_link: '' })
+    if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false }, meeting_link: '' })
   }, [student])
 
   const canSave = values.capacity >= 1 && Boolean(values.meeting_link.trim()) && (values.schedule.flexible || (values.schedule.days.length > 0 && Boolean(values.schedule.time)))
@@ -195,7 +195,7 @@ const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => 
 const emptyClassForm = (): ClassFormValue => ({
   title: '',
   program_id: 'summer-camp',
-  tutor_id: tutors[0].id,
+  tutor_id: tutors[0]?.id ?? 0,
   capacity: 12,
   schedule: { days: ['Mon', 'Wed'], time: '10:00', flexible: false },
   meeting_link: '',
