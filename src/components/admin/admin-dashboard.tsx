@@ -864,6 +864,27 @@ const PaymentsPage: FC = () => {
   )
 }
 
+const downloadLoginCredentials = (account: AdminUser, temporaryPassword: string) => {
+  const content = [
+    'CourseSpace login credentials',
+    '',
+    `Name: ${account.name}`,
+    `Email: ${account.email}`,
+    `Temporary password: ${temporaryPassword}`,
+    '',
+    'Sign in with these credentials and change the temporary password after logging in.',
+  ].join('\n')
+  const file = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const fileUrl = URL.createObjectURL(file)
+  const link = document.createElement('a')
+  link.href = fileUrl
+  link.download = `coursespace-${account.accountType}-${account.accountId}-credentials.txt`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(fileUrl), 0)
+}
+
 const UsersPage: FC = () => {
   const [userRows, setUserRows] = useState<AdminUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -902,7 +923,8 @@ const UsersPage: FC = () => {
     if (!window.confirm(`Reset the password for ${account.name}?`)) return
     try {
       const result = await resetAdminUserPassword(account.accountType, account.accountId)
-      toast.add({ title: 'Password reset', description: `Temporary password: ${result.temporaryPassword}`, type: 'success', priority: 'high' })
+      downloadLoginCredentials(account, result.temporaryPassword)
+      toast.add({ title: 'Password reset', description: `Temporary password: ${result.temporaryPassword}. Login credentials downloaded.`, type: 'success', priority: 'high' })
     } catch (error) {
       toast.add({ title: 'Unable to reset password', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
     }
