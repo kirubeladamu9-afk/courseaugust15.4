@@ -71,11 +71,12 @@ import { changePassword, type AdminDashboardOverview, createAdminCourse, createA
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
 import PaymentsPage from './payments-page'
+import ReportsPage from './reports-page'
 import { registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
-type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'payments' | 'users'
+type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'payments' | 'reports' | 'users'
 
 type AdminNavigationItem = {
   key: Section
@@ -90,7 +91,8 @@ const navigation: AdminNavigationItem[] = [
   { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, subviews: [{ label: 'Pending Scheduling', path: '/admin/classes/pending' }, { label: 'Active Classes', path: '/admin/classes/active' }] },
   { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon /> },
   { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon /> },
-  { key: 'payments', label: 'Payments & Reports', icon: <PaymentsOutlinedIcon /> },
+  { key: 'payments', label: 'Payments', icon: <PaymentsOutlinedIcon /> },
+  { key: 'reports', label: 'Reports', icon: <AssessmentOutlinedIcon /> },
   { key: 'users', label: 'Users', icon: <GroupOutlinedIcon /> },
 ]
 
@@ -1179,6 +1181,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       }
       case 'blog': return <SimplePage title="Bookstore & Blog" description="Manage books, articles, and publishing content." icon={<BookOutlinedIcon fontSize="large" />} />
       case 'payments': return <PaymentsPage />
+      case 'reports': return <ReportsPage />
       case 'users': return <UsersPage />
       default: return <OverviewPage />
     }
