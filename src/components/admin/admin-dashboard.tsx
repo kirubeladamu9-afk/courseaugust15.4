@@ -70,7 +70,8 @@ import { navigateTo } from '@/lib/navigation'
 import { changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
-import { payments, registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
+import PaymentsPage from './payments-page'
+import { registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
@@ -839,27 +840,6 @@ const TutorEditorPage: FC<TutorEditorPageProps> = ({ mode, tutorId }) => {
         </Paper>
         {mode === 'edit' && <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}><Typography variant="h6" sx={{ mb: 0.5 }}>Assigned Courses</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Current assignments. Update them with the multi-select in the profile form.</Typography><Stack spacing={1}>{tutor.assignedCourses.length ? tutor.assignedCourses.map((course) => <Box key={course.id} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}><Typography variant="subtitle2">{course.title}</Typography><Typography color="text.secondary" variant="body2">{course.category} · {course.students} students</Typography></Box>) : <Typography color="text.secondary" variant="body2">No courses assigned.</Typography>}</Stack></Paper>}
       </Stack>
-    </>
-  )
-}
-
-const PaymentsPage: FC = () => {
-  const columns: DataColumn<(typeof payments)[number]>[] = [
-    { key: 'student', label: 'Student' },
-    { key: 'course', label: 'Course' },
-    { key: 'amount', label: 'Amount', render: (value) => `$${value}` },
-    { key: 'date', label: 'Date' },
-    { key: 'status', label: 'Status', render: (value) => <StatusChip status={String(value)} /> },
-  ]
-  return (
-    <>
-      <PageHeading title="Payments & Reports" description="Track platform revenue and payment activity." />
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
-        <StatCard label="Total revenue" value="$24,680" detail="All-time collected" icon={<PaymentsOutlinedIcon />} />
-        <StatCard label="Pending payments" value="$1,240" detail="12 transactions" icon={<AssessmentOutlinedIcon />} />
-        <StatCard label="This month" value="$4,860" detail="18.4% increase" icon={<AssessmentOutlinedIcon />} />
-      </Stack>
-      <AdminDataTable rows={payments} columns={columns} searchPlaceholder="Search payments" />
     </>
   )
 }
