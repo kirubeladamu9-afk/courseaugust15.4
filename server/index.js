@@ -395,11 +395,13 @@ const parseCoursePayload = (body) => {
   }
 }
 
+const deserializeJson = (value) => typeof value === 'string' ? JSON.parse(value) : value
+
 const deserializeCourse = (course) => course ? {
   ...course,
-  learningOutcomes: typeof course.learningOutcomes === 'string' ? JSON.parse(course.learningOutcomes) : course.learningOutcomes,
-  requirements: typeof course.requirements === 'string' ? JSON.parse(course.requirements) : course.requirements,
-  modules: typeof course.modules === 'string' ? JSON.parse(course.modules) : course.modules,
+  learningOutcomes: deserializeJson(course.learningOutcomes),
+  requirements: deserializeJson(course.requirements),
+  modules: deserializeJson(course.modules),
 } : null
 
 const readCourse = async (id, publishedOnly = false) => {
@@ -552,7 +554,15 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
     WHERE enrollments.user_id = ${request.userId}
     ORDER BY enrollments.created_at DESC
   `
-  response.json(enrollments)
+  response.json(enrollments.map((enrollment) => {
+    const modules = deserializeJson(enrollment.modules)
+    const classSchedule = deserializeJson(enrollment.classSchedule)
+    return {
+      ...enrollment,
+      modules: Array.isArray(modules) ? modules : [],
+      classSchedule: classSchedule && typeof classSchedule === 'object' && !Array.isArray(classSchedule) ? classSchedule : null,
+    }
+  }))
 })
 
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
