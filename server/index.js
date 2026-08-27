@@ -701,6 +701,28 @@ app.post('/api/payments/chapa/webhook', async (request, response, next) => {
   }
 })
 
+app.get('/api/payments', requireAuthenticated, async (request, response) => {
+  const payments = await sql`
+    SELECT payments.id::INTEGER AS id,
+           courses.title AS "itemName",
+           'Course' AS type,
+           payments.amount::FLOAT AS amount,
+           payments.currency,
+           CASE payments.status
+             WHEN 'paid' THEN 'Paid'
+             WHEN 'failed' THEN 'Failed'
+             ELSE 'Pending'
+           END AS status,
+           to_char(payments.created_at, 'Mon DD, YYYY') AS date,
+           payments.reference AS "txRef"
+    FROM payments
+    INNER JOIN courses ON courses.id = payments.course_id
+    WHERE payments.user_id = ${request.userId}
+    ORDER BY payments.created_at DESC, payments.id DESC
+  `
+  return response.json(payments)
+})
+
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,

@@ -45,7 +45,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type ReactNode, useEffect, useState } from 'react'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
-import { getAuthenticatedUser, getMyEnrollments, signOut, type MyEnrollment } from '@/services/api'
+import { getAuthenticatedUser, getMyEnrollments, getMyPayments, signOut, type MyEnrollment, type MyPayment } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
  type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'profile' | 'payments' | 'course-view'
@@ -122,16 +122,6 @@ import { navigateTo } from '@/lib/navigation'
   download_url: string
 }
 
- interface DashboardPayment {
-  id: number
-  item_name: string
-  type: 'Course' | 'Class'
-  amount: number
-  status: 'Paid' | 'Pending'
-  date: string
-  tx_ref: string
-}
-
 const drawerWidth = 272
 const quizzes: DashboardQuiz[] = [
   { id: 1, course_id: 1, title: 'React foundations knowledge check', status: 'completed', score: 92 },
@@ -143,12 +133,6 @@ const quizzes: DashboardQuiz[] = [
 const purchases: DashboardPurchase[] = [
   { id: 1, item_name: 'The Practical React Workbook', type: 'Book', download_url: '#react-workbook' },
   { id: 2, item_name: 'Frontend Developer Practice Exam', type: 'Exam', download_url: '#frontend-exam' },
-]
-
-const payments: DashboardPayment[] = [
-  { id: 1, item_name: 'Modern React with MUI & Redux', type: 'Course', amount: 35, status: 'Paid', date: 'Aug 18, 2025', tx_ref: 'CS-REACT-0818' },
-  { id: 2, item_name: 'Live React Workshop', type: 'Class', amount: 25, status: 'Paid', date: 'Aug 18, 2025', tx_ref: 'CS-CLASS-0818' },
-  { id: 3, item_name: 'Private Conversation Class', type: 'Class', amount: 30, status: 'Pending', date: 'Aug 20, 2025', tx_ref: 'CS-CLASS-0820' },
 ]
 
 const formatDuration = (seconds: number) => {
@@ -436,20 +420,20 @@ const ProfileView: FC<{ onUpdateProfile: (profile: { name: string; email: string
   </>
 }
 
-const PaymentHistoryView: FC = () => <>
-  <ViewHeading title="Payment History" description="Review course and live class transactions linked to your account." />
-  <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
-    <AdminDataTable rows={payments} columns={paymentColumns} searchPlaceholder="Search payments" searchKeys={['item_name', 'type', 'tx_ref']} />
-  </Paper>
+const PaymentHistoryView: FC<{ payments: MyPayment[]; isLoading: boolean; error: string | null }> = ({ payments, isLoading, error }) => <>
+  <ViewHeading title="Payment History" description="Review course transactions linked to your account." />
+  {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading payments" /></Box> : error ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error">{error}</Typography></Paper> : <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+    <AdminDataTable rows={payments} columns={paymentColumns} searchPlaceholder="Search payments" searchKeys={['itemName', 'type', 'txRef']} />
+  </Paper>}
 </>
 
-const paymentColumns: DataColumn<DashboardPayment>[] = [
-  { key: 'item_name', label: 'Item' },
+const paymentColumns: DataColumn<MyPayment>[] = [
+  { key: 'itemName', label: 'Item' },
   { key: 'type', label: 'Type' },
-  { key: 'amount', label: 'Amount', render: (value) => `$${Number(value).toFixed(2)}` },
-  { key: 'status', label: 'Status', render: (value) => <Chip label={String(value)} color={value === 'Paid' ? 'success' : 'warning'} size="small" /> },
+  { key: 'amount', label: 'Amount', render: (value, row) => `${row.currency} ${Number(value).toFixed(2)}` },
+  { key: 'status', label: 'Status', render: (value) => <Chip label={String(value)} color={value === 'Paid' ? 'success' : value === 'Failed' ? 'error' : 'warning'} size="small" /> },
   { key: 'date', label: 'Date' },
-  { key: 'tx_ref', label: 'Transaction Reference' },
+  { key: 'txRef', label: 'Transaction Reference' },
 ]
 
 const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; onBack: () => void; onCompleteLesson: (lessonId: number) => void }> = ({ course, progress, completedLessonIds, onBack, onCompleteLesson }) => {
@@ -488,6 +472,9 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [enrollments, setEnrollments] = useState<DashboardEnrollment[]>([])
   const [isLoadingEnrollments, setIsLoadingEnrollments] = useState(true)
   const [enrollmentError, setEnrollmentError] = useState<string | null>(null)
+  const [payments, setPayments] = useState<MyPayment[]>([])
+  const [isLoadingPayments, setIsLoadingPayments] = useState(true)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>({})
   const [profileMessage, setProfileMessage] = useState('')
@@ -523,6 +510,27 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       isCurrent = false
     }
   }, [currentUserId])
+
+  useEffect(() => {
+    let isCurrent = true
+    getMyPayments()
+      .then((records) => {
+        if (!isCurrent) return
+        setPayments(records)
+        setPaymentError(null)
+      })
+      .catch((error) => {
+        if (!isCurrent) return
+        setPaymentError(error instanceof Error ? error.message : 'Unable to load your payments.')
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingPayments(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
 
   const selectedCourse = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)?.course
   const selectedCourseEnrollment = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)
@@ -564,7 +572,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} />}
           {activeView === 'purchases' && <PurchasesView />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
-          {activeView === 'payments' && <PaymentHistoryView />}
+          {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
           {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} onBack={() => selectView('courses')} onCompleteLesson={completeLesson} />}
         </>}
       </Box>

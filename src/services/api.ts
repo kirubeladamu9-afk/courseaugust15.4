@@ -122,6 +122,17 @@ export interface AdminPayment {
   status: 'Paid' | 'Pending' | 'Failed'
 }
 
+export interface MyPayment {
+  id: number
+  itemName: string
+  type: 'Course'
+  amount: number
+  currency: string
+  status: 'Paid' | 'Pending' | 'Failed'
+  date: string
+  txRef: string
+}
+
 export const getAdminPayments = async (): Promise<AdminPayment[]> => {
   const response = await requestApi('/api/admin/payments')
   if (!response.ok) throw new Error(await getErrorMessage(response))
@@ -380,6 +391,12 @@ export const completeTestPayment = async (reference: string, status: 'paid' | 'f
 
 export const verifyChapaPayment = async (reference: string): Promise<PaymentStatus> => {
   const response = await requestApi(`/api/payments/chapa/${encodeURIComponent(reference)}`)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getMyPayments = async (): Promise<MyPayment[]> => {
+  const response = await requestApi('/api/payments')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
