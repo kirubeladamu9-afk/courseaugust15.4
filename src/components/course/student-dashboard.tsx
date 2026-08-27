@@ -280,7 +280,6 @@ const DashboardHeader: FC<{ title: string; darkMode: boolean; language: string; 
       <Tooltip title="Open profile menu"><IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="Open profile menu" aria-controls={profileAnchor ? 'student-profile-menu' : undefined} aria-haspopup="true"><AccountCircleOutlinedIcon /></IconButton></Tooltip>
       <Menu id="student-profile-menu" anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)} PaperProps={{ sx: { minWidth: 190, borderRadius: 2, p: 0.75 } }}>
         <MenuItem onClick={() => { setProfileAnchor(null); window.dispatchEvent(new CustomEvent('student-profile-open')) }}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />{displayName}</MenuItem>
-        <MenuItem onClick={() => { setProfileAnchor(null); navigateTo('/dashboard') }}>Dashboard home</MenuItem>
         <MenuItem onClick={() => { setProfileAnchor(null); void signOut().then(() => navigateTo('/', true)) }}>Sign out</MenuItem>
       </Menu>
     </Stack>
