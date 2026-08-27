@@ -249,7 +249,7 @@ const SummaryCard: FC<{ label: string; value: string; detail: string; icon: Reac
   <Card elevation={0} onClick={onClick} sx={{ flex: 1, minWidth: { xs: '100%', sm: 210 }, border: 1, borderColor: 'divider', cursor: onClick ? 'pointer' : 'default', '&:hover': onClick ? { borderColor: 'primary.main' } : undefined }}>
     <CardContent>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography color="text.secondary" variant="body2">{label}</Typography>
+        <Typography component="h2" color="text.secondary" variant="body2">{label}</Typography>
         <Box sx={{ display: 'flex', color: 'primary.main' }}>{icon}</Box>
       </Box>
       <Typography variant="h5" sx={{ mb: 0.75 }}>{value}</Typography>
@@ -331,15 +331,15 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; onSelectView: (view
       <SummaryCard label="Next live class" value={nextClass?.title ?? 'No class scheduled'} detail={nextClass ? `${formatDate(nextClass.schedule.startsAt)} · ${formatTime(nextClass.schedule.startsAt)}` : 'Check My Classes for updates'} icon={<VideoCallOutlinedIcon />} onClick={() => onSelectView('classes')} />
       <SummaryCard label="Learning progress" value={`${Math.round(enrollments.filter((enrollment) => enrollment.type === 'course').reduce((total, enrollment) => total + enrollment.progress, 0) / Math.max(1, enrollments.filter((enrollment) => enrollment.type === 'course').length))}%`} detail="Average across active courses" icon={<CheckCircleOutlineIcon />} />
     </Stack>
-    {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mb: 3 }}>You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling. We&apos;ll contact you to arrange the next step.</Alert>}
+    {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mb: 3 }}><Box><Typography component="h2" variant="subtitle2" sx={{ fontWeight: 700 }}>Pending items</Typography><Typography variant="body2">You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling. We&apos;ll contact you to arrange the next step.</Typography></Box></Alert>}
     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
       <Paper elevation={0} sx={{ flex: 1, p: 2.5, border: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ mb: 0.5 }}>Continue learning</Typography>
+        <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Continue learning</Typography>
         <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Jump back into your most recently active course.</Typography>
         {enrolledCourseIds[0] && <CourseMiniRow course={courses.find((course) => course.id === enrolledCourseIds[0])!} enrollment={enrollments.find((enrollment) => enrollment.item_id === enrolledCourseIds[0] && enrollment.type === 'course')!} onOpenCourse={onOpenCourse} />}
       </Paper>
       <Paper elevation={0} sx={{ flex: 1, p: 2.5, border: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ mb: 0.5 }}>Upcoming class</Typography>
+        <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Upcoming class</Typography>
         <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Your next scheduled live learning session.</Typography>
         {nextClass ? <Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><CalendarTodayOutlinedIcon /></Box><Box><Typography sx={{ fontWeight: 600 }}>{nextClass.title}</Typography><Typography color="text.secondary" variant="body2">{classScheduleLabel(nextClass.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {tutors[nextClass.tutor_id]}</Typography></Box></Stack> : <Typography color="text.secondary">Your schedule will appear here once a class is confirmed.</Typography>}
       </Paper>
