@@ -265,14 +265,22 @@ const parseTutorPayload = (body) => {
 const parseTutorStatus = (body) => body && typeof body === 'object' && !Array.isArray(body) && (body.status === 'Active' || body.status === 'Inactive') ? body.status : null
 
 const addAssignedCourses = async (tutor) => {
-  const assignedCourses = await sql`
-    SELECT id::INTEGER AS id, title, category, students
-    FROM courses
-    WHERE tutor_id = ${tutor.id}
-       OR (tutor_id IS NULL AND LOWER(TRIM(tutor)) = LOWER(${tutor.name}))
-    ORDER BY id
-  `
-  return { ...tutor, assignedCourses, assignedCourseIds: assignedCourses.map((course) => course.id) }
+  const [assignedCourses, assignedClasses] = await Promise.all([
+    sql`
+      SELECT id::INTEGER AS id, title, category, students
+      FROM courses
+      WHERE tutor_id = ${tutor.id}
+         OR (tutor_id IS NULL AND LOWER(TRIM(tutor)) = LOWER(${tutor.name}))
+      ORDER BY id
+    `,
+    sql`
+      SELECT id::INTEGER AS id, title
+      FROM classes
+      WHERE tutor_id = ${tutor.id}
+      ORDER BY id
+    `,
+  ])
+  return { ...tutor, assignedCourses, assignedCourseIds: assignedCourses.map((course) => course.id), assignedClasses }
 }
 
 const readTutor = async (id) => {

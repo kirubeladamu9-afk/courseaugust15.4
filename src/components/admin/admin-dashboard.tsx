@@ -750,13 +750,14 @@ const TutorsPage: FC = () => {
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
     { key: 'assignedCourses', label: 'Assigned Courses', render: (value) => <Stack direction="row" flexWrap="wrap" gap={0.5}>{(value as AdminTutor['assignedCourses']).length ? (value as AdminTutor['assignedCourses']).map((course) => <Chip key={course.id} label={course.title} size="small" variant="outlined" />) : <Typography color="text.secondary" variant="body2">None</Typography>}</Stack> },
+    { key: 'assignedClasses', label: 'Assigned Classes', render: (value) => <Stack direction="row" flexWrap="wrap" gap={0.5}>{(value as AdminTutor['assignedClasses']).length ? (value as AdminTutor['assignedClasses']).map((classRecord) => <Chip key={classRecord.id} label={classRecord.title} size="small" variant="outlined" />) : <Typography color="text.secondary" variant="body2">None</Typography>}</Stack> },
     { key: 'status', label: 'Status', render: (value) => <StatusChip status={String(value)} /> },
     { key: 'createdAt', label: 'Date Joined' },
   ]
 
   return (
     <>
-      <PageHeading title="Tutors" description="Manage tutor profiles and review their assigned courses." action={<Button label="New Tutor" onClick={openNewTutorPage} disabled={isLoading} />} />
+      <PageHeading title="Tutors" description="Manage tutor profiles and review their assigned courses and classes." action={<Button label="New Tutor" onClick={openNewTutorPage} disabled={isLoading} />} />
       {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading tutors" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadTutors() }} /></Paper> : <>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
           <FormControl size="small" sx={{ minWidth: 150 }}><InputLabel>Status</InputLabel><Select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'All' | AdminTutor['status'])}><MenuItem value="All">All statuses</MenuItem><MenuItem value="Active">Active</MenuItem><MenuItem value="Inactive">Inactive</MenuItem></Select></FormControl>
@@ -772,7 +773,7 @@ type TutorEditorPageProps =
   | { mode: 'new'; tutorId?: never }
   | { mode: 'edit'; tutorId: number }
 
-const createEmptyTutor = (): AdminTutor => ({ id: 0, name: '', email: '', phone: '', bio: '', status: 'Active', createdAt: '', assignedCourses: [] })
+const createEmptyTutor = (): AdminTutor => ({ id: 0, name: '', email: '', phone: '', bio: '', status: 'Active', createdAt: '', assignedCourses: [], assignedClasses: [] })
 
 const TutorEditorPage: FC<TutorEditorPageProps> = ({ mode, tutorId }) => {
   const [tutor, setTutor] = useState<AdminTutor | null>(() => mode === 'new' ? createEmptyTutor() : null)

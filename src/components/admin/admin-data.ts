@@ -69,6 +69,11 @@ export interface AssignedCourse {
   students: number
 }
 
+export interface AssignedClass {
+  id: number
+  title: string
+}
+
 export interface AdminTutor {
   id: number
   name: string
@@ -78,6 +83,7 @@ export interface AdminTutor {
   status: 'Active' | 'Inactive'
   createdAt: string
   assignedCourses: AssignedCourse[]
+  assignedClasses: AssignedClass[]
   assignedCourseIds?: number[]
   specialty?: string
   courses?: number
@@ -113,10 +119,10 @@ export const registrations: Registration[] = [
 ]
 
 export const tutors: Tutor[] = [
-  { id: 1, name: 'Maya Chen', email: 'maya@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jul 12, 2025', assignedCourses: [], specialty: 'Data Science', courses: 4 },
-  { id: 2, name: 'Leon Kennedy', email: 'leon@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jun 24, 2025', assignedCourses: [], specialty: 'Cloud Engineering', courses: 3 },
-  { id: 3, name: 'Jhon Dwirian', email: 'jhon@example.com', phone: '', bio: '', status: 'Inactive', createdAt: 'May 09, 2025', assignedCourses: [], specialty: 'Frontend Development', courses: 2 },
-  { id: 4, name: 'Rizki Known', email: 'rizki@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Apr 18, 2025', assignedCourses: [], specialty: 'Product Design', courses: 5 },
+  { id: 1, name: 'Maya Chen', email: 'maya@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jul 12, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Data Science', courses: 4 },
+  { id: 2, name: 'Leon Kennedy', email: 'leon@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jun 24, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Cloud Engineering', courses: 3 },
+  { id: 3, name: 'Jhon Dwirian', email: 'jhon@example.com', phone: '', bio: '', status: 'Inactive', createdAt: 'May 09, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Frontend Development', courses: 2 },
+  { id: 4, name: 'Rizki Known', email: 'rizki@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Apr 18, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Product Design', courses: 5 },
 ]
 
 export const payments: Payment[] = [
