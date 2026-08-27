@@ -89,6 +89,21 @@ export interface AdminDashboardOverview {
   enrollmentsByCategory: Array<{ label: string; value: number }>
 }
 
+export interface AdminPayment {
+  id: number
+  student: string
+  course: string
+  amount: number
+  date: string
+  status: 'Paid' | 'Pending' | 'Failed'
+}
+
+export const getAdminPayments = async (): Promise<AdminPayment[]> => {
+  const response = await requestApi('/api/admin/payments')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
 export const getAdminDashboardOverview = async (): Promise<AdminDashboardOverview> => {
   const response = await requestApi('/api/admin/overview')
   if (!response.ok) throw new Error(await getErrorMessage(response))

@@ -91,15 +91,6 @@ export interface AdminTutor {
 
 export type Tutor = AdminTutor
 
-export interface Payment {
-  id: number
-  student: string
-  course: string
-  amount: number
-  date: string
-  status: 'Paid' | 'Pending' | 'Refunded'
-}
-
 export interface AdminUser {
   id: number
   accountId?: number
@@ -123,13 +114,6 @@ export const tutors: Tutor[] = [
   { id: 2, name: 'Leon Kennedy', email: 'leon@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jun 24, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Cloud Engineering', courses: 3 },
   { id: 3, name: 'Jhon Dwirian', email: 'jhon@example.com', phone: '', bio: '', status: 'Inactive', createdAt: 'May 09, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Frontend Development', courses: 2 },
   { id: 4, name: 'Rizki Known', email: 'rizki@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Apr 18, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Product Design', courses: 5 },
-]
-
-export const payments: Payment[] = [
-  { id: 1, student: 'Ava Johnson', course: 'Data Modeling Fundamentals', amount: 30, date: 'Aug 18, 2025', status: 'Paid' },
-  { id: 2, student: 'Noah Williams', course: 'Docker and Kubernetes', amount: 30, date: 'Aug 17, 2025', status: 'Paid' },
-  { id: 3, student: 'Liam Brown', course: 'React with MUI & Redux', amount: 35, date: 'Aug 16, 2025', status: 'Pending' },
-  { id: 4, student: 'Emma Davis', course: 'Data Modeling Fundamentals', amount: 30, date: 'Aug 15, 2025', status: 'Refunded' },
 ]
 
 export const users: AdminUser[] = [
