@@ -192,14 +192,29 @@ const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): 
   course_id: enrollment.courseId,
   course,
 }
-const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
+const mapMyEnrollments = (records: MyEnrollment[], userId: number, completedLessons: Record<number, number[]> = {}): DashboardEnrollment[] => records.flatMap((record) => {
   const course = mapEnrollmentCourse(record)
   const classRecord = mapEnrollmentClass(record, course)
-  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: 0, course }
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, completedLessons[record.courseId] ?? []), course }
   if (!classRecord) return [courseEnrollment]
   return [courseEnrollment, { id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, classRecord }]
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
+const completedLessonsStorageKey = (userId: number) => `coursespace-completed-lessons-${userId}`
+const loadCompletedLessons = (userId: number): Record<number, number[]> => {
+  if (!Number.isFinite(userId)) return {}
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(completedLessonsStorageKey(userId)) ?? 'null')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(Object.entries(parsed).flatMap(([courseId, lessonIds]) => {
+      if (!Array.isArray(lessonIds)) return []
+      const validLessonIds = lessonIds.filter((lessonId): lessonId is number => typeof lessonId === 'number' && Number.isInteger(lessonId))
+      return validLessonIds.length ? [[courseId, validLessonIds]] : []
+    }))
+  } catch {
+    return {}
+  }
+}
 
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
@@ -480,7 +495,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [isLoadingPayments, setIsLoadingPayments] = useState(true)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
-  const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>({})
+  const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>(() => loadCompletedLessons(currentUserId))
   const [profileMessage, setProfileMessage] = useState('')
 
   useEffect(() => {
@@ -499,7 +514,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     getMyEnrollments()
       .then((records) => {
         if (!isCurrent) return
-        setEnrollments(mapMyEnrollments(records, currentUserId))
+        setEnrollments(mapMyEnrollments(records, currentUserId, loadCompletedLessons(currentUserId)))
         setEnrollmentError(null)
       })
       .catch((error) => {
@@ -514,6 +529,11 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       isCurrent = false
     }
   }, [currentUserId])
+
+  useEffect(() => {
+    if (!Number.isFinite(currentUserId)) return
+    localStorage.setItem(completedLessonsStorageKey(currentUserId), JSON.stringify(completedLessons))
+  }, [completedLessons, currentUserId])
 
   useEffect(() => {
     let isCurrent = true
