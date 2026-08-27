@@ -533,10 +533,22 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            courses.id::INTEGER AS "courseId",
            courses.title AS "courseTitle",
            courses.cover AS "courseCover",
-           students.full_name AS "studentName"
+           courses.category,
+           courses.level,
+           courses.tutor,
+           courses.modules,
+           classes.id::INTEGER AS "classId",
+           classes.title AS "classTitle",
+           tutors.name AS "classTutor",
+           classes.schedule AS "classSchedule",
+           classes.meeting_link AS "meetingLink",
+           classes.status AS "classStatus"
     FROM enrollments
+    INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
     INNER JOIN students ON students.id = enrollments.student_id
+    LEFT JOIN classes ON classes.id = enrollments.class_id
+    LEFT JOIN tutors ON tutors.id = classes.tutor_id
     WHERE enrollments.user_id = ${request.userId}
     ORDER BY enrollments.created_at DESC
   `

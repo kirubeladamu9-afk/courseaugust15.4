@@ -10,6 +10,7 @@ import Drawer from '@mui/material/Drawer'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import IconButton from '@mui/material/IconButton'
 import LinearProgress from '@mui/material/LinearProgress'
+import CircularProgress from '@mui/material/CircularProgress'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
@@ -44,14 +45,14 @@ import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type ReactNode, useEffect, useState } from 'react'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
-import { getAuthenticatedUser, signOut } from '@/services/api'
+import { getAuthenticatedUser, getMyEnrollments, signOut, type MyEnrollment } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
  type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'profile' | 'payments' | 'course-view'
  type EnrollmentType = 'course' | 'class'
  type EnrollmentStatus = 'active' | 'pending_schedule' | 'completed'
  type QuizStatus = 'available' | 'completed'
- type ClassStatus = 'pending_schedule' | 'open'
+ type ClassStatus = 'pending_schedule' | 'open' | 'full' | 'closed'
 
  interface DashboardEnrollment {
   id: number
@@ -60,12 +61,14 @@ import { navigateTo } from '@/lib/navigation'
   item_id: number
   status: EnrollmentStatus
   progress: number
+  course?: DashboardCourse
+  classRecord?: DashboardClass
  }
 
  interface DashboardLesson {
   id: number
   title: string
-  type: 'video' | 'article' | 'quiz'
+  type: 'video' | 'article' | 'quiz' | 'live'
   duration: string
   description: string
  }
@@ -88,6 +91,7 @@ import { navigateTo } from '@/lib/navigation'
  interface DashboardClassSchedule {
   days: string[]
   time: string
+  flexible: boolean
   date: string
   startsAt: string
  }
@@ -95,11 +99,12 @@ import { navigateTo } from '@/lib/navigation'
  interface DashboardClass {
   id: number
   title: string
-  tutor_id: number
+  tutorName: string
   schedule: DashboardClassSchedule
   meeting_link: string
   status: ClassStatus
   course_id: number | null
+  course?: DashboardCourse
  }
 
  interface DashboardQuiz {
@@ -128,76 +133,6 @@ import { navigateTo } from '@/lib/navigation'
 }
 
 const drawerWidth = 272
-const mockUserId = 101
-const mockSessionStart = new Date(Date.now() + 24 * 60 * 60 * 1000)
-mockSessionStart.setHours(18, 30, 0, 0)
-
-const courses: DashboardCourse[] = [
-  {
-    id: 1,
-    title: 'Modern React with MUI & Redux',
-    category: 'Frontend Development',
-    level: 'Intermediate',
-    tutor: 'Maya Chen',
-    modules: [
-      {
-        id: 11,
-        title: 'React foundations',
-        lessons: [
-          { id: 101, title: 'Component architecture', type: 'video', duration: '18 min', description: 'Learn how to split a React interface into clear, reusable components.' },
-          { id: 102, title: 'Props and state', type: 'article', duration: '8 min read', description: 'Understand the data flow patterns that keep interactive screens predictable.' },
-        ],
-      },
-      {
-        id: 12,
-        title: 'Building product interfaces',
-        lessons: [
-          { id: 103, title: 'Designing with Material UI', type: 'video', duration: '24 min', description: 'Create accessible layouts with Material UI components and theme tokens.' },
-          { id: 104, title: 'Knowledge check', type: 'quiz', duration: '5 questions', description: 'Review the concepts from the first two sections.' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: 'Data Modeling Fundamentals',
-    category: 'Data Science',
-    level: 'Beginner',
-    tutor: 'Leon Kennedy',
-    modules: [
-      {
-        id: 21,
-        title: 'Modeling essentials',
-        lessons: [
-          { id: 201, title: 'Entities and relationships', type: 'video', duration: '20 min', description: 'Map real-world requirements into a durable data model.' },
-          { id: 202, title: 'Normalization guide', type: 'article', duration: '10 min read', description: 'Use normalization to reduce duplication without losing useful context.' },
-        ],
-      },
-    ],
-  },
-]
-
-const classes: DashboardClass[] = [
-  {
-    id: 1,
-    title: 'Live React Workshop',
-    tutor_id: 1,
-    schedule: { days: ['Tue'], time: '6:30 PM', date: mockSessionStart.toISOString(), startsAt: mockSessionStart.toISOString() },
-    meeting_link: '#join-react-workshop',
-    status: 'open',
-    course_id: 1,
-  },
-  {
-    id: 2,
-    title: 'Private Conversation Class',
-    tutor_id: 2,
-    schedule: { days: [], time: '', date: '', startsAt: '' },
-    meeting_link: '',
-    status: 'pending_schedule',
-    course_id: null,
-  },
-]
-
 const quizzes: DashboardQuiz[] = [
   { id: 1, course_id: 1, title: 'React foundations knowledge check', status: 'completed', score: 92 },
   { id: 2, course_id: 1, title: 'Material UI layout challenge', status: 'available', score: null },
@@ -216,19 +151,66 @@ const payments: DashboardPayment[] = [
   { id: 3, item_name: 'Private Conversation Class', type: 'Class', amount: 30, status: 'Pending', date: 'Aug 20, 2025', tx_ref: 'CS-CLASS-0820' },
 ]
 
-const initialEnrollments: DashboardEnrollment[] = [
-  { id: 1, user_id: mockUserId, type: 'course', item_id: 1, status: 'active', progress: 25 },
-  { id: 2, user_id: mockUserId, type: 'course', item_id: 2, status: 'active', progress: 20 },
-  { id: 3, user_id: mockUserId, type: 'class', item_id: 1, status: 'active', progress: 0 },
-  { id: 4, user_id: mockUserId, type: 'class', item_id: 2, status: 'pending_schedule', progress: 0 },
-]
-
-const tutors: Record<number, string> = { 1: 'Maya Chen', 2: 'Leon Kennedy' }
-
-const formatDate = (date: string) => date ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date)) : 'Date to be confirmed'
-const formatTime = (date: string) => date ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(date)) : 'Time to be confirmed'
-const classScheduleLabel = (schedule: DashboardClassSchedule) => `${schedule.days.join(', ')} · ${schedule.time}`
+const formatDuration = (seconds: number) => {
+  const totalMinutes = Math.max(1, Math.round(seconds / 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${minutes}m`
+}
+const formatClassTime = (time: string) => {
+  if (!time) return 'Time to be confirmed'
+  const [hour, minute] = time.split(':').map(Number)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 'Time to be confirmed'
+  const suffix = hour >= 12 ? 'PM' : 'AM'
+  return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${suffix}`
+}
+const classScheduleLabel = (schedule: DashboardClassSchedule) => {
+  if (schedule.flexible) return 'Flexible schedule'
+  const days = schedule.days.length ? schedule.days.join(', ') : 'Days to be confirmed'
+  return `${days} · ${formatClassTime(schedule.time)}`
+}
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
+const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
+  id: enrollment.courseId,
+  title: enrollment.courseTitle,
+  category: enrollment.category,
+  level: enrollment.level,
+  tutor: enrollment.tutor || 'Tutor to be confirmed',
+  modules: enrollment.modules.map((module) => ({
+    id: module.id,
+    title: module.title,
+    lessons: module.lessons.map((lesson) => ({
+      id: lesson.id,
+      title: lesson.title,
+      type: lesson.type === 'live' ? 'video' : lesson.type,
+      duration: lesson.duration ? formatDuration(lesson.duration) : lesson.type === 'article' ? 'Article' : lesson.type === 'quiz' ? 'Quiz' : 'Video',
+      description: lesson.articleBody || 'Work through this lesson at your own pace.',
+    })),
+  })),
+})
+const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): DashboardClass | null => enrollment.classId === null ? null : {
+  id: enrollment.classId,
+  title: enrollment.classTitle || 'Class enrollment',
+  tutorName: enrollment.classTutor || 'Tutor to be confirmed',
+  schedule: {
+    days: enrollment.classSchedule?.days ?? [],
+    time: enrollment.classSchedule?.time ?? '',
+    flexible: enrollment.classSchedule?.flexible ?? false,
+    date: '',
+    startsAt: '',
+  },
+  meeting_link: enrollment.meetingLink || '',
+  status: enrollment.classStatus || 'pending_schedule',
+  course_id: enrollment.courseId,
+  course,
+}
+const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
+  const course = mapEnrollmentCourse(record)
+  const classRecord = mapEnrollmentClass(record, course)
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: 0, course }
+  if (!classRecord) return [courseEnrollment]
+  return [courseEnrollment, { id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, classRecord }]
+})
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
 
 const iconForLesson = (type: DashboardLesson['type']) => {
@@ -320,30 +302,30 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
 }
 
 const OverviewView: FC<{ enrollments: DashboardEnrollment[]; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number) => void }> = ({ enrollments, onSelectView, onOpenCourse }) => {
-  const enrolledCourseIds = enrollments.filter((enrollment) => enrollment.type === 'course' && enrollment.status !== 'completed').map((enrollment) => enrollment.item_id)
-  const activeCourseCount = enrolledCourseIds.length
-  const nextClassEnrollment = enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.status === 'active' && classes.find((classRecord) => classRecord.id === enrollment.item_id)?.status === 'open')
-  const nextClass = classes.find((classRecord) => classRecord.id === nextClassEnrollment?.item_id)
+  const courseEnrollments = enrollments.filter((enrollment) => enrollment.type === 'course' && enrollment.status !== 'completed')
+  const activeCourseCount = courseEnrollments.length
+  const nextClassEnrollment = enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.status === 'active' && enrollment.classRecord?.status === 'open')
+  const nextClass = nextClassEnrollment?.classRecord
   const pendingCount = enrollments.filter((enrollment) => enrollment.type === 'class' && enrollment.status === 'pending_schedule').length
 
   return <>
     <ViewHeading eyebrow="Welcome back" title="Dashboard" description="Pick up where you left off and stay on top of your learning schedule." />
     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
       <SummaryCard label="Active courses" value={String(activeCourseCount)} detail="Self-paced courses in progress" icon={<MenuBookOutlinedIcon />} onClick={() => onSelectView('courses')} />
-      <SummaryCard label="Next live class" value={nextClass?.title ?? 'No class scheduled'} detail={nextClass ? `${formatDate(nextClass.schedule.startsAt)} · ${formatTime(nextClass.schedule.startsAt)}` : 'Check My Classes for updates'} icon={<VideoCallOutlinedIcon />} onClick={() => onSelectView('classes')} />
-      <SummaryCard label="Learning progress" value={`${Math.round(enrollments.filter((enrollment) => enrollment.type === 'course').reduce((total, enrollment) => total + enrollment.progress, 0) / Math.max(1, enrollments.filter((enrollment) => enrollment.type === 'course').length))}%`} detail="Average across active courses" icon={<CheckCircleOutlineIcon />} />
+      <SummaryCard label="Next live class" value={nextClass?.title ?? 'No class scheduled'} detail={nextClass ? classScheduleLabel(nextClass.schedule) : 'Check My Classes for updates'} icon={<VideoCallOutlinedIcon />} onClick={() => onSelectView('classes')} />
+      <SummaryCard label="Learning progress" value={`${Math.round(courseEnrollments.reduce((total, enrollment) => total + enrollment.progress, 0) / Math.max(1, courseEnrollments.length))}%`} detail="Average across active courses" icon={<CheckCircleOutlineIcon />} />
     </Stack>
     {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mb: 3 }}><Box><Typography component="h2" variant="subtitle2" sx={{ fontWeight: 700 }}>Pending items</Typography><Typography variant="body2">You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling. We&apos;ll contact you to arrange the next step.</Typography></Box></Alert>}
     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
       <Paper elevation={0} sx={{ flex: 1, p: 2.5, border: 1, borderColor: 'divider' }}>
         <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Continue learning</Typography>
         <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Jump back into your most recently active course.</Typography>
-        {enrolledCourseIds[0] && <CourseMiniRow course={courses.find((course) => course.id === enrolledCourseIds[0])!} enrollment={enrollments.find((enrollment) => enrollment.item_id === enrolledCourseIds[0] && enrollment.type === 'course')!} onOpenCourse={onOpenCourse} />}
+        {courseEnrollments[0]?.course && <CourseMiniRow course={courseEnrollments[0].course} enrollment={courseEnrollments[0]} onOpenCourse={onOpenCourse} />}
       </Paper>
       <Paper elevation={0} sx={{ flex: 1, p: 2.5, border: 1, borderColor: 'divider' }}>
         <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Upcoming class</Typography>
         <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Your next scheduled live learning session.</Typography>
-        {nextClass ? <Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><CalendarTodayOutlinedIcon /></Box><Box><Typography sx={{ fontWeight: 600 }}>{nextClass.title}</Typography><Typography color="text.secondary" variant="body2">{classScheduleLabel(nextClass.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {tutors[nextClass.tutor_id]}</Typography></Box></Stack> : <Typography color="text.secondary">Your schedule will appear here once a class is confirmed.</Typography>}
+        {nextClass ? <Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><CalendarTodayOutlinedIcon /></Box><Box><Typography sx={{ fontWeight: 600 }}>{nextClass.title}</Typography><Typography color="text.secondary" variant="body2">{classScheduleLabel(nextClass.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {nextClass.tutorName}</Typography></Box></Stack> : <Typography color="text.secondary">Your schedule will appear here once a class is confirmed.</Typography>}
       </Paper>
     </Stack>
   </>
@@ -352,13 +334,12 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; onSelectView: (view
 const CourseMiniRow: FC<{ course: DashboardCourse; enrollment: DashboardEnrollment; onOpenCourse: (courseId: number) => void }> = ({ course, enrollment, onOpenCourse }) => <Box component="button" type="button" onClick={() => onOpenCourse(course.id)} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, border: 1, borderColor: 'divider', borderRadius: 2, backgroundColor: 'background.paper', cursor: 'pointer', textAlign: 'left', font: 'inherit', '&:hover': { borderColor: 'primary.main' } }}><Box sx={{ display: 'flex', p: 1, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><PlayCircleOutlineIcon /></Box><Box sx={{ flex: 1, minWidth: 0 }}><Typography noWrap sx={{ fontWeight: 600 }}>{course.title}</Typography><LinearProgress variant="determinate" value={enrollment.progress} sx={{ mt: 1, height: 6, borderRadius: 4 }} /></Box><Typography color="primary.main" variant="body2" sx={{ fontWeight: 700 }}>{enrollment.progress}%</Typography></Box>
 
 const CoursesView: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (courseId: number) => void }> = ({ enrollments, onOpenCourse }) => {
-  const courseEnrollments = enrollments.filter((enrollment) => enrollment.type === 'course')
+  const courseEnrollments = enrollments.filter((enrollment) => enrollment.type === 'course' && enrollment.course)
   return <>
     <ViewHeading title="My Courses" description="Build momentum with the self-paced courses in your learning plan." />
-    {courseEnrollments.length === 0 ? <EmptyState title="No courses yet" description="Your self-paced enrollments will appear here." actionLabel="Browse courses" onAction={() => navigateTo('/')} /> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+    {courseEnrollments.length === 0 ? <EmptyState title="No courses yet" description="Your paid course enrollments will appear here." actionLabel="Browse courses" onAction={() => navigateTo('/')} /> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
       {courseEnrollments.map((enrollment) => {
-        const course = courses.find((courseRecord) => courseRecord.id === enrollment.item_id)
-        if (!course) return null
+        const course = enrollment.course!
         return <Card key={enrollment.id} elevation={0} sx={{ border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ minHeight: 110, p: 2.5, display: 'flex', alignItems: 'flex-end', background: 'linear-gradient(135deg, rgba(16, 125, 111, 0.16), rgba(16, 125, 111, 0.04))' }}><MenuBookOutlinedIcon color="primary" sx={{ fontSize: 38 }} /></Box>
           <CardContent sx={{ display: 'flex', flex: 1, flexDirection: 'column' }}>
@@ -374,25 +355,23 @@ const CoursesView: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (cours
 }
 
 const ClassesView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onOpenCourse: (courseId: number) => void }> = ({ enrollments, now, onOpenCourse }) => {
-  const classEnrollments = enrollments.filter((enrollment) => enrollment.type === 'class')
+  const classEnrollments = enrollments.filter((enrollment) => enrollment.type === 'class' && enrollment.classRecord)
   return <>
     <ViewHeading title="My Classes" description="See your live learning schedule and join sessions when they are ready." />
-    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Live class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => {
-      const classRecord = classes.find((classItem) => classItem.id === enrollment.item_id)
-      if (!classRecord) return null
-      return <ClassCard key={enrollment.id} classRecord={classRecord} now={now} onOpenCourse={onOpenCourse} />
-    })}</Stack>}
+    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => <ClassCard key={enrollment.id} classRecord={enrollment.classRecord!} now={now} onOpenCourse={onOpenCourse} />)}</Stack>}
   </>
 }
 
 const ClassCard: FC<{ classRecord: DashboardClass; now: Date; onOpenCourse: (courseId: number) => void }> = ({ classRecord, now, onOpenCourse }) => {
   const sessionStart = classRecord.schedule.startsAt ? new Date(classRecord.schedule.startsAt) : null
   const isJoinable = classRecord.status === 'open' && sessionStart !== null && now.getTime() >= sessionStart.getTime() - 15 * 60 * 1000 && now.getTime() <= sessionStart.getTime() + 90 * 60 * 1000
-  const linkedCourse = classRecord.course_id ? courses.find((course) => course.id === classRecord.course_id) : null
+  const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? 'Scheduled' : classRecord.status === 'full' ? 'Full' : 'Closed'
+  const statusColor = classRecord.status === 'pending_schedule' || classRecord.status === 'full' ? 'warning' : classRecord.status === 'open' ? 'success' : 'error'
+  const linkedCourse = classRecord.course
   return <Card elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
     <CardContent>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={classRecord.status === 'pending_schedule' ? 'Pending schedule' : 'Scheduled'} size="small" color={classRecord.status === 'pending_schedule' ? 'warning' : 'success'} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">{formatDate(classRecord.schedule.date)} · Tutor: {tutors[classRecord.tutor_id] ?? 'Tutor to be confirmed'}</Typography></>}</Box></Box>
+        <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={statusLabel} size="small" color={statusColor} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography></>}</Box></Box>
         {classRecord.status === 'open' && <Button variant="contained" component="a" href={classRecord.meeting_link} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : 'Join at session time'}</Button>}
       </Stack>
       {linkedCourse && <><Divider sx={{ my: 2 }} /><Button variant="text" size="small" startIcon={<MenuBookOutlinedIcon />} onClick={() => onOpenCourse(linkedCourse.id)}>View {linkedCourse.title} curriculum summary</Button></>}
@@ -406,7 +385,7 @@ const QuizzesView: FC<{ enrollments: DashboardEnrollment[] }> = ({ enrollments }
   return <>
     <ViewHeading title="Quizzes & Results" description="Review completed results and test your knowledge in enrolled courses." />
     {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map((quiz) => {
-      const course = courses.find((courseRecord) => courseRecord.id === quiz.course_id)
+      const course = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === quiz.course_id)?.course
       return <Card key={quiz.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{quiz.title}</Typography><Typography color="text.secondary" variant="body2">{course?.title}</Typography></Box></Box>{quiz.status === 'completed' ? <Stack direction="row" spacing={1} alignItems="center"><Chip icon={<CheckCircleOutlineIcon />} label={`Score ${quiz.score}%`} color="success" size="small" /><Button variant="outlined" size="small">Review</Button></Stack> : <Button variant="contained" startIcon={<QuizOutlinedIcon />} onClick={() => undefined}>Start Quiz</Button>}</Stack></CardContent></Card>
     })}</Stack>}
   </>
@@ -491,14 +470,16 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const currentUser = getAuthenticatedUser()
-  const currentUserId = Number(currentUser?.id) || mockUserId
+  const currentUserId = Number(currentUser?.id)
   const [activeView, setActiveView] = useState<DashboardView>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [language, setLanguage] = useState('EN')
   const [now, setNow] = useState(() => new Date())
-  const [enrollments, setEnrollments] = useState<DashboardEnrollment[]>(() => initialEnrollments.map((enrollment) => ({ ...enrollment, user_id: currentUserId })))
+  const [enrollments, setEnrollments] = useState<DashboardEnrollment[]>([])
+  const [isLoadingEnrollments, setIsLoadingEnrollments] = useState(true)
+  const [enrollmentError, setEnrollmentError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
-  const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>({ 1: [101], 2: [] })
+  const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>({})
   const [profileMessage, setProfileMessage] = useState('')
 
   useEffect(() => {
@@ -512,7 +493,28 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     return () => window.removeEventListener('student-profile-open', handleProfileOpen)
   }, [])
 
-  const selectedCourse = courses.find((course) => course.id === selectedCourseId)
+  useEffect(() => {
+    let isCurrent = true
+    getMyEnrollments()
+      .then((records) => {
+        if (!isCurrent) return
+        setEnrollments(mapMyEnrollments(records, currentUserId))
+        setEnrollmentError(null)
+      })
+      .catch((error) => {
+        if (!isCurrent) return
+        setEnrollmentError(error instanceof Error ? error.message : 'Unable to load your enrollments.')
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingEnrollments(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [currentUserId])
+
+  const selectedCourse = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)?.course
   const selectedCourseEnrollment = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)
   const selectedCourseProgress = selectedCourse ? getCourseProgress(selectedCourse, completedLessons[selectedCourse.id] ?? []) : 0
   const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'profile' ? 'Profile' : 'Payment History'
@@ -545,14 +547,16 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       <DashboardHeader title={pageTitle} darkMode={darkMode} language={language} onLanguageChange={() => setLanguage((current) => current === 'EN' ? 'AM' : 'EN')} onToggleDarkMode={onToggleDarkMode} onOpenMenu={() => setMobileOpen(true)} />
       <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
         {profileMessage && <Alert severity="success" onClose={() => setProfileMessage('')} sx={{ mb: 3 }}>{profileMessage}</Alert>}
-        {activeView === 'overview' && <OverviewView enrollments={enrollments.filter((enrollment) => enrollment.user_id === currentUserId)} onSelectView={selectView} onOpenCourse={openCourse} />}
-        {activeView === 'courses' && <CoursesView enrollments={enrollments.filter((enrollment) => enrollment.user_id === currentUserId)} onOpenCourse={openCourse} />}
-        {activeView === 'classes' && <ClassesView enrollments={enrollments.filter((enrollment) => enrollment.user_id === currentUserId)} now={now} onOpenCourse={openCourse} />}
-        {activeView === 'quizzes' && <QuizzesView enrollments={enrollments.filter((enrollment) => enrollment.user_id === currentUserId)} />}
-        {activeView === 'purchases' && <PurchasesView />}
-        {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
-        {activeView === 'payments' && <PaymentHistoryView />}
-        {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} onBack={() => selectView('courses')} onCompleteLesson={completeLesson} />}
+        {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
+          {activeView === 'overview' && <OverviewView enrollments={enrollments} onSelectView={selectView} onOpenCourse={openCourse} />}
+          {activeView === 'courses' && <CoursesView enrollments={enrollments} onOpenCourse={openCourse} />}
+          {activeView === 'classes' && <ClassesView enrollments={enrollments} now={now} onOpenCourse={openCourse} />}
+          {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} />}
+          {activeView === 'purchases' && <PurchasesView />}
+          {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
+          {activeView === 'payments' && <PaymentHistoryView />}
+          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} onBack={() => selectView('courses')} onCompleteLesson={completeLesson} />}
+        </>}
       </Box>
     </Box>
   </Box>

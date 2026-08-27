@@ -35,12 +35,36 @@ interface PaymentStatus {
   status: 'pending' | 'paid' | 'failed'
 }
 
+interface EnrollmentLesson {
+  id: number
+  title: string
+  type: 'video' | 'article' | 'quiz' | 'live'
+  duration: number | null
+  estimatedDuration?: number
+  articleBody?: string
+}
+
+interface EnrollmentModule {
+  id: number
+  title: string
+  lessons: EnrollmentLesson[]
+}
+
 export interface MyEnrollment {
   id: number
   courseId: number
   courseTitle: string
   courseCover: string
-  studentName: string
+  category: string
+  level: string
+  tutor: string
+  modules: EnrollmentModule[]
+  classId: number | null
+  classTitle: string | null
+  classTutor: string | null
+  classSchedule: { days: string[]; time: string; flexible: boolean } | null
+  meetingLink: string | null
+  classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
 }
 
 const authStorageKey = 'coursespace-auth-user'
