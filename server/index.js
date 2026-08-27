@@ -146,11 +146,16 @@ const initializeDatabase = async () => {
       course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,
       student_data JSONB NOT NULL,
       amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+      currency TEXT NOT NULL DEFAULT 'ETB',
+      chapa_reference TEXT,
       status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       paid_at TIMESTAMPTZ
     )
   `
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'ETB'`
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS chapa_reference TEXT`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS payments_chapa_reference_idx ON payments(chapa_reference) WHERE chapa_reference IS NOT NULL`
 
   await sql`
     CREATE TABLE IF NOT EXISTS enrollments (
@@ -432,24 +437,26 @@ const verifyChapaTransaction = async (reference) => {
   const secretKey = process.env.CHAPA_SECRET_KEY
   if (!secretKey) throw new Error('Chapa checkout has not been configured.')
   const response = await fetch(`https://api.chapa.global/v2/payments/${encodeURIComponent(reference)}/verify`, {
-    headers: { Authorization: `Bearer ${secretKey}` },
+    headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
   })
   if (!response.ok) throw new Error('Chapa could not verify this payment.')
-  return getChapaStatus(await response.json())
+  const verification = await response.json()
+  return { status: getChapaStatus(verification), data: verification?.data ?? {} }
 }
 
-const updatePaymentStatus = async (reference, status) => sql.begin(async (transaction) => {
+const updatePaymentStatus = async (reference, status, verification = {}) => sql.begin(async (transaction) => {
   const [payment] = await transaction`
-    SELECT id, user_id AS "userId", course_id AS "courseId", student_data AS "studentData", status
+    SELECT id, user_id AS "userId", course_id AS "courseId", student_data AS "studentData", amount::FLOAT AS amount, currency, status
     FROM payments
     WHERE reference = ${reference}
     FOR UPDATE
   `
   if (!payment || payment.status === status || payment.status === 'paid') return payment?.status ?? null
+  if (status === 'paid' && (Number(verification.amount) !== payment.amount || String(verification.currency).toUpperCase() !== payment.currency.toUpperCase() || verification.merchant_reference !== payment.reference)) return payment.status
 
   await transaction`
     UPDATE payments
-    SET status = ${status}, paid_at = ${status === 'paid' ? new Date() : null}
+    SET status = ${status}, paid_at = ${status === 'paid' ? new Date() : null}, chapa_reference = COALESCE(chapa_reference, ${verification.chapa_reference ?? null})
     WHERE id = ${payment.id}
   `
   if (status !== 'paid') return status
@@ -558,9 +565,10 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
     notes: '',
   }]
   const reference = `course-${course.id}-${randomBytes(12).toString('hex')}`
+  const currency = process.env.CHAPA_CURRENCY ?? 'ETB'
   const amount = course.price * students.length
   const [payment] = await sql`
-    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course.id, student_data: JSON.stringify(students), amount })}
+    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course.id, student_data: JSON.stringify(students), amount, currency })}
     RETURNING id
   `
 
@@ -575,7 +583,8 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
       },
       body: JSON.stringify({
         amount,
-        currency: process.env.CHAPA_CURRENCY ?? 'ETB',
+        currency,
+        merchant_reference: reference,
         customer: {
           first_name: nameParts[0] || 'Student',
           last_name: nameParts.slice(1).join(' '),
@@ -589,8 +598,10 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
     })
     const chapaPayment = await chapaResponse.json().catch(() => null)
     const checkoutUrl = chapaPayment?.data?.checkout_url
+    const chapaReference = chapaPayment?.data?.chapa_reference
     if (!chapaResponse.ok || typeof checkoutUrl !== 'string') throw new Error('Chapa did not return a checkout link.')
-    return response.status(201).json({ checkoutUrl })
+    if (typeof chapaReference === 'string' && chapaReference) await sql`UPDATE payments SET chapa_reference = ${chapaReference} WHERE id = ${payment.id}`
+    return response.status(201).json({ checkoutUrl, paymentReference: typeof chapaReference === 'string' && chapaReference ? chapaReference : reference })
   } catch (error) {
     await sql`UPDATE payments SET status = 'failed' WHERE id = ${payment.id}`
     throw error
@@ -598,28 +609,41 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
 })
 
 app.get('/api/payments/chapa/:reference', requireAuthenticated, async (request, response) => {
-  const reference = request.params.reference
+  const requestedReference = request.params.reference
   const [payment] = await sql`
-    SELECT status
+    SELECT reference, chapa_reference AS "chapaReference", status
     FROM payments
-    WHERE reference = ${reference}
+    WHERE (reference = ${requestedReference} OR chapa_reference = ${requestedReference})
       AND user_id = ${request.userId}
   `
   if (!payment) return response.status(404).json({ message: 'Payment not found.' })
   if (payment.status === 'pending') {
-    const status = await verifyChapaTransaction(reference)
-    if (status !== 'pending') await updatePaymentStatus(reference, status)
-    return response.json({ status })
+    const providerReference = payment.chapaReference ?? (requestedReference === payment.reference ? null : requestedReference)
+    if (!providerReference) return response.json({ status: 'pending' })
+    const verification = await verifyChapaTransaction(providerReference)
+    if (verification.status !== 'pending') await updatePaymentStatus(payment.reference, verification.status, verification.data)
+    return response.json({ status: verification.status })
   }
   return response.json({ status: payment.status })
 })
 
 app.post('/api/payments/chapa/webhook', async (request, response, next) => {
-  const reference = request.body?.tx_ref ?? request.body?.data?.tx_ref ?? request.body?.meta?.order_id
-  if (typeof reference !== 'string' || reference.length > 200) return response.status(400).json({ message: 'Invalid payment reference.' })
+  const payload = request.body ?? {}
+  const merchantReference = payload.merchant_reference ?? payload.data?.merchant_reference ?? payload.meta?.order_id
+  const chapaReference = payload.chapa_reference ?? payload.data?.chapa_reference
+  if ((typeof merchantReference !== 'string' || merchantReference.length > 200) && (typeof chapaReference !== 'string' || chapaReference.length > 200)) return response.status(400).json({ message: 'Invalid payment reference.' })
   try {
-    const status = await verifyChapaTransaction(reference)
-    if (status !== 'pending') await updatePaymentStatus(reference, status)
+    const [payment] = await sql`
+      SELECT reference, chapa_reference AS "chapaReference"
+      FROM payments
+      WHERE (${typeof merchantReference === 'string' ? sql`reference = ${merchantReference}` : sql`FALSE`}
+        OR ${typeof chapaReference === 'string' ? sql`chapa_reference = ${chapaReference}` : sql`FALSE`})
+    `
+    if (!payment) return response.status(404).json({ message: 'Payment not found.' })
+    const providerReference = typeof chapaReference === 'string' ? chapaReference : payment.chapaReference
+    if (!providerReference) return response.status(400).json({ message: 'Missing Chapa payment reference.' })
+    const verification = await verifyChapaTransaction(providerReference)
+    if (verification.status !== 'pending') await updatePaymentStatus(payment.reference, verification.status, verification.data)
     return response.status(204).end()
   } catch (error) {
     return next(error)
