@@ -14,6 +14,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
+import Pagination from '@mui/material/Pagination'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
@@ -44,12 +45,13 @@ import TranslateOutlinedIcon from '@mui/icons-material/TranslateOutlined'
 import VideoCallOutlinedIcon from '@mui/icons-material/VideoCallOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type ReactNode, useEffect, useState } from 'react'
+import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
-import { getAuthenticatedUser, getMyEnrollments, getMyPayments, signOut, type MyEnrollment, type MyPayment } from '@/services/api'
+import { getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, signOut, type MyEnrollment, type MyPayment, type PublicClass } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
- type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'profile' | 'payments' | 'course-view'
+ type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
  type EnrollmentType = 'course' | 'class'
  type EnrollmentStatus = 'active' | 'pending_schedule' | 'completed'
  type QuizStatus = 'available' | 'completed'
@@ -319,6 +321,8 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
       </Box>
       {navItem('quizzes', 'Quizzes & Results', <QuizOutlinedIcon fontSize="small" />, activeView === 'quizzes')}
       {navItem('purchases', 'My Purchases', <PaymentsOutlinedIcon fontSize="small" />, activeView === 'purchases')}
+      {navItem('other-courses', 'Other Courses', <MenuBookOutlinedIcon fontSize="small" />, activeView === 'other-courses')}
+      {navItem('other-classes', 'Other Classes', <ClassOutlinedIcon fontSize="small" />, activeView === 'other-classes')}
       {navItem('profile', 'Profile', <PersonOutlineIcon fontSize="small" />, activeView === 'profile')}
       {navItem('payments', 'Payment History', <PaymentsOutlinedIcon fontSize="small" />, activeView === 'payments')}
     </Box>
@@ -421,6 +425,41 @@ const PurchasesView: FC = () => <>
   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>{purchases.map((purchase) => <Card key={purchase.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}>{purchase.type === 'Book' ? <MenuBookOutlinedIcon /> : <SchoolOutlinedIcon />}</Box><Box sx={{ flex: 1 }}><Chip label={purchase.type} size="small" variant="outlined" sx={{ mb: 1 }} /><Typography variant="h6" sx={{ mb: 2 }}>{purchase.item_name}</Typography><Button variant="outlined" size="small" component="a" href={purchase.download_url} startIcon={<DownloadOutlinedIcon />}>{purchase.type === 'Book' ? 'Download item' : 'Access exam'}</Button></Box></Stack></CardContent></Card>)}</Box>
 </>
 
+const catalogPageSize = 6
+const OtherCoursesView: FC<{ courses: Course[]; enrolledCourseIds: Set<string>; isLoading: boolean; error: string | null }> = ({ courses, enrolledCourseIds, isLoading, error }) => {
+  const [page, setPage] = useState(1)
+  const availableCourses = courses.filter((course) => !enrolledCourseIds.has(String(course.id)))
+  const pageCount = Math.ceil(availableCourses.length / catalogPageSize)
+  const visibleCourses = availableCourses.slice((page - 1) * catalogPageSize, page * catalogPageSize)
+
+  useEffect(() => setPage(1), [courses.length, enrolledCourseIds.size])
+
+  return <>
+    <ViewHeading title="Other Courses" description="Explore more courses outside your current learning plan." />
+    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading other courses" /></Box> : error ? <EmptyState title="Courses unavailable" description={error} /> : availableCourses.length === 0 ? <EmptyState title="No other courses yet" description="You are enrolled in every published course." /> : <>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>{visibleCourses.map((course) => <Card key={String(course.id)} elevation={0} sx={{ border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}><Box component="img" src={course.cover} alt={course.title} sx={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover' }} /><CardContent sx={{ display: 'flex', flex: 1, flexDirection: 'column' }}><Chip label={course.category} size="small" color="primary" variant="outlined" sx={{ alignSelf: 'flex-start', mb: 1.5 }} /><Typography variant="h6" sx={{ mb: 1 }}>{course.title}</Typography><Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 2 }}><Typography color="primary.main" sx={{ fontWeight: 700 }}>${course.price}</Typography><Button variant="outlined" size="small" onClick={() => navigateTo(`/courses/${course.id}`)}>View course</Button></Stack></CardContent></Card>)}</Box>
+      {pageCount > 1 && <Stack alignItems="center" sx={{ mt: 3 }}><Pagination count={pageCount} page={page} onChange={(_, nextPage) => setPage(nextPage)} color="primary" aria-label="Other courses pages" /></Stack>}
+    </>}
+  </>
+}
+
+const OtherClassesView: FC<{ classes: PublicClass[]; enrolledClassIds: Set<number>; isLoading: boolean; error: string | null }> = ({ classes, enrolledClassIds, isLoading, error }) => {
+  const [page, setPage] = useState(1)
+  const availableClasses = classes.filter((classRecord) => !enrolledClassIds.has(classRecord.id))
+  const pageCount = Math.ceil(availableClasses.length / catalogPageSize)
+  const visibleClasses = availableClasses.slice((page - 1) * catalogPageSize, page * catalogPageSize)
+
+  useEffect(() => setPage(1), [classes.length, enrolledClassIds.size])
+
+  return <>
+    <ViewHeading title="Other Classes" description="Find live classes available outside your current schedule." />
+    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading other classes" /></Box> : error ? <EmptyState title="Classes unavailable" description={error} /> : availableClasses.length === 0 ? <EmptyState title="No other classes yet" description="There are no additional published classes available right now." /> : <>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>{visibleClasses.map((classRecord) => { const schedule = { ...classRecord.schedule, date: '', startsAt: '' }; const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? 'Available' : classRecord.status === 'full' ? 'Full' : 'Closed'; const statusColor = classRecord.status === 'open' ? 'success' : classRecord.status === 'closed' ? 'error' : 'warning'; return <Card key={classRecord.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} sx={{ mb: 2 }}><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Chip label={statusLabel} size="small" color={statusColor} /></Stack><Typography variant="h6" sx={{ mb: 1 }}>{classRecord.title}</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 0.5 }}>Tutor: {classRecord.tutorName}</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>{classScheduleLabel(schedule)}</Typography><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography color="primary.main" sx={{ fontWeight: 700 }}>${classRecord.price}</Typography>{classRecord.courseTitle && <Typography variant="caption" color="text.secondary" noWrap>{classRecord.courseTitle}</Typography>}</Stack></CardContent></Card> })}</Box>
+      {pageCount > 1 && <Stack alignItems="center" sx={{ mt: 3 }}><Pagination count={pageCount} page={page} onChange={(_, nextPage) => setPage(nextPage)} color="primary" aria-label="Other classes pages" /></Stack>}
+    </>}
+  </>
+}
+
 const ProfileFact: FC<{ icon: ReactNode; label: string; value: string }> = ({ icon, label, value }) => <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, flexShrink: 0, borderRadius: 1.5, backgroundColor: 'action.hover', color: 'primary.main' }}>{icon}</Box><Box sx={{ minWidth: 0 }}><Typography variant="overline" color="text.secondary">{label}</Typography><Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</Typography></Box></Box>
 
 const ProfileView: FC<{ onUpdateProfile: (profile: { name: string; email: string; phone: string }) => void }> = ({ onUpdateProfile }) => {
@@ -513,6 +552,12 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [payments, setPayments] = useState<MyPayment[]>([])
   const [isLoadingPayments, setIsLoadingPayments] = useState(true)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [otherCourses, setOtherCourses] = useState<Course[]>([])
+  const [isLoadingOtherCourses, setIsLoadingOtherCourses] = useState(true)
+  const [otherCoursesError, setOtherCoursesError] = useState<string | null>(null)
+  const [otherClasses, setOtherClasses] = useState<PublicClass[]>([])
+  const [isLoadingOtherClasses, setIsLoadingOtherClasses] = useState(true)
+  const [otherClassesError, setOtherClassesError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>(() => loadCompletedLessons(currentUserId))
   const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>(() => loadStartedCourses(currentUserId))
@@ -562,6 +607,48 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
 
   useEffect(() => {
     let isCurrent = true
+    getCourses()
+      .then((records) => {
+        if (!isCurrent) return
+        setOtherCourses(records)
+        setOtherCoursesError(null)
+      })
+      .catch((error) => {
+        if (!isCurrent) return
+        setOtherCoursesError(error instanceof Error ? error.message : 'Unable to load other courses.')
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingOtherCourses(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isCurrent = true
+    getPublicClasses()
+      .then((records) => {
+        if (!isCurrent) return
+        setOtherClasses(records)
+        setOtherClassesError(null)
+      })
+      .catch((error) => {
+        if (!isCurrent) return
+        setOtherClassesError(error instanceof Error ? error.message : 'Unable to load other classes.')
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingOtherClasses(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isCurrent = true
     getMyPayments()
       .then((records) => {
         if (!isCurrent) return
@@ -584,7 +671,9 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const selectedCourse = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)?.course
   const selectedCourseEnrollment = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)
   const selectedCourseProgress = selectedCourse ? getCourseProgress(selectedCourse, completedLessons[selectedCourse.id] ?? []) : 0
-  const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'profile' ? 'Profile' : 'Payment History'
+  const enrolledCourseIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'course').map((enrollment) => String(enrollment.item_id)))
+  const enrolledClassIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'class').map((enrollment) => enrollment.item_id))
+  const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'other-courses' ? 'Other Courses' : activeView === 'other-classes' ? 'Other Classes' : activeView === 'profile' ? 'Profile' : 'Payment History'
 
   const selectView = (view: DashboardView) => {
     setActiveView(view)
@@ -623,6 +712,8 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'classes' && <ClassesView enrollments={enrollments} now={now} onOpenCourse={openCourse} />}
           {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} />}
           {activeView === 'purchases' && <PurchasesView />}
+          {activeView === 'other-courses' && <OtherCoursesView courses={otherCourses} enrolledCourseIds={enrolledCourseIds} isLoading={isLoadingOtherCourses} error={otherCoursesError} />}
+          {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
           {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} onBack={() => selectView('courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} />}

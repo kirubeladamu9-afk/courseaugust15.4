@@ -723,6 +723,26 @@ app.get('/api/payments', requireAuthenticated, async (request, response) => {
   return response.json(payments)
 })
 
+app.get('/api/classes', requireAuthenticated, async (_request, response) => {
+  const classes = await sql`
+    SELECT classes.id::INTEGER AS id,
+           classes.title,
+           classes.program_id AS "programId",
+           classes.schedule,
+           classes.price::FLOAT AS price,
+           classes.status,
+           classes.course_id::INTEGER AS "courseId",
+           courses.title AS "courseTitle",
+           COALESCE(tutors.name, 'Tutor to be confirmed') AS "tutorName"
+    FROM classes
+    LEFT JOIN courses ON courses.id = classes.course_id
+    LEFT JOIN tutors ON tutors.id = classes.tutor_id
+    WHERE classes.published = true
+    ORDER BY classes.created_at DESC, classes.id DESC
+  `
+  return response.json(classes)
+})
+
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,

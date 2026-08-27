@@ -69,6 +69,18 @@ export interface MyEnrollment {
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
 }
 
+export interface PublicClass {
+  id: number
+  title: string
+  programId: string
+  schedule: { days: string[]; time: string; flexible: boolean }
+  price: number
+  status: 'pending_schedule' | 'open' | 'full' | 'closed'
+  courseId: number | null
+  courseTitle: string | null
+  tutorName: string
+}
+
 const authStorageKey = 'coursespace-auth-user'
 const authSessionTokenKey = 'coursespace-auth-session-token'
 
@@ -133,6 +145,12 @@ export interface MyPayment {
   status: 'Paid' | 'Pending' | 'Failed'
   date: string
   txRef: string
+}
+
+export const getPublicClasses = async (): Promise<PublicClass[]> => {
+  const response = await requestApi('/api/classes')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
 }
 
 export const getAdminPayments = async (): Promise<AdminPayment[]> => {
