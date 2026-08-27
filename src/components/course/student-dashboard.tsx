@@ -44,7 +44,7 @@ import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-t
 import { getAuthenticatedUser, signOut } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
- type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'profile' | 'course-view'
+ type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'profile' | 'payments' | 'course-view'
  type EnrollmentType = 'course' | 'class'
  type EnrollmentStatus = 'active' | 'pending_schedule' | 'completed'
  type QuizStatus = 'available' | 'completed'
@@ -310,7 +310,8 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
       </Box>
       {navItem('quizzes', 'Quizzes & Results', <QuizOutlinedIcon fontSize="small" />, activeView === 'quizzes')}
       {navItem('purchases', 'My Purchases', <PaymentsOutlinedIcon fontSize="small" />, activeView === 'purchases')}
-      {navItem('profile', 'Profile & Payment History', <PersonOutlineIcon fontSize="small" />, activeView === 'profile')}
+      {navItem('profile', 'Profile', <PersonOutlineIcon fontSize="small" />, activeView === 'profile')}
+      {navItem('payments', 'Payment History', <PaymentsOutlinedIcon fontSize="small" />, activeView === 'payments')}
     </Box>
     <Box sx={{ p: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, backgroundColor: 'background.default', borderRadius: 2 }}><SchoolOutlinedIcon color="primary" fontSize="small" /><Typography variant="caption" color="text.secondary">Keep learning at your own pace.</Typography></Box></Box>
   </Box>
@@ -418,20 +419,21 @@ const ProfileView: FC<{ onUpdateProfile: (profile: { name: string; email: string
   const user = getAuthenticatedUser()
   const [profile, setProfile] = useState({ name: user?.name || 'Alex Morgan', email: user?.email || 'alex@example.com', phone: '+1 202 555 0147' })
   return <>
-    <ViewHeading title="Profile & Payment History" description="Keep your learner details current and review your transaction history." />
-    <Stack spacing={3}>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, border: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ mb: 0.5 }}>Profile details</Typography>
-        <Typography color="text.secondary" variant="body2" sx={{ mb: 2.5 }}>These details help us keep your learning records up to date.</Typography>
-        <Box component="form" onSubmit={(event) => { event.preventDefault(); onUpdateProfile(profile) }} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}><TextField label="Full name" value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /><TextField label="Email address" type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} /><TextField label="Phone number" value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} /><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}><Button type="submit" variant="contained">Save profile</Button></Box></Box>
-      </Paper>
-      <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
-        <Box sx={{ p: { xs: 2.5, md: 3 }, pb: 1 }}><Typography variant="h6">Payment history</Typography><Typography color="text.secondary" variant="body2">Courses and live class transactions linked to your account.</Typography></Box>
-        <AdminDataTable rows={payments} columns={paymentColumns} searchPlaceholder="Search payments" searchKeys={['item_name', 'type', 'tx_ref']} />
-      </Paper>
-    </Stack>
+    <ViewHeading title="Profile" description="Keep your learner details current and up to date." />
+    <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, border: 1, borderColor: 'divider' }}>
+      <Typography variant="h6" sx={{ mb: 0.5 }}>Profile details</Typography>
+      <Typography color="text.secondary" variant="body2" sx={{ mb: 2.5 }}>These details help us keep your learning records up to date.</Typography>
+      <Box component="form" onSubmit={(event) => { event.preventDefault(); onUpdateProfile(profile) }} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}><TextField label="Full name" value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /><TextField label="Email address" type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} /><TextField label="Phone number" value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} /><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}><Button type="submit" variant="contained">Save profile</Button></Box></Box>
+    </Paper>
   </>
 }
+
+const PaymentHistoryView: FC = () => <>
+  <ViewHeading title="Payment History" description="Review course and live class transactions linked to your account." />
+  <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+    <AdminDataTable rows={payments} columns={paymentColumns} searchPlaceholder="Search payments" searchKeys={['item_name', 'type', 'tx_ref']} />
+  </Paper>
+</>
 
 const paymentColumns: DataColumn<DashboardPayment>[] = [
   { key: 'item_name', label: 'Item' },
@@ -494,7 +496,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const selectedCourse = courses.find((course) => course.id === selectedCourseId)
   const selectedCourseEnrollment = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)
   const selectedCourseProgress = selectedCourse ? getCourseProgress(selectedCourse, completedLessons[selectedCourse.id] ?? []) : 0
-  const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : 'Profile & Payment History'
+  const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'profile' ? 'Profile' : 'Payment History'
 
   const selectView = (view: DashboardView) => {
     setActiveView(view)
@@ -530,6 +532,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
         {activeView === 'quizzes' && <QuizzesView enrollments={enrollments.filter((enrollment) => enrollment.user_id === currentUserId)} />}
         {activeView === 'purchases' && <PurchasesView />}
         {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
+        {activeView === 'payments' && <PaymentHistoryView />}
         {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} onBack={() => selectView('courses')} onCompleteLesson={completeLesson} />}
       </Box>
     </Box>
