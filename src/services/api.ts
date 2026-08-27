@@ -40,6 +40,8 @@ interface EnrollmentLesson {
   title: string
   type: 'video' | 'article' | 'quiz' | 'live'
   duration: number | null
+  videoUrl?: string
+  thumbnailUrl?: string
   estimatedDuration?: number
   articleBody?: string
 }
