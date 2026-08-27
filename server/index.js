@@ -13,6 +13,7 @@ const sql = postgres(databaseUrl, { max: 10, ssl: 'require' })
 const scrypt = promisify(scryptCallback)
 const app = express()
 const port = Number(process.env.PORT ?? 3001)
+const isTestChapa = process.env.CHAPA_MODE !== 'live'
 const sessionCookieName = 'coursespace-session'
 const sessionDuration = 86400000
 
@@ -452,7 +453,7 @@ const updatePaymentStatus = async (reference, status, verification = {}) => sql.
     FOR UPDATE
   `
   if (!payment || payment.status === status || payment.status === 'paid') return payment?.status ?? null
-  if (status === 'paid' && (Number(verification.amount) !== payment.amount || String(verification.currency).toUpperCase() !== payment.currency.toUpperCase() || verification.merchant_reference !== payment.reference)) return payment.status
+  if (status === 'paid' && !isTestChapa && (Number(verification.amount) !== payment.amount || String(verification.currency).toUpperCase() !== payment.currency.toUpperCase() || verification.merchant_reference !== payment.reference)) return payment.status
 
   await transaction`
     UPDATE payments
@@ -545,7 +546,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
   const courseId = parseCourseId(String(request.body?.courseId ?? ''))
   if (courseId === null) return response.status(400).json({ message: 'Choose a valid course.' })
-  if (!process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
+  if (!isTestChapa && !process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
 
   const [course] = await sql`
     SELECT courses.id, courses.title, courses.price::FLOAT AS price, users.name, users.email, users.phone
@@ -564,13 +565,16 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
     emergencyPhone: '',
     notes: '',
   }]
-  const reference = `course-${course.id}-${randomBytes(12).toString('hex')}`
+  const referencePrefix = isTestChapa ? 'test-course' : 'course'
+  const reference = `${referencePrefix}-${course.id}-${randomBytes(12).toString('hex')}`
   const currency = process.env.CHAPA_CURRENCY ?? 'ETB'
   const amount = course.price * students.length
   const [payment] = await sql`
     INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course.id, student_data: JSON.stringify(students), amount, currency })}
     RETURNING id
   `
+
+  if (isTestChapa) return response.status(201).json({ checkoutUrl: '', paymentReference: reference, mode: 'test' })
 
   const baseUrl = process.env.APP_URL ?? `${request.protocol}://${request.get('host')}`
   const nameParts = course.name.trim().split(/\s+/)
@@ -601,7 +605,7 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
     const chapaReference = chapaPayment?.data?.chapa_reference
     if (!chapaResponse.ok || typeof checkoutUrl !== 'string') throw new Error('Chapa did not return a checkout link.')
     if (typeof chapaReference === 'string' && chapaReference) await sql`UPDATE payments SET chapa_reference = ${chapaReference} WHERE id = ${payment.id}`
-    return response.status(201).json({ checkoutUrl, paymentReference: typeof chapaReference === 'string' && chapaReference ? chapaReference : reference })
+    return response.status(201).json({ checkoutUrl, paymentReference: typeof chapaReference === 'string' && chapaReference ? chapaReference : reference, mode: 'live' })
   } catch (error) {
     await sql`UPDATE payments SET status = 'failed' WHERE id = ${payment.id}`
     throw error
@@ -625,6 +629,31 @@ app.get('/api/payments/chapa/:reference', requireAuthenticated, async (request, 
     return response.json({ status: verification.status })
   }
   return response.json({ status: payment.status })
+})
+
+app.post('/api/payments/chapa/:reference/test-complete', requireAuthenticated, async (request, response) => {
+  if (!isTestChapa) return response.status(404).json({ message: 'Test checkout is not enabled.' })
+
+  const reference = request.params.reference
+  const status = request.body?.status
+  if (!/^test-course-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
+
+  const [payment] = await sql`
+    SELECT reference, amount::FLOAT AS amount, currency, status
+    FROM payments
+    WHERE reference = ${reference}
+      AND user_id = ${request.userId}
+      AND status = 'pending'
+  `
+  if (!payment) return response.status(404).json({ message: 'Test payment not found.' })
+
+  const updatedStatus = await updatePaymentStatus(reference, status, {
+    amount: payment.amount,
+    currency: payment.currency,
+    merchant_reference: payment.reference,
+    chapa_reference: payment.reference,
+  })
+  return response.json({ status: updatedStatus })
 })
 
 app.post('/api/payments/chapa/webhook', async (request, response, next) => {

@@ -313,11 +313,27 @@ export const getSavedStudents = async (): Promise<SavedStudent[]> => {
   return response.json()
 }
 
-export const createChapaCheckout = async (courseId: AdminCourse['id']): Promise<{ checkoutUrl: string }> => {
+interface ChapaCheckout {
+  checkoutUrl: string
+  paymentReference: string
+  mode: 'test' | 'live'
+}
+
+export const createChapaCheckout = async (courseId: AdminCourse['id']): Promise<ChapaCheckout> => {
   const response = await requestApi('/api/payments/chapa', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ courseId }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const completeTestPayment = async (reference: string, status: 'paid' | 'failed'): Promise<PaymentStatus> => {
+  const response = await requestApi(`/api/payments/chapa/${encodeURIComponent(reference)}/test-complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
   })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()

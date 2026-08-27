@@ -15,7 +15,7 @@ import Typography from '@mui/material/Typography'
 import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type FormEvent, useEffect, useState } from 'react'
 import { type AdminCourse } from '@/components/admin/admin-data'
-import { createChapaCheckout, getAuthenticatedUser, saveAuthenticatedUser, submitCredentials, verifyChapaPayment } from '@/services/api'
+import { completeTestPayment, createChapaCheckout, getAuthenticatedUser, saveAuthenticatedUser, submitCredentials, verifyChapaPayment } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
 type PaymentState = 'ready' | 'processing' | 'success' | 'failed'
@@ -36,12 +36,15 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
   const [paymentState, setPaymentState] = useState<PaymentState>('ready')
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [isStartingCheckout, setIsStartingCheckout] = useState(false)
+  const [isCompletingTestPayment, setIsCompletingTestPayment] = useState(false)
+  const [testCheckoutReference, setTestCheckoutReference] = useState<string | null>(null)
   const isAuthenticated = Boolean(getAuthenticatedUser())
 
   useEffect(() => {
     if (!open) return
     setAccountError(null)
     setPaymentError(null)
+    setTestCheckoutReference(null)
     setPaymentState(paymentReference ? 'processing' : 'ready')
     setActiveStep(paymentReference || getAuthenticatedUser() ? 1 : 0)
   }, [open, paymentReference])
@@ -106,8 +109,12 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
     setPaymentError(null)
     setIsStartingCheckout(true)
     try {
-      const { checkoutUrl } = await createChapaCheckout(course.id)
-      window.location.assign(checkoutUrl)
+      const checkout = await createChapaCheckout(course.id)
+      if (checkout.mode === 'test') {
+        setTestCheckoutReference(checkout.paymentReference)
+        return
+      }
+      window.location.assign(checkout.checkoutUrl)
     } catch (error) {
       setPaymentState('failed')
       setPaymentError(error instanceof Error ? error.message : 'We could not start secure checkout.')
@@ -131,6 +138,26 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
     </Box>
   )
 
+  const handleTestPayment = async (status: 'paid' | 'failed') => {
+    if (!testCheckoutReference) return
+    setPaymentError(null)
+    setIsCompletingTestPayment(true)
+    try {
+      const payment = await completeTestPayment(testCheckoutReference, status)
+      if (payment.status === 'paid') {
+        setPaymentState('success')
+      } else {
+        setPaymentState('failed')
+        setPaymentError('The test payment was declined. You can retry with another test result.')
+      }
+    } catch (error) {
+      setPaymentState('failed')
+      setPaymentError(error instanceof Error ? error.message : 'We could not complete the test payment.')
+    } finally {
+      setIsCompletingTestPayment(false)
+    }
+  }
+
   const renderPaymentStep = () => {
     if (paymentState === 'processing') {
       return <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2.5, py: 5, textAlign: 'center' }} aria-live="polite">
@@ -153,18 +180,36 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
     if (paymentState === 'failed') {
       return <Stack spacing={2.5} sx={{ py: 2 }} aria-live="polite">
         <Alert severity="error">{paymentError ?? 'Payment Failed'}</Alert>
-        <Button variant="contained" size="large" onClick={() => { setPaymentState('ready'); setPaymentError(null) }}>Retry Payment</Button>
+        <Button variant="contained" size="large" onClick={() => { setPaymentState('ready'); setPaymentError(null); setTestCheckoutReference(null) }}>Retry Payment</Button>
+      </Stack>
+    }
+
+    if (testCheckoutReference) {
+      return <Stack spacing={3}>
+        <Box sx={{ p: 2.5, border: 1, borderColor: 'divider', borderRadius: 2, backgroundColor: 'background.default' }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>Test checkout</Typography>
+          <Typography sx={{ mb: 1 }}>{course.title}</Typography>
+          <Typography color="text.secondary">${course.price} · No money will be charged in test mode.</Typography>
+        </Box>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <Button fullWidth variant="contained" size="large" onClick={() => void handleTestPayment('paid')} disabled={isCompletingTestPayment}>
+            {isCompletingTestPayment ? 'Processing...' : 'Approve test payment'}
+          </Button>
+          <Button fullWidth variant="outlined" color="error" size="large" onClick={() => void handleTestPayment('failed')} disabled={isCompletingTestPayment}>
+            Decline test payment
+          </Button>
+        </Stack>
       </Stack>
     }
 
     return <Stack spacing={3}>
       <Box sx={{ p: 2.5, border: 1, borderColor: 'divider', borderRadius: 2, backgroundColor: 'background.default' }}>
         <Typography variant="h6" sx={{ mb: 1 }}>Pay securely with Chapa</Typography>
-        <Typography color="text.secondary">You will choose Telebirr, CBE Birr, card, or another supported payment method on Chapa’s hosted checkout page.</Typography>
+        <Typography color="text.secondary">Test mode is enabled. Continue to the checkout simulator to approve or decline this payment without being charged.</Typography>
       </Box>
       {paymentError && <Alert severity="error">{paymentError}</Alert>}
       <Button variant="contained" size="large" onClick={() => void handleStartCheckout()} disabled={isStartingCheckout}>
-        {isStartingCheckout ? 'Opening secure checkout...' : 'Continue to Chapa'}
+        {isStartingCheckout ? 'Opening test checkout...' : 'Continue to test checkout'}
       </Button>
     </Stack>
   }
