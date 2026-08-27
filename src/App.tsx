@@ -90,7 +90,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
 
   if ((isAdminPath && !canAccessAdmin) || (isDashboardPath && !isAuthenticated)) return <RouteLoadingState message="Returning to Coursespace..." />
   if (isAdminPath) return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
-  if (isDashboardPath) return <StudentDashboard />
+  if (isDashboardPath) return <StudentDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (!courseMatch && homeCourses === null) return <div className="page-loading-state"><SpinnerCustom /></div>
 
   return (
