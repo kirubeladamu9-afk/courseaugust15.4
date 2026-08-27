@@ -25,6 +25,7 @@ import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import CelebrationOutlinedIcon from '@mui/icons-material/CelebrationOutlined'
 import ClassOutlinedIcon from '@mui/icons-material/ClassOutlined'
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined'
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'
@@ -201,6 +202,7 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number, completedLess
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
 const completedLessonsStorageKey = (userId: number) => `coursespace-completed-lessons-${userId}`
+const startedCoursesStorageKey = (userId: number) => `coursespace-started-courses-${userId}`
 const loadCompletedLessons = (userId: number): Record<number, number[]> => {
   if (!Number.isFinite(userId)) return {}
   try {
@@ -211,6 +213,16 @@ const loadCompletedLessons = (userId: number): Record<number, number[]> => {
       const validLessonIds = lessonIds.filter((lessonId): lessonId is number => typeof lessonId === 'number' && Number.isInteger(lessonId))
       return validLessonIds.length ? [[courseId, validLessonIds]] : []
     }))
+  } catch {
+    return {}
+  }
+}
+const loadStartedCourses = (userId: number): Record<number, boolean> => {
+  if (!Number.isFinite(userId)) return {}
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(startedCoursesStorageKey(userId)) ?? 'null')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(Object.entries(parsed).filter(([, started]) => started === true))
   } catch {
     return {}
   }
@@ -455,15 +467,22 @@ const paymentColumns: DataColumn<MyPayment>[] = [
   { key: 'txRef', label: 'Transaction Reference' },
 ]
 
-const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; onBack: () => void; onCompleteLesson: (lessonId: number) => void }> = ({ course, progress, completedLessonIds, onBack, onCompleteLesson }) => {
+const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void }> = ({ course, progress, completedLessonIds, started, onBack, onStart, onCompleteLesson }) => {
   const lessons = getLessons(course)
   const [selectedLessonId, setSelectedLessonId] = useState(lessons[0]?.id)
   const selectedLesson = lessons.find((lesson) => lesson.id === selectedLessonId) ?? lessons[0]
   useEffect(() => { setSelectedLessonId(lessons[0]?.id) }, [course.id])
   if (!selectedLesson) return <EmptyState title="Course content unavailable" description="This course does not have any lessons yet." actionLabel="Back to courses" onAction={onBack} />
   const isCompleted = completedLessonIds.includes(selectedLesson.id)
+  const isCourseComplete = lessons.length > 0 && progress === 100
+  if (!started) return <>
+    <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Courses</Box>
+    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={1} sx={{ mb: 3 }}><Box><Typography variant="h4" sx={{ mb: 0.5 }}>{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.level} · Tutor: {course.tutor}</Typography></Box><Chip label="Not started" color="default" /></Stack>
+    <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, border: 1, borderColor: 'divider' }}><Typography variant="h5" sx={{ mb: 0.5 }}>Course content</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>Review the lessons below, then start the course when you&apos;re ready to learn.</Typography><Stack spacing={2} sx={{ mb: 3 }}>{course.modules.map((module) => <Box key={module.id}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.75 }}>{module.title}</Typography><Stack spacing={0.5}>{module.lessons.map((lesson) => <Box key={lesson.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box sx={{ display: 'flex', color: 'text.secondary' }}>{iconForLesson(lesson.type)}</Box><Typography variant="body2" sx={{ flex: 1 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{lesson.duration}</Typography></Box>)}</Stack></Box>)}</Stack><Button variant="contained" size="large" onClick={onStart} startIcon={<PlayCircleOutlineIcon />}>Start course</Button></Paper>
+  </>
   return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Courses</Box>
+    {isCourseComplete && <Paper elevation={0} role="status" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2, mb: 3, border: 1, borderColor: 'primary.main', backgroundColor: 'primary.main', color: 'primary.contrastText' }}><CelebrationOutlinedIcon /><Box><Typography sx={{ fontWeight: 700 }}>Congratulations!</Typography><Typography variant="body2" sx={{ color: 'inherit', opacity: 0.9 }}>You completed every lesson in this course.</Typography></Box></Paper>}
     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={1} sx={{ mb: 3 }}><Box><Typography variant="h4" sx={{ mb: 0.5 }}>{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.level} · Tutor: {course.tutor}</Typography></Box><Chip label={`${progress}% complete`} color="primary" /></Stack>
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '320px minmax(0, 1fr)' }, gap: 3 }}>
       <Paper elevation={0} sx={{ p: 2, border: 1, borderColor: 'divider', alignSelf: 'start' }}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Course content</Typography><Stack spacing={1}>{course.modules.map((module) => <Box key={module.id}><Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1, mb: 0.5, fontWeight: 700, textTransform: 'uppercase' }}>{module.title}</Typography><Stack spacing={0.5}>{module.lessons.map((lesson) => <Box key={lesson.id} component="button" type="button" onClick={() => setSelectedLessonId(lesson.id)} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1, p: 1, border: 0, borderRadius: 1.5, backgroundColor: selectedLesson.id === lesson.id ? 'action.selected' : 'transparent', color: 'text.primary', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: 'action.hover' } }}><Box sx={{ display: 'flex', color: completedLessonIds.includes(lesson.id) ? 'success.main' : 'text.secondary' }}>{completedLessonIds.includes(lesson.id) ? <CheckCircleOutlineIcon fontSize="small" /> : iconForLesson(lesson.type)}</Box><Box sx={{ flex: 1, minWidth: 0 }}><Typography variant="body2" noWrap sx={{ fontWeight: selectedLesson.id === lesson.id ? 600 : 400 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{lesson.duration}</Typography></Box></Box>)}</Stack></Box>)}</Stack></Paper>
@@ -496,6 +515,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>(() => loadCompletedLessons(currentUserId))
+  const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>(() => loadStartedCourses(currentUserId))
   const [profileMessage, setProfileMessage] = useState('')
 
   useEffect(() => {
@@ -536,6 +556,11 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   }, [completedLessons, currentUserId])
 
   useEffect(() => {
+    if (!Number.isFinite(currentUserId)) return
+    localStorage.setItem(startedCoursesStorageKey(currentUserId), JSON.stringify(startedCourses))
+  }, [currentUserId, startedCourses])
+
+  useEffect(() => {
     let isCurrent = true
     getMyPayments()
       .then((records) => {
@@ -570,6 +595,9 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setActiveView('course-view')
     setMobileOpen(false)
   }
+  const startCourse = (courseId: number) => {
+    setStartedCourses((current) => ({ ...current, [courseId]: true }))
+  }
   const completeLesson = (lessonId: number) => {
     if (!selectedCourseId || !selectedCourse) return
     const completed = completedLessons[selectedCourseId] ?? []
@@ -597,7 +625,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'purchases' && <PurchasesView />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
-          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} onBack={() => selectView('courses')} onCompleteLesson={completeLesson} />}
+          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} onBack={() => selectView('courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} />}
         </>}
       </Box>
     </Box>
