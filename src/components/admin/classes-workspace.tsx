@@ -124,7 +124,22 @@ const formatTime = (time: string) => {
   return `${displayHour}:${String(minute).padStart(2, '0')} ${suffix}`
 }
 
-const formatSchedule = (schedule: ClassSchedule) => schedule.flexible ? 'Flexible' : `${schedule.days.join(', ')} · ${formatTime(schedule.time)}`
+const normalizeSchedule = (schedule: unknown): ClassSchedule => {
+  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return { days: [], time: '', flexible: false }
+  const candidate = schedule as Partial<ClassSchedule>
+  return {
+    days: Array.isArray(candidate.days) ? candidate.days.filter((day): day is string => typeof day === 'string') : [],
+    time: typeof candidate.time === 'string' ? candidate.time : '',
+    flexible: candidate.flexible === true,
+  }
+}
+
+const formatSchedule = (schedule: ClassSchedule) => {
+  const normalizedSchedule = normalizeSchedule(schedule)
+  if (normalizedSchedule.flexible) return 'Flexible'
+  const days = normalizedSchedule.days.length > 0 ? normalizedSchedule.days.join(', ') : 'Days to be confirmed'
+  return `${days} · ${formatTime(normalizedSchedule.time)}`
+}
 const tutorName = (tutorId: number) => tutors.find((tutor) => tutor.id === tutorId)?.name ?? 'Unassigned tutor'
 const courseName = (courseId: number | null) => linkedCourses.find((course) => course.id === courseId)?.title ?? 'No linked course'
 
@@ -298,7 +313,7 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
       const workspace = await getAdminClassesWorkspace()
       tutors = workspace.tutors
       linkedCourses = workspace.courses
-      setClasses(workspace.classes)
+      setClasses(workspace.classes.map((classRecord) => ({ ...classRecord, schedule: normalizeSchedule(classRecord.schedule) })))
       setClassEnrollments(workspace.enrollments)
       setPendingStudents(workspace.pendingStudents)
     } catch (error) {
