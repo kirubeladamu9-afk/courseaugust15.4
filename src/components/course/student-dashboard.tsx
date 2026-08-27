@@ -6,6 +6,7 @@ import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import IconButton from '@mui/material/IconButton'
 import LinearProgress from '@mui/material/LinearProgress'
 import Menu from '@mui/material/Menu'
@@ -293,7 +294,7 @@ interface SidebarProps {
 
 const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
   const enrollmentActive = activeView === 'courses' || activeView === 'classes' || activeView === 'course-view'
-  const navItem = (view: DashboardView, label: string, icon: ReactNode, active: boolean) => <Box component="button" type="button" onClick={() => onSelectView(view)} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5, backgroundColor: active ? 'primary.main' : 'transparent', color: active ? 'primary.contrastText' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: active ? 'primary.dark' : 'action.hover' } }}><Box sx={{ display: 'flex' }}>{icon}</Box><Typography variant="body2" sx={{ fontWeight: active ? 600 : 400 }}>{label}</Typography></Box>
+  const navItem = (view: DashboardView, label: string, icon: ReactNode, active: boolean, endIcon?: ReactNode) => <Box component="button" type="button" onClick={() => onSelectView(view)} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5, backgroundColor: active ? 'primary.main' : 'transparent', color: active ? 'primary.contrastText' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: active ? 'primary.dark' : 'action.hover' } }}><Box sx={{ display: 'flex' }}>{icon}</Box><Typography variant="body2" sx={{ flex: 1, fontWeight: active ? 600 : 400 }}>{label}</Typography>{endIcon}</Box>
 
   return <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column' }}>
     <Box sx={{ px: 3, py: 2.5 }}><Logo /></Box>
@@ -302,7 +303,7 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
       <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Main menu</Typography>
       {navItem('overview', 'Dashboard', <DashboardOutlinedIcon fontSize="small" />, activeView === 'overview')}
       <Box>
-        {navItem('courses', 'My Enrollments', <MenuBookOutlinedIcon fontSize="small" />, enrollmentActive)}
+        {navItem('courses', 'My Enrollments', <MenuBookOutlinedIcon fontSize="small" />, enrollmentActive, <ExpandMoreIcon fontSize="small" sx={{ transform: enrollmentActive ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }} />)}
         {enrollmentActive && <Box sx={{ ml: 2, mb: 1 }}>
           <Box component="button" type="button" onClick={() => onSelectView('courses')} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1, border: 0, borderLeft: 2, borderColor: activeView === 'courses' || activeView === 'course-view' ? 'primary.main' : 'divider', py: 0.75, pl: 1.5, pr: 1, backgroundColor: 'transparent', color: activeView === 'courses' || activeView === 'course-view' ? 'primary.main' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: activeView === 'courses' || activeView === 'course-view' ? 600 : 400, textAlign: 'left' }}><MenuBookOutlinedIcon fontSize="small" />My Courses</Box>
           <Box component="button" type="button" onClick={() => onSelectView('classes')} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1, border: 0, borderLeft: 2, borderColor: activeView === 'classes' ? 'primary.main' : 'divider', py: 0.75, pl: 1.5, pr: 1, backgroundColor: 'transparent', color: activeView === 'classes' ? 'primary.main' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: activeView === 'classes' ? 600 : 400, textAlign: 'left' }}><ClassOutlinedIcon fontSize="small" />My Classes</Box>
