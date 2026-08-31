@@ -44,6 +44,8 @@ interface EnrollmentLesson {
   thumbnailUrl?: string
   estimatedDuration?: number
   articleBody?: string
+  quizQuestions?: Array<{ id: number; question: string; options: string[]; correctOption: number }>
+  passThreshold?: number
 }
 
 interface EnrollmentModule {
