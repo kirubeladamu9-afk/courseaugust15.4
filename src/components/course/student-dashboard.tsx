@@ -48,6 +48,7 @@ import { type FC, type ReactNode, useEffect, useState } from 'react'
 import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
+import { toast } from '@/components/toast'
 import { getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, saveCourseProgress, signOut, type MyEnrollment, type MyPayment, type PublicClass } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
@@ -670,6 +671,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const startCourse = (courseId: number) => {
     const nextCompleted = completedLessons[courseId] ?? []
     setStartedCourses((current) => ({ ...current, [courseId]: true }))
+    toast.add({ title: 'Course started', description: 'You are ready to begin learning.', type: 'info' })
     setProgressError(null)
     void saveCourseProgress(courseId, nextCompleted, true).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course progress.'))
   }
@@ -682,6 +684,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setCompletedLessons((current) => ({ ...current, [selectedCourseId]: nextCompleted }))
     setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
     setEnrollments((current) => current.map((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId ? { ...enrollment, progress: nextProgress } : enrollment))
+    if (nextProgress === 100) toast.add({ title: 'Course completed!', description: `Excellent work finishing ${selectedCourse.title}.`, type: 'success', priority: 'high', duration: 6000 })
     setProgressError(null)
     void saveCourseProgress(selectedCourseId, nextCompleted, true).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course progress.'))
   }
