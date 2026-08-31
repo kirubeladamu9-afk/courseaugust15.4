@@ -626,10 +626,13 @@ app.put('/api/enrollments/:courseId/progress', requireAuthenticated, async (requ
   if (courseId === null || !Array.isArray(completedLessonIds) || !completedLessonIds.every((lessonId) => Number.isInteger(lessonId)) || new Set(completedLessonIds).size !== completedLessonIds.length || typeof started !== 'boolean' || !Number.isInteger(timeSpentSeconds) || timeSpentSeconds < 0 || !hasValidQuizResults) return response.status(400).json({ message: 'Invalid course progress.' })
 
   const [enrollment] = await sql`
-    SELECT courses.modules
+    SELECT courses.modules,
+           COALESCE(course_progress.completed_lesson_ids, '[]'::jsonb) AS "completedLessonIds",
+           COALESCE(course_progress.quiz_results, '{}'::jsonb) AS "quizResults"
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN course_progress ON course_progress.user_id = enrollments.user_id AND course_progress.course_id = enrollments.course_id
     WHERE enrollments.user_id = ${request.userId}
       AND enrollments.course_id = ${courseId}
     LIMIT 1
@@ -637,10 +640,19 @@ app.put('/api/enrollments/:courseId/progress', requireAuthenticated, async (requ
   if (!enrollment) return response.status(404).json({ message: 'Course enrollment not found.' })
 
   const modules = deserializeJson(enrollment.modules)
+  const existingCompletedLessonIds = deserializeJson(enrollment.completedLessonIds)
+  const existingQuizResults = deserializeJson(enrollment.quizResults)
   const lessons = Array.isArray(modules) ? modules.flatMap((module) => Array.isArray(module?.lessons) ? module.lessons : []) : []
   const lessonIds = new Set(lessons.map((lesson) => lesson?.id))
   const quizLessonIds = new Set(lessons.filter((lesson) => lesson?.type === 'quiz').map((lesson) => lesson?.id))
-  if (completedLessonIds.some((lessonId) => !lessonIds.has(lessonId)) || Object.keys(quizResults).some((lessonId) => !quizLessonIds.has(Number(lessonId)))) return response.status(400).json({ message: 'Invalid lesson progress.' })
+  const completedIds = Array.isArray(existingCompletedLessonIds) ? existingCompletedLessonIds : []
+  const previousResults = existingQuizResults && typeof existingQuizResults === 'object' && !Array.isArray(existingQuizResults) ? existingQuizResults : {}
+  const hasRemovedCompletedLesson = completedIds.some((lessonId) => !completedLessonIds.includes(lessonId))
+  const hasChangedQuizResult = Object.entries(previousResults).some(([lessonId, previous]) => {
+    const next = quizResults[lessonId]
+    return !next || previous?.score !== next.score || previous?.passed !== next.passed
+  })
+  if (completedLessonIds.some((lessonId) => !lessonIds.has(lessonId)) || Object.keys(quizResults).some((lessonId) => !quizLessonIds.has(Number(lessonId))) || hasRemovedCompletedLesson || hasChangedQuizResult) return response.status(400).json({ message: 'Completed quizzes and lessons cannot be changed.' })
 
   await sql`
     INSERT INTO course_progress ${sql({ user_id: request.userId, course_id: courseId, completed_lesson_ids: JSON.stringify(completedLessonIds), started, time_spent_seconds: timeSpentSeconds, quiz_results: JSON.stringify(quizResults) })}
