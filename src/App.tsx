@@ -17,6 +17,7 @@ const loadSection = <Props extends object = {}>(load: () => Promise<{ default: R
 const HomeHero = loadSection(() => import('@/components/home/hero'))
 const HomeFeature = loadSection(() => import('@/components/home/feature'))
 const HomePopularCourse = loadSection<{ courses: Course[] }>(() => import('@/components/home/popular-courses'))
+const HomeTrainingPrograms = loadSection<{ courses: Course[]; onSignIn: () => void }>(() => import('@/components/home/training-programs'))
 const HomeTestimonial = loadSection(() => import('@/components/home/testimonial'))
 const HomeOurMentors = loadSection(() => import('@/components/home/mentors'))
 const HomeNewsLetter = loadSection(() => import('@/components/home/newsletter'))
@@ -114,6 +115,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
         ) : (
           <>
             <HomeHero />
+            <HomeTrainingPrograms courses={homeCourses ?? []} onSignIn={() => setAuthMode('sign-in')} />
             <HomePopularCourse courses={homeCourses ?? []} />
             <HomeFeature />
             <HomeTestimonial />

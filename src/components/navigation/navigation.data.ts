@@ -10,6 +10,10 @@ export const navigations: Navigation[] = [
     path: 'popular-course', // '/popular-course',
   },
   {
+    label: 'Programs',
+    path: 'training-programs',
+  },
+  {
     label: 'Testimonial',
     path: 'testimonial', // '/testimonial',
   },

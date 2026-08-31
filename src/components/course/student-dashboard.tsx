@@ -383,17 +383,16 @@ const CoursesView: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (cours
   </>
 }
 
-const ClassesView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onOpenCourse: (courseId: number) => void }> = ({ enrollments, now, onOpenCourse }) => {
+const ClassesView: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (courseId: number) => void }> = ({ enrollments, onOpenCourse }) => {
   const classEnrollments = enrollments.filter((enrollment) => enrollment.type === 'class' && enrollment.classRecord)
   return <>
     <ViewHeading title="My Classes" description="See your live learning schedule and join sessions when they are ready." />
-    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => <ClassCard key={enrollment.id} classRecord={enrollment.classRecord!} now={now} onOpenCourse={onOpenCourse} />)}</Stack>}
+    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => <ClassCard key={enrollment.id} classRecord={enrollment.classRecord!} onOpenCourse={onOpenCourse} />)}</Stack>}
   </>
 }
 
-const ClassCard: FC<{ classRecord: DashboardClass; now: Date; onOpenCourse: (courseId: number) => void }> = ({ classRecord, now, onOpenCourse }) => {
-  const sessionStart = classRecord.schedule.startsAt ? new Date(classRecord.schedule.startsAt) : null
-  const isJoinable = classRecord.status === 'open' && sessionStart !== null && now.getTime() >= sessionStart.getTime() - 15 * 60 * 1000 && now.getTime() <= sessionStart.getTime() + 90 * 60 * 1000
+const ClassCard: FC<{ classRecord: DashboardClass; onOpenCourse: (courseId: number) => void }> = ({ classRecord, onOpenCourse }) => {
+  const isJoinable = classRecord.status === 'open' && Boolean(classRecord.meeting_link)
   const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? 'Scheduled' : classRecord.status === 'full' ? 'Full' : 'Closed'
   const statusColor = classRecord.status === 'pending_schedule' || classRecord.status === 'full' ? 'warning' : classRecord.status === 'open' ? 'success' : 'error'
   const linkedCourse = classRecord.course
@@ -545,7 +544,6 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [activeView, setActiveView] = useState<DashboardView>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [language, setLanguage] = useState('EN')
-  const [now, setNow] = useState(() => new Date())
   const [enrollments, setEnrollments] = useState<DashboardEnrollment[]>([])
   const [isLoadingEnrollments, setIsLoadingEnrollments] = useState(true)
   const [enrollmentError, setEnrollmentError] = useState<string | null>(null)
@@ -562,11 +560,6 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>(() => loadCompletedLessons(currentUserId))
   const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>(() => loadStartedCourses(currentUserId))
   const [profileMessage, setProfileMessage] = useState('')
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30000)
-    return () => window.clearInterval(timer)
-  }, [])
 
   useEffect(() => {
     const handleProfileOpen = () => setActiveView('profile')
@@ -709,7 +702,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
         {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
           {activeView === 'overview' && <OverviewView enrollments={enrollments} onSelectView={selectView} onOpenCourse={openCourse} />}
           {activeView === 'courses' && <CoursesView enrollments={enrollments} onOpenCourse={openCourse} />}
-          {activeView === 'classes' && <ClassesView enrollments={enrollments} now={now} onOpenCourse={openCourse} />}
+          {activeView === 'classes' && <ClassesView enrollments={enrollments} onOpenCourse={openCourse} />}
           {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} />}
           {activeView === 'purchases' && <PurchasesView />}
           {activeView === 'other-courses' && <OtherCoursesView courses={otherCourses} enrolledCourseIds={enrolledCourseIds} isLoading={isLoadingOtherCourses} error={otherCoursesError} />}

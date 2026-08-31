@@ -189,6 +189,7 @@ const initializeDatabase = async () => {
   `
   await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
   await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_status TEXT CHECK (class_status IN ('enrolled', 'waitlisted'))`
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
 
   for (const seedTutor of seedTutors) {
     await sql`
@@ -449,7 +450,7 @@ const verifyChapaTransaction = async (reference) => {
 
 const updatePaymentStatus = async (reference, status, verification = {}) => sql.begin(async (transaction) => {
   const [payment] = await transaction`
-    SELECT id, user_id AS "userId", course_id AS "courseId", student_data AS "studentData", amount::FLOAT AS amount, currency, status
+    SELECT id, user_id AS "userId", course_id AS "courseId", class_id AS "classId", student_data AS "studentData", amount::FLOAT AS amount, currency, status
     FROM payments
     WHERE reference = ${reference}
     FOR UPDATE
@@ -478,10 +479,31 @@ const updatePaymentStatus = async (reference, status, verification = {}) => sql.
       })}
       RETURNING id
     `
+    const classRecord = payment.classId === null ? null : (await transaction`
+      SELECT classes.id,
+             classes.capacity,
+             classes.status,
+             COALESCE(enrollment_counts.enrolled_count, 0)::INTEGER AS enrolled_count
+      FROM classes
+      LEFT JOIN (
+        SELECT class_id, COUNT(*) FILTER (WHERE class_status = 'enrolled') AS enrolled_count
+        FROM enrollments
+        WHERE class_id = ${payment.classId}
+        GROUP BY class_id
+      ) AS enrollment_counts ON enrollment_counts.class_id = classes.id
+      WHERE classes.id = ${payment.classId}
+        AND classes.published = true
+        AND classes.status <> 'closed'
+      FOR UPDATE OF classes
+    `)[0] ?? null
+    const classStatus = classRecord ? (classRecord.status === 'full' || classRecord.enrolled_count >= classRecord.capacity ? 'waitlisted' : 'enrolled') : null
     await transaction`
-      INSERT INTO enrollments ${transaction({ user_id: payment.userId, student_id: savedStudent.id, course_id: payment.courseId, payment_id: payment.id })}
+      INSERT INTO enrollments ${transaction({ user_id: payment.userId, student_id: savedStudent.id, course_id: payment.courseId, payment_id: payment.id, class_id: classRecord?.id ?? null, class_status: classStatus })}
       ON CONFLICT (student_id, course_id, payment_id) DO NOTHING
     `
+    if (classRecord && classStatus === 'enrolled' && classRecord.enrolled_count + 1 >= classRecord.capacity) {
+      await transaction`UPDATE classes SET status = 'full', updated_at = NOW() WHERE id = ${classRecord.id}`
+    }
   }
   await transaction`UPDATE courses SET students = students + ${students.length} WHERE id = ${payment.courseId}`
   return 'paid'
@@ -634,6 +656,84 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
   }
 })
 
+app.post('/api/payments/chapa/class', requireAuthenticated, async (request, response) => {
+  const classId = parseCourseId(String(request.body?.classId ?? ''))
+  if (classId === null) return response.status(400).json({ message: 'Choose a valid batch.' })
+  if (!isTestChapa && !process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
+
+  const [classRecord] = await sql`
+    SELECT classes.id,
+           classes.title,
+           classes.course_id AS "courseId",
+           classes.price::FLOAT AS price,
+           classes.status,
+           users.name,
+           users.email,
+           users.phone,
+           COALESCE(classes.course_id, (SELECT id FROM courses WHERE status = 'Published' ORDER BY id LIMIT 1)) AS "paymentCourseId"
+    FROM classes
+    INNER JOIN users ON users.id = ${request.userId}
+    WHERE classes.id = ${classId}
+      AND classes.published = true
+      AND classes.status IN ('open', 'full')
+  `
+  if (!classRecord || classRecord.paymentCourseId === null) return response.status(404).json({ message: 'This batch is not available for enrollment.' })
+
+  const students = [{
+    fullName: classRecord.name.trim() || 'Student',
+    ageOrGrade: 'Not provided',
+    relationship: 'Self',
+    preferredLanguage: 'Not provided',
+    emergencyPhone: '',
+    notes: '',
+  }]
+  const referencePrefix = isTestChapa ? 'test-class' : 'class'
+  const reference = `${referencePrefix}-${classRecord.id}-${randomBytes(12).toString('hex')}`
+  const currency = process.env.CHAPA_CURRENCY ?? 'ETB'
+  const amount = classRecord.price * students.length
+  const [payment] = await sql`
+    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: classRecord.paymentCourseId, class_id: classRecord.id, student_data: JSON.stringify(students), amount, currency })}
+    RETURNING id
+  `
+
+  if (isTestChapa) return response.status(201).json({ checkoutUrl: '', paymentReference: reference, mode: 'test' })
+
+  const baseUrl = process.env.APP_URL ?? `${request.protocol}://${request.get('host')}`
+  const nameParts = classRecord.name.trim().split(/\s+/)
+  try {
+    const chapaResponse = await fetch('https://api.chapa.global/v2/payments/hosted', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount,
+        currency,
+        merchant_reference: reference,
+        customer: {
+          first_name: nameParts[0] || 'Student',
+          last_name: nameParts.slice(1).join(' '),
+          email: classRecord.email,
+          phone_number: classRecord.phone || undefined,
+        },
+        meta: { order_id: reference, class_id: classRecord.id },
+        return_url: `${baseUrl}/?payment=${reference}&class=${classRecord.id}`,
+        callback_url: `${baseUrl}/api/payments/chapa/webhook`,
+      }),
+    })
+    const chapaPayment = await chapaResponse.json().catch(() => null)
+    const checkoutUrl = chapaPayment?.data?.checkout_url
+    const chapaReference = chapaPayment?.data?.chapa_reference
+    if (!chapaResponse.ok || typeof checkoutUrl !== 'string') throw new Error('Chapa did not return a checkout link.')
+    if (typeof chapaReference === 'string' && chapaReference) await sql`UPDATE payments SET chapa_reference = ${chapaReference} WHERE id = ${payment.id}`
+    return response.status(201).json({ checkoutUrl, paymentReference: typeof chapaReference === 'string' && chapaReference ? chapaReference : reference, mode: 'live' })
+  } catch (error) {
+    await sql`UPDATE payments SET status = 'failed' WHERE id = ${payment.id}`
+    throw error
+  }
+})
+
 app.get('/api/payments/chapa/:reference', requireAuthenticated, async (request, response) => {
   const requestedReference = request.params.reference
   const [payment] = await sql`
@@ -658,7 +758,7 @@ app.post('/api/payments/chapa/:reference/test-complete', requireAuthenticated, a
 
   const reference = request.params.reference
   const status = request.body?.status
-  if (!/^test-course-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
+  if (!/^test-(?:course|class)-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
 
   const [payment] = await sql`
     SELECT reference, amount::FLOAT AS amount, currency, status
@@ -723,7 +823,7 @@ app.get('/api/payments', requireAuthenticated, async (request, response) => {
   return response.json(payments)
 })
 
-app.get('/api/classes', requireAuthenticated, async (_request, response) => {
+app.get('/api/classes', async (_request, response) => {
   const classes = await sql`
     SELECT classes.id::INTEGER AS id,
            classes.title,
@@ -733,11 +833,27 @@ app.get('/api/classes', requireAuthenticated, async (_request, response) => {
            classes.status,
            classes.course_id::INTEGER AS "courseId",
            courses.title AS "courseTitle",
-           COALESCE(tutors.name, 'Tutor to be confirmed') AS "tutorName"
+           COALESCE(tutors.name, 'Tutor to be confirmed') AS "tutorName",
+           classes.capacity,
+           COALESCE(enrollment_counts.enrolled_count, 0)::INTEGER AS "enrolledCount",
+           classes.published,
+           CASE WHEN courses.id IS NULL THEN NULL ELSE jsonb_array_length(CASE WHEN jsonb_typeof(courses.modules) = 'array' THEN courses.modules ELSE '[]'::jsonb END) END::INTEGER AS "moduleCount",
+           CASE WHEN courses.id IS NULL THEN NULL ELSE (
+             SELECT COUNT(*)::INTEGER
+             FROM jsonb_array_elements(CASE WHEN jsonb_typeof(courses.modules) = 'array' THEN courses.modules ELSE '[]'::jsonb END) AS module
+             CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(module->'lessons') = 'array' THEN module->'lessons' ELSE '[]'::jsonb END) AS lesson
+           ) END AS "lessonCount"
     FROM classes
     LEFT JOIN courses ON courses.id = classes.course_id
     LEFT JOIN tutors ON tutors.id = classes.tutor_id
+    LEFT JOIN (
+      SELECT class_id, COUNT(*) FILTER (WHERE class_status = 'enrolled') AS enrolled_count
+      FROM enrollments
+      WHERE class_id IS NOT NULL
+      GROUP BY class_id
+    ) AS enrollment_counts ON enrollment_counts.class_id = classes.id
     WHERE classes.published = true
+      AND classes.status <> 'closed'
     ORDER BY classes.created_at DESC, classes.id DESC
   `
   return response.json(classes)

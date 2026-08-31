@@ -15,13 +15,14 @@ import Typography from '@mui/material/Typography'
 import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type FormEvent, useEffect, useState } from 'react'
 import { type AdminCourse } from '@/components/admin/admin-data'
-import { completeTestPayment, createChapaCheckout, getAuthenticatedUser, saveAuthenticatedUser, submitCredentials, verifyChapaPayment } from '@/services/api'
+import { completeTestPayment, createChapaCheckout, createClassChapaCheckout, getAuthenticatedUser, saveAuthenticatedUser, submitCredentials, verifyChapaPayment } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
 type PaymentState = 'ready' | 'processing' | 'success' | 'failed'
 
 interface EnrollmentModalProps {
-  course: AdminCourse
+  course: Pick<AdminCourse, 'id' | 'title' | 'price'>
+  classId?: number | null
   open: boolean
   paymentReference?: string | null
   onClose: () => void
@@ -29,7 +30,7 @@ interface EnrollmentModalProps {
 
 const steps = ['Account', 'Payment']
 
-const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentReference, onClose }) => {
+const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, classId = null, open, paymentReference, onClose }) => {
   const [activeStep, setActiveStep] = useState(0)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [isSubmittingAccount, setIsSubmittingAccount] = useState(false)
@@ -47,7 +48,7 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
     setTestCheckoutReference(null)
     setPaymentState(paymentReference ? 'processing' : 'ready')
     setActiveStep(paymentReference || getAuthenticatedUser() ? 1 : 0)
-  }, [open, paymentReference])
+  }, [classId, open, paymentReference])
 
   useEffect(() => {
     if (!open || !paymentReference || paymentState !== 'processing') return
@@ -109,7 +110,7 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
     setPaymentError(null)
     setIsStartingCheckout(true)
     try {
-      const checkout = await createChapaCheckout(course.id)
+      const checkout = classId === null ? await createChapaCheckout(course.id) : await createClassChapaCheckout(classId)
       if (checkout.mode === 'test') {
         setTestCheckoutReference(checkout.paymentReference)
         return
@@ -216,7 +217,7 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, open, paymentRefere
 
   return <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="enrollment-dialog-title">
     <DialogTitle id="enrollment-dialog-title" sx={{ pr: 7 }}>
-      Enroll in this course
+      {classId === null ? 'Enroll in this course' : 'Enroll in this batch'}
       <IconButton aria-label="Close enrollment" onClick={onClose} sx={{ position: 'absolute', top: 12, right: 12 }}>
         <CloseIcon />
       </IconButton>

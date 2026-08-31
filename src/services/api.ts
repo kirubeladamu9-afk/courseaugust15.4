@@ -79,6 +79,11 @@ export interface PublicClass {
   courseId: number | null
   courseTitle: string | null
   tutorName: string
+  capacity: number
+  enrolledCount: number
+  published: boolean
+  moduleCount: number | null
+  lessonCount: number | null
 }
 
 const authStorageKey = 'coursespace-auth-user'
@@ -394,6 +399,16 @@ export const createChapaCheckout = async (courseId: AdminCourse['id']): Promise<
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ courseId }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const createClassChapaCheckout = async (classId: number): Promise<ChapaCheckout> => {
+  const response = await requestApi('/api/payments/chapa/class', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ classId }),
   })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
