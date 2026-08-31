@@ -796,12 +796,13 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
 
   const sidebar = <DashboardSidebar activeView={activeView} onSelectView={selectView} />
+  const isLessonPlayer = activeView === 'course-view'
 
   return <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
-    {isMobile ? <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)}>{sidebar}<IconButton onClick={() => setMobileOpen(false)} aria-label="Close dashboard navigation" sx={{ position: 'absolute', top: 10, right: 10 }}><CloseIcon /></IconButton></Drawer> : <Box sx={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: drawerWidth, zIndex: 'drawer' }}>{sidebar}</Box>}
-    <Box sx={{ flex: 1, minWidth: 0, ml: { xs: 0, md: `${drawerWidth}px` } }}>
-      <DashboardHeader title={pageTitle} darkMode={darkMode} language={language} onLanguageChange={() => setLanguage((current) => current === 'EN' ? 'AM' : 'EN')} onToggleDarkMode={onToggleDarkMode} onOpenMenu={() => setMobileOpen(true)} />
-      <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
+    {!isLessonPlayer && (isMobile ? <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)}>{sidebar}<IconButton onClick={() => setMobileOpen(false)} aria-label="Close dashboard navigation" sx={{ position: 'absolute', top: 10, right: 10 }}><CloseIcon /></IconButton></Drawer> : <Box sx={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: drawerWidth, zIndex: 'drawer' }}>{sidebar}</Box>)}
+    <Box sx={{ flex: 1, minWidth: 0, ml: isLessonPlayer ? 0 : { xs: 0, md: `${drawerWidth}px` } }}>
+      {!isLessonPlayer && <DashboardHeader title={pageTitle} darkMode={darkMode} language={language} onLanguageChange={() => setLanguage((current) => current === 'EN' ? 'AM' : 'EN')} onToggleDarkMode={onToggleDarkMode} onOpenMenu={() => setMobileOpen(true)} />}
+      <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: isLessonPlayer ? 1600 : 1440, minHeight: isLessonPlayer ? '100vh' : 'calc(100vh - 72px)' }}>
         {profileMessage && <Alert severity="success" onClose={() => setProfileMessage('')} sx={{ mb: 3 }}>{profileMessage}</Alert>}
         {progressError && <Alert severity="error" onClose={() => setProgressError(null)} sx={{ mb: 3 }}>{progressError}</Alert>}
         {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
