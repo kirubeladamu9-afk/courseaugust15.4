@@ -67,6 +67,8 @@ export interface MyEnrollment {
   classSchedule: { days: string[]; time: string; flexible: boolean; startDate: string } | null
   meetingLink: string | null
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
+  completedLessonIds: number[]
+  started: boolean
 }
 
 export interface PublicClass {
@@ -440,6 +442,15 @@ export const getMyEnrollments = async (): Promise<MyEnrollment[]> => {
   const response = await requestApi('/api/enrollments')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
+}
+
+export const saveCourseProgress = async (courseId: number, completedLessonIds: number[], started: boolean): Promise<void> => {
+  const response = await requestApi(`/api/enrollments/${courseId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completedLessonIds, started }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
 }
 
 export const signOut = async () => {

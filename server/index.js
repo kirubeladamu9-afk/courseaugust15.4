@@ -191,6 +191,17 @@ const initializeDatabase = async () => {
   await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_status TEXT CHECK (class_status IN ('enrolled', 'waitlisted'))`
   await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS course_progress (
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      completed_lesson_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+      started BOOLEAN NOT NULL DEFAULT false,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, course_id)
+    )
+  `
+
   for (const seedTutor of seedTutors) {
     await sql`
       INSERT INTO tutors ${sql(seedTutor)}
@@ -566,25 +577,59 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            tutors.name AS "classTutor",
            classes.schedule AS "classSchedule",
            classes.meeting_link AS "meetingLink",
-           classes.status AS "classStatus"
+           classes.status AS "classStatus",
+           COALESCE(course_progress.completed_lesson_ids, '[]'::jsonb) AS "completedLessonIds",
+           COALESCE(course_progress.started, false) AS started
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
     INNER JOIN students ON students.id = enrollments.student_id
     LEFT JOIN classes ON classes.id = enrollments.class_id
     LEFT JOIN tutors ON tutors.id = classes.tutor_id
+    LEFT JOIN course_progress ON course_progress.user_id = enrollments.user_id AND course_progress.course_id = enrollments.course_id
     WHERE enrollments.user_id = ${request.userId}
     ORDER BY enrollments.created_at DESC
   `
   response.json(enrollments.map((enrollment) => {
     const modules = deserializeJson(enrollment.modules)
     const classSchedule = deserializeJson(enrollment.classSchedule)
+    const completedLessonIds = deserializeJson(enrollment.completedLessonIds)
     return {
       ...enrollment,
       modules: Array.isArray(modules) ? modules : [],
       classSchedule: classSchedule && typeof classSchedule === 'object' && !Array.isArray(classSchedule) ? classSchedule : null,
+      completedLessonIds: Array.isArray(completedLessonIds) ? completedLessonIds : [],
+      started: Boolean(enrollment.started),
     }
   }))
+})
+
+app.put('/api/enrollments/:courseId/progress', requireAuthenticated, async (request, response) => {
+  const courseId = parseCourseId(request.params.courseId)
+  const completedLessonIds = request.body?.completedLessonIds
+  const started = request.body?.started
+  if (courseId === null || !Array.isArray(completedLessonIds) || !completedLessonIds.every((lessonId) => Number.isInteger(lessonId)) || new Set(completedLessonIds).size !== completedLessonIds.length || typeof started !== 'boolean') return response.status(400).json({ message: 'Invalid course progress.' })
+
+  const [enrollment] = await sql`
+    SELECT courses.modules
+    FROM enrollments
+    INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
+    INNER JOIN courses ON courses.id = enrollments.course_id
+    WHERE enrollments.user_id = ${request.userId}
+      AND enrollments.course_id = ${courseId}
+    LIMIT 1
+  `
+  if (!enrollment) return response.status(404).json({ message: 'Course enrollment not found.' })
+
+  const modules = deserializeJson(enrollment.modules)
+  const lessonIds = new Set(Array.isArray(modules) ? modules.flatMap((module) => Array.isArray(module?.lessons) ? module.lessons.map((lesson) => lesson?.id) : []) : [])
+  if (completedLessonIds.some((lessonId) => !lessonIds.has(lessonId))) return response.status(400).json({ message: 'Invalid lesson progress.' })
+
+  await sql`
+    INSERT INTO course_progress ${sql({ user_id: request.userId, course_id: courseId, completed_lesson_ids: JSON.stringify(completedLessonIds), started })}
+    ON CONFLICT (user_id, course_id) DO UPDATE SET completed_lesson_ids = EXCLUDED.completed_lesson_ids, started = EXCLUDED.started, updated_at = NOW()
+  `
+  return response.status(204).end()
 })
 
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {

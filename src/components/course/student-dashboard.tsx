@@ -48,7 +48,7 @@ import { type FC, type ReactNode, useEffect, useState } from 'react'
 import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
-import { getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, signOut, type MyEnrollment, type MyPayment, type PublicClass } from '@/services/api'
+import { getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, saveCourseProgress, signOut, type MyEnrollment, type MyPayment, type PublicClass } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
  type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
@@ -210,41 +210,14 @@ const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): 
   course_id: enrollment.courseId,
   course,
 }
-const mapMyEnrollments = (records: MyEnrollment[], userId: number, completedLessons: Record<number, number[]> = {}): DashboardEnrollment[] => records.flatMap((record) => {
+const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
   const course = mapEnrollmentCourse(record)
   const classRecord = mapEnrollmentClass(record, course)
-  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, completedLessons[record.courseId] ?? []), course }
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, record.completedLessonIds), course }
   if (!classRecord) return [courseEnrollment]
   return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, classRecord }]
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
-const completedLessonsStorageKey = (userId: number) => `coursespace-completed-lessons-${userId}`
-const startedCoursesStorageKey = (userId: number) => `coursespace-started-courses-${userId}`
-const loadCompletedLessons = (userId: number): Record<number, number[]> => {
-  if (!Number.isFinite(userId)) return {}
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(completedLessonsStorageKey(userId)) ?? 'null')
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return Object.fromEntries(Object.entries(parsed).flatMap(([courseId, lessonIds]) => {
-      if (!Array.isArray(lessonIds)) return []
-      const validLessonIds = lessonIds.filter((lessonId): lessonId is number => typeof lessonId === 'number' && Number.isInteger(lessonId))
-      return validLessonIds.length ? [[courseId, validLessonIds]] : []
-    }))
-  } catch {
-    return {}
-  }
-}
-const loadStartedCourses = (userId: number): Record<number, boolean> => {
-  if (!Number.isFinite(userId)) return {}
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(startedCoursesStorageKey(userId)) ?? 'null')
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return Object.fromEntries(Object.entries(parsed).filter(([, started]) => started === true))
-  } catch {
-    return {}
-  }
-}
-
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
@@ -574,8 +547,9 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [isLoadingOtherClasses, setIsLoadingOtherClasses] = useState(true)
   const [otherClassesError, setOtherClassesError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
-  const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>(() => loadCompletedLessons(currentUserId))
-  const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>(() => loadStartedCourses(currentUserId))
+  const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>({})
+  const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>({})
+  const [progressError, setProgressError] = useState<string | null>(null)
   const [profileMessage, setProfileMessage] = useState('')
 
   useEffect(() => {
@@ -594,7 +568,11 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     getMyEnrollments()
       .then((records) => {
         if (!isCurrent) return
-        setEnrollments(mapMyEnrollments(records, currentUserId, loadCompletedLessons(currentUserId)))
+        const completedByCourse = Object.fromEntries(records.filter((record) => record.completedLessonIds.length > 0).map((record) => [record.courseId, record.completedLessonIds]))
+        const startedByCourse = Object.fromEntries(records.filter((record) => record.started).map((record) => [record.courseId, true]))
+        setCompletedLessons(completedByCourse)
+        setStartedCourses(startedByCourse)
+        setEnrollments(mapMyEnrollments(records, currentUserId))
         setEnrollmentError(null)
       })
       .catch((error) => {
@@ -609,16 +587,6 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       isCurrent = false
     }
   }, [currentUserId])
-
-  useEffect(() => {
-    if (!Number.isFinite(currentUserId)) return
-    localStorage.setItem(completedLessonsStorageKey(currentUserId), JSON.stringify(completedLessons))
-  }, [completedLessons, currentUserId])
-
-  useEffect(() => {
-    if (!Number.isFinite(currentUserId)) return
-    localStorage.setItem(startedCoursesStorageKey(currentUserId), JSON.stringify(startedCourses))
-  }, [currentUserId, startedCourses])
 
   useEffect(() => {
     let isCurrent = true
@@ -683,10 +651,10 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     }
   }, [])
 
-  const selectedCourse = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)?.course
-  const selectedCourseEnrollment = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)
+  const selectedCourse = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)?.course ?? enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.classRecord?.course?.id === selectedCourseId)?.classRecord?.course
+  const selectedCourseEnrollment = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId) ?? enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.classRecord?.course?.id === selectedCourseId)
   const selectedCourseProgress = selectedCourse ? getCourseProgress(selectedCourse, completedLessons[selectedCourse.id] ?? []) : 0
-  const enrolledCourseIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'course').map((enrollment) => String(enrollment.item_id)))
+  const enrolledCourseIds = new Set(enrollments.flatMap((enrollment) => enrollment.type === 'course' ? [String(enrollment.item_id)] : enrollment.classRecord?.course ? [String(enrollment.classRecord.course.id)] : []))
   const enrolledClassIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'class').map((enrollment) => enrollment.item_id))
   const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'other-courses' ? 'Other Courses' : activeView === 'other-classes' ? 'Other Classes' : activeView === 'profile' ? 'Profile' : 'Payment History'
 
@@ -700,7 +668,10 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setMobileOpen(false)
   }
   const startCourse = (courseId: number) => {
+    const nextCompleted = completedLessons[courseId] ?? []
     setStartedCourses((current) => ({ ...current, [courseId]: true }))
+    setProgressError(null)
+    void saveCourseProgress(courseId, nextCompleted, true).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course progress.'))
   }
   const completeLesson = (lessonId: number) => {
     if (!selectedCourseId || !selectedCourse) return
@@ -709,7 +680,10 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     const nextCompleted = [...completed, lessonId]
     const nextProgress = getCourseProgress(selectedCourse, nextCompleted)
     setCompletedLessons((current) => ({ ...current, [selectedCourseId]: nextCompleted }))
+    setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
     setEnrollments((current) => current.map((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId ? { ...enrollment, progress: nextProgress } : enrollment))
+    setProgressError(null)
+    void saveCourseProgress(selectedCourseId, nextCompleted, true).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course progress.'))
   }
   const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
 
@@ -721,6 +695,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       <DashboardHeader title={pageTitle} darkMode={darkMode} language={language} onLanguageChange={() => setLanguage((current) => current === 'EN' ? 'AM' : 'EN')} onToggleDarkMode={onToggleDarkMode} onOpenMenu={() => setMobileOpen(true)} />
       <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
         {profileMessage && <Alert severity="success" onClose={() => setProfileMessage('')} sx={{ mb: 3 }}>{profileMessage}</Alert>}
+        {progressError && <Alert severity="error" onClose={() => setProgressError(null)} sx={{ mb: 3 }}>{progressError}</Alert>}
         {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
           {activeView === 'overview' && <OverviewView enrollments={enrollments} now={now} onSelectView={selectView} onOpenCourse={openCourse} />}
           {activeView === 'courses' && <CoursesView enrollments={enrollments} onOpenCourse={openCourse} />}
@@ -731,7 +706,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
-          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} onBack={() => selectView('courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} />}
+          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} />}
         </>}
       </Box>
     </Box>
