@@ -97,6 +97,7 @@ import { navigateTo } from '@/lib/navigation'
   days: string[]
   time: string
   flexible: boolean
+  startDate: string
   date: string
   startsAt: string
  }
@@ -158,6 +159,19 @@ const classScheduleLabel = (schedule: DashboardClassSchedule) => {
   const days = schedule.days.length ? schedule.days.join(', ') : 'Days to be confirmed'
   return `${days} · ${formatClassTime(schedule.time)}`
 }
+const classStartDate = (schedule: DashboardClassSchedule) => {
+  if (!schedule.startDate) return null
+  const date = new Date(`${schedule.startDate}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+const formatClassStartDate = (schedule: DashboardClassSchedule) => {
+  const date = classStartDate(schedule)
+  return date ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date) : 'Start date not set'
+}
+const classHasStarted = (schedule: DashboardClassSchedule, now: Date) => {
+  const date = classStartDate(schedule)
+  return date !== null && now.getTime() >= date.getTime()
+}
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
 const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
   id: enrollment.courseId,
@@ -187,6 +201,7 @@ const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): 
     days: enrollment.classSchedule?.days ?? [],
     time: enrollment.classSchedule?.time ?? '',
     flexible: enrollment.classSchedule?.flexible ?? false,
+    startDate: enrollment.classSchedule?.startDate ?? '',
     date: '',
     startsAt: '',
   },
@@ -330,10 +345,10 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
   </Box>
 }
 
-const OverviewView: FC<{ enrollments: DashboardEnrollment[]; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number) => void }> = ({ enrollments, onSelectView, onOpenCourse }) => {
+const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number) => void }> = ({ enrollments, now, onSelectView, onOpenCourse }) => {
   const courseEnrollments = enrollments.filter((enrollment) => enrollment.type === 'course' && enrollment.status !== 'completed')
   const activeCourseCount = courseEnrollments.length
-  const nextClassEnrollment = enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.status === 'active' && enrollment.classRecord?.status === 'open')
+  const nextClassEnrollment = enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.status === 'active' && enrollment.classRecord?.status === 'open' && classHasStarted(enrollment.classRecord.schedule, now))
   const nextClass = nextClassEnrollment?.classRecord
   const pendingCount = enrollments.filter((enrollment) => enrollment.type === 'class' && enrollment.status === 'pending_schedule').length
 
@@ -383,24 +398,25 @@ const CoursesView: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (cours
   </>
 }
 
-const ClassesView: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (courseId: number) => void }> = ({ enrollments, onOpenCourse }) => {
+const ClassesView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onOpenCourse: (courseId: number) => void }> = ({ enrollments, now, onOpenCourse }) => {
   const classEnrollments = enrollments.filter((enrollment) => enrollment.type === 'class' && enrollment.classRecord)
   return <>
     <ViewHeading title="My Classes" description="See your live learning schedule and join sessions when they are ready." />
-    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => <ClassCard key={enrollment.id} classRecord={enrollment.classRecord!} onOpenCourse={onOpenCourse} />)}</Stack>}
+    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => <ClassCard key={enrollment.id} classRecord={enrollment.classRecord!} now={now} onOpenCourse={onOpenCourse} />)}</Stack>}
   </>
 }
 
-const ClassCard: FC<{ classRecord: DashboardClass; onOpenCourse: (courseId: number) => void }> = ({ classRecord, onOpenCourse }) => {
-  const isJoinable = classRecord.status === 'open' && Boolean(classRecord.meeting_link)
-  const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? 'Scheduled' : classRecord.status === 'full' ? 'Full' : 'Closed'
-  const statusColor = classRecord.status === 'pending_schedule' || classRecord.status === 'full' ? 'warning' : classRecord.status === 'open' ? 'success' : 'error'
+const ClassCard: FC<{ classRecord: DashboardClass; now: Date; onOpenCourse: (courseId: number) => void }> = ({ classRecord, now, onOpenCourse }) => {
+  const hasStarted = classHasStarted(classRecord.schedule, now)
+  const isJoinable = classRecord.status === 'open' && hasStarted && Boolean(classRecord.meeting_link)
+  const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? hasStarted ? 'Scheduled' : classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set' : classRecord.status === 'full' ? 'Full' : 'Closed'
+  const statusColor = classRecord.status === 'pending_schedule' || classRecord.status === 'full' || (classRecord.status === 'open' && !hasStarted) ? 'warning' : classRecord.status === 'open' ? 'success' : 'error'
   const linkedCourse = classRecord.course
   return <Card elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
     <CardContent>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={statusLabel} size="small" color={statusColor} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography></>}</Box></Box>
-        {classRecord.status === 'open' && <Button variant="contained" component="a" href={classRecord.meeting_link} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : 'Join at session time'}</Button>}
+        <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={statusLabel} size="small" color={statusColor} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography>{classRecord.status === 'open' && <Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set'}</Typography>}</>}</Box></Box>
+        {classRecord.status === 'open' && <Button variant="contained" component="a" href={isJoinable ? classRecord.meeting_link : undefined} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : 'Available on start date'}</Button>}
       </Stack>
       {linkedCourse && <><Divider sx={{ my: 2 }} /><Button variant="text" size="small" startIcon={<MenuBookOutlinedIcon />} onClick={() => onOpenCourse(linkedCourse.id)}>View {linkedCourse.title} curriculum summary</Button></>}
     </CardContent>
@@ -544,6 +560,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [activeView, setActiveView] = useState<DashboardView>('overview')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [language, setLanguage] = useState('EN')
+  const [now, setNow] = useState(() => new Date())
   const [enrollments, setEnrollments] = useState<DashboardEnrollment[]>([])
   const [isLoadingEnrollments, setIsLoadingEnrollments] = useState(true)
   const [enrollmentError, setEnrollmentError] = useState<string | null>(null)
@@ -560,6 +577,11 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>(() => loadCompletedLessons(currentUserId))
   const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>(() => loadStartedCourses(currentUserId))
   const [profileMessage, setProfileMessage] = useState('')
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const handleProfileOpen = () => setActiveView('profile')
@@ -700,9 +722,9 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
         {profileMessage && <Alert severity="success" onClose={() => setProfileMessage('')} sx={{ mb: 3 }}>{profileMessage}</Alert>}
         {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
-          {activeView === 'overview' && <OverviewView enrollments={enrollments} onSelectView={selectView} onOpenCourse={openCourse} />}
+          {activeView === 'overview' && <OverviewView enrollments={enrollments} now={now} onSelectView={selectView} onOpenCourse={openCourse} />}
           {activeView === 'courses' && <CoursesView enrollments={enrollments} onOpenCourse={openCourse} />}
-          {activeView === 'classes' && <ClassesView enrollments={enrollments} onOpenCourse={openCourse} />}
+          {activeView === 'classes' && <ClassesView enrollments={enrollments} now={now} onOpenCourse={openCourse} />}
           {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} />}
           {activeView === 'purchases' && <PurchasesView />}
           {activeView === 'other-courses' && <OtherCoursesView courses={otherCourses} enrolledCourseIds={enrolledCourseIds} isLoading={isLoadingOtherCourses} error={otherCoursesError} />}

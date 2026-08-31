@@ -73,7 +73,7 @@ export interface PublicClass {
   id: number
   title: string
   programId: string
-  schedule: { days: string[]; time: string; flexible: boolean }
+  schedule: { days: string[]; time: string; flexible: boolean; startDate: string }
   price: number
   status: 'pending_schedule' | 'open' | 'full' | 'closed'
   courseId: number | null

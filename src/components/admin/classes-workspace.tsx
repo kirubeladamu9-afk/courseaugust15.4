@@ -44,6 +44,7 @@ interface ClassSchedule {
   days: string[]
   time: string
   flexible: boolean
+  startDate: string
 }
 
 interface AdminClass {
@@ -125,12 +126,13 @@ const formatTime = (time: string) => {
 }
 
 const normalizeSchedule = (schedule: unknown): ClassSchedule => {
-  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return { days: [], time: '', flexible: false }
+  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return { days: [], time: '', flexible: false, startDate: '' }
   const candidate = schedule as Partial<ClassSchedule>
   return {
     days: Array.isArray(candidate.days) ? candidate.days.filter((day): day is string => typeof day === 'string') : [],
     time: typeof candidate.time === 'string' ? candidate.time : '',
     flexible: candidate.flexible === true,
+    startDate: typeof candidate.startDate === 'string' ? candidate.startDate : '',
   }
 }
 
@@ -169,6 +171,7 @@ const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSc
 
   return (
     <Stack spacing={1}>
+      <TextField required label="Start date" type="date" value={schedule.startDate} onChange={(event) => onChange({ ...schedule, startDate: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class start date' }} sx={{ maxWidth: { xs: '100%', sm: 220 } }} />
       {allowFlexible && <FormControlLabel control={<Switch checked={schedule.flexible} onChange={(event) => onChange({ ...schedule, flexible: event.target.checked })} inputProps={{ 'aria-label': 'Use a flexible schedule' }} />} label="Flexible schedule" />}
       {!schedule.flexible && <>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>Days</Typography>
@@ -182,13 +185,13 @@ const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSc
 }
 
 const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => void; onSave: (student: PendingStudent, values: PendingAssignmentValue) => void }> = ({ student, onClose, onSave }) => {
-  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false }, meeting_link: '' })
+  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false, startDate: '' }, meeting_link: '' })
 
   useEffect(() => {
-    if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false }, meeting_link: '' })
+    if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false, startDate: '' }, meeting_link: '' })
   }, [student])
 
-  const canSave = values.capacity >= 1 && Boolean(values.meeting_link.trim()) && (values.schedule.flexible || (values.schedule.days.length > 0 && Boolean(values.schedule.time)))
+  const canSave = values.capacity >= 1 && Boolean(values.meeting_link.trim()) && Boolean(values.schedule.startDate) && (values.schedule.flexible || (values.schedule.days.length > 0 && Boolean(values.schedule.time)))
 
   return (
     <Dialog open={Boolean(student)} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="assign-schedule-title">
@@ -212,7 +215,7 @@ const emptyClassForm = (): ClassFormValue => ({
   program_id: 'summer-camp',
   tutor_id: tutors[0]?.id ?? 0,
   capacity: 12,
-  schedule: { days: ['Mon', 'Wed'], time: '10:00', flexible: false },
+  schedule: { days: ['Mon', 'Wed'], time: '10:00', flexible: false, startDate: '' },
   meeting_link: '',
   course_id: null,
   price: 0,
@@ -227,7 +230,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
     setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: { ...classRecord.schedule, days: [...classRecord.schedule.days] }, meeting_link: classRecord.meeting_link, course_id: classRecord.course_id, price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
-  const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
+  const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.startDate && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
   const selectablePrograms = classRecord ? Object.keys(programLabels) as ProgramId[] : manageablePrograms
 
   return (
