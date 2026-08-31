@@ -212,7 +212,7 @@ interface BatchDrawerProps {
 
 const BatchDrawer: FC<BatchDrawerProps> = ({ programId, classes, open, grade, onGradeChange, onClose, onEnroll }) => {
   const visibleClasses = programId === 'ministry-exam-prep'
-    ? classes.filter((classRecord) => classRecord.title.includes(grade) || classRecord.courseTitle?.includes(grade))
+    ? classes.filter((classRecord) => classRecord.title.toLowerCase().includes(grade.toLowerCase()) || classRecord.courseTitle?.toLowerCase().includes(grade.toLowerCase()))
     : classes
 
   return (

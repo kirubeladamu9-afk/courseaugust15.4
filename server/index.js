@@ -856,7 +856,7 @@ app.get('/api/classes', async (_request, response) => {
       AND classes.status <> 'closed'
     ORDER BY classes.created_at DESC, classes.id DESC
   `
-  return response.json(classes)
+  return response.json(classes.map((classRecord) => ({ ...classRecord, schedule: deserializeJson(classRecord.schedule) })))
 })
 
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
