@@ -60,7 +60,6 @@ import { navigateTo } from '@/lib/navigation'
  type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
  type EnrollmentType = 'course' | 'class'
  type EnrollmentStatus = 'active' | 'pending_schedule' | 'completed'
- type QuizStatus = 'available' | 'completed'
  type ClassStatus = 'pending_schedule' | 'open' | 'full' | 'closed'
 
  interface DashboardEnrollment {
@@ -121,14 +120,6 @@ import { navigateTo } from '@/lib/navigation'
   course?: DashboardCourse
  }
 
- interface DashboardQuiz {
-  id: number
-  course_id: number
-  title: string
-  status: QuizStatus
-  score: number | null
- }
-
  interface DashboardPurchase {
   id: number
   item_name: string
@@ -137,13 +128,6 @@ import { navigateTo } from '@/lib/navigation'
 }
 
 const drawerWidth = 272
-const quizzes: DashboardQuiz[] = [
-  { id: 1, course_id: 1, title: 'React foundations knowledge check', status: 'completed', score: 92 },
-  { id: 2, course_id: 1, title: 'Material UI layout challenge', status: 'available', score: null },
-  { id: 3, course_id: 2, title: 'Data modeling essentials', status: 'available', score: null },
-  { id: 4, course_id: 99, title: 'Unenrolled course quiz', status: 'available', score: null },
-]
-
 const purchases: DashboardPurchase[] = [
   { id: 1, item_name: 'The Practical React Workbook', type: 'Book', download_url: '#react-workbook' },
   { id: 2, item_name: 'Frontend Developer Practice Exam', type: 'Exam', download_url: '#frontend-exam' },
@@ -406,15 +390,17 @@ const ClassCard: FC<{ classRecord: DashboardClass; now: Date; onOpenCourse: (cou
   </Card>
 }
 
-const QuizzesView: FC<{ enrollments: DashboardEnrollment[] }> = ({ enrollments }) => {
-  const enrolledCourseIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'course').map((enrollment) => enrollment.item_id))
-  const enrolledQuizzes = quizzes.filter((quiz) => enrolledCourseIds.has(quiz.course_id))
+const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Record<number, number[]>; onOpenCourse: (courseId: number) => void }> = ({ enrollments, completedLessons, onOpenCourse }) => {
+  const enrolledQuizzes = enrollments.flatMap((enrollment) => {
+    const course = enrollment.type === 'course' ? enrollment.course : enrollment.classRecord?.course
+    if (!course) return []
+    const source = enrollment.type === 'class' ? `Class: ${enrollment.classRecord?.title ?? course.title}` : `Course: ${course.title}`
+    return course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => ({ course, lesson, moduleTitle: module.title, source, completed: (completedLessons[course.id] ?? []).includes(lesson.id) })))
+  })
+
   return <>
-    <ViewHeading title="Quizzes & Results" description="Review completed results and test your knowledge in enrolled courses." />
-    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map((quiz) => {
-      const course = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === quiz.course_id)?.course
-      return <Card key={quiz.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{quiz.title}</Typography><Typography color="text.secondary" variant="body2">{course?.title}</Typography></Box></Box>{quiz.status === 'completed' ? <Stack direction="row" spacing={1} alignItems="center"><Chip icon={<CheckCircleOutlineIcon />} label={`Score ${quiz.score}%`} color="success" size="small" /><Button variant="outlined" size="small">Review</Button></Stack> : <Button variant="contained" startIcon={<QuizOutlinedIcon />} onClick={() => undefined}>Start Quiz</Button>}</Stack></CardContent></Card>
-    })}</Stack>}
+    <ViewHeading title="Quizzes & Results" description="Review results and continue quizzes from your enrolled courses and classes." />
+    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses and classes will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map(({ course, lesson, moduleTitle, source, completed }) => <Card key={`${course.id}-${lesson.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{lesson.title}</Typography><Typography color="text.secondary" variant="body2">{source} · {moduleTitle}</Typography></Box></Box><Stack direction="row" spacing={1} alignItems="center"><Chip icon={completed ? <CheckCircleOutlineIcon /> : undefined} label={completed ? 'Completed' : 'Ready to take'} color={completed ? 'success' : 'primary'} size="small" variant={completed ? 'filled' : 'outlined'} /><Button variant={completed ? 'outlined' : 'contained'} size="small" onClick={() => onOpenCourse(course.id)}>{completed ? 'Review' : 'Open quiz'}</Button></Stack></Stack></CardContent></Card>)}</Stack>}
   </>
 }
 
@@ -737,7 +723,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'overview' && <OverviewView enrollments={enrollments} now={now} onSelectView={selectView} onOpenCourse={openCourse} />}
           {activeView === 'courses' && <CoursesView enrollments={enrollments} onOpenCourse={openCourse} />}
           {activeView === 'classes' && <ClassesView enrollments={enrollments} now={now} onOpenCourse={openCourse} />}
-          {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} />}
+          {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} completedLessons={completedLessons} onOpenCourse={openCourse} />}
           {activeView === 'purchases' && <PurchasesView />}
           {activeView === 'other-courses' && <OtherCoursesView courses={otherCourses} enrolledCourseIds={enrolledCourseIds} isLoading={isLoadingOtherCourses} error={otherCoursesError} />}
           {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} />}
