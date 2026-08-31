@@ -878,8 +878,8 @@ app.post('/api/payments/chapa/webhook', async (request, response, next) => {
 app.get('/api/payments', requireAuthenticated, async (request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,
-           courses.title AS "itemName",
-           'Course' AS type,
+           COALESCE(classes.title, courses.title) AS "itemName",
+           CASE WHEN payments.class_id IS NULL THEN 'course' ELSE 'class' END AS type,
            payments.amount::FLOAT AS amount,
            payments.currency,
            CASE payments.status
@@ -891,6 +891,7 @@ app.get('/api/payments', requireAuthenticated, async (request, response) => {
            payments.reference AS "txRef"
     FROM payments
     INNER JOIN courses ON courses.id = payments.course_id
+    LEFT JOIN classes ON classes.id = payments.class_id
     WHERE payments.user_id = ${request.userId}
     ORDER BY payments.created_at DESC, payments.id DESC
   `

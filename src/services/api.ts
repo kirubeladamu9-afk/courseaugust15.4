@@ -150,7 +150,7 @@ export interface AdminPayment {
 export interface MyPayment {
   id: number
   itemName: string
-  type: 'Course'
+  type: 'course' | 'class'
   amount: number
   currency: string
   status: 'Paid' | 'Pending' | 'Failed'
