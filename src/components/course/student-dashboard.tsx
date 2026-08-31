@@ -215,7 +215,7 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number, completedLess
   const classRecord = mapEnrollmentClass(record, course)
   const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, completedLessons[record.courseId] ?? []), course }
   if (!classRecord) return [courseEnrollment]
-  return [courseEnrollment, { id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, classRecord }]
+  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, classRecord }]
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
 const completedLessonsStorageKey = (userId: number) => `coursespace-completed-lessons-${userId}`

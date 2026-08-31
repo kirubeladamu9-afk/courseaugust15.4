@@ -64,7 +64,7 @@ export interface MyEnrollment {
   classId: number | null
   classTitle: string | null
   classTutor: string | null
-  classSchedule: { days: string[]; time: string; flexible: boolean } | null
+  classSchedule: { days: string[]; time: string; flexible: boolean; startDate: string } | null
   meetingLink: string | null
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
 }
