@@ -37,73 +37,6 @@ interface ProgramDefinition {
   icon: React.ReactNode
 }
 
-const mockClasses: PublicClass[] = [
-  {
-    id: 9001,
-    title: 'July Morning Camp',
-    programId: 'summer-camp',
-    schedule: { days: ['Mon', 'Fri'], time: '09:00', flexible: false },
-    price: 180,
-    status: 'open',
-    courseId: null,
-    courseTitle: null,
-    tutorName: 'Abel Tesfaye',
-    capacity: 10,
-    enrolledCount: 6,
-    published: true,
-    moduleCount: null,
-    lessonCount: null,
-  },
-  {
-    id: 9002,
-    title: 'August Afternoon Camp',
-    programId: 'summer-camp',
-    schedule: { days: ['Mon', 'Fri'], time: '14:00', flexible: false },
-    price: 180,
-    status: 'full',
-    courseId: null,
-    courseTitle: null,
-    tutorName: 'Mekdes Alemu',
-    capacity: 10,
-    enrolledCount: 10,
-    published: true,
-    moduleCount: null,
-    lessonCount: null,
-  },
-  {
-    id: 9003,
-    title: 'Grade 6 Exam Prep',
-    programId: 'ministry-exam-prep',
-    schedule: { days: ['Tue', 'Thu'], time: '16:00', flexible: false },
-    price: 220,
-    status: 'open',
-    courseId: null,
-    courseTitle: 'Ministry Exam Prep · Grade 6',
-    tutorName: 'Maya Chen',
-    capacity: 12,
-    enrolledCount: 7,
-    published: true,
-    moduleCount: 8,
-    lessonCount: 24,
-  },
-  {
-    id: 9004,
-    title: 'Grade 8 Exam Prep',
-    programId: 'ministry-exam-prep',
-    schedule: { days: ['Tue', 'Thu'], time: '18:00', flexible: false },
-    price: 220,
-    status: 'open',
-    courseId: null,
-    courseTitle: 'Ministry Exam Prep · Grade 8',
-    tutorName: 'Leon Kennedy',
-    capacity: 12,
-    enrolledCount: 8,
-    published: true,
-    moduleCount: 8,
-    lessonCount: 24,
-  },
-]
-
 const programs: ProgramDefinition[] = [
   {
     id: 'international-online-interactive',
@@ -345,7 +278,7 @@ const HomeTrainingPrograms: FC<HomeTrainingProgramsProps> = ({ courses, onSignIn
     const result = {} as Record<ProgramId, PublicClass[]>
     programs.forEach((program) => {
       const live = liveClasses.filter((classRecord) => classRecord.programId === program.id && classRecord.published && classRecord.status !== 'closed')
-      result[program.id] = live.length > 0 ? live : mockClasses.filter((classRecord) => classRecord.programId === program.id && classRecord.published && classRecord.status !== 'closed')
+      result[program.id] = live
     })
     return result
   }, [liveClasses])
