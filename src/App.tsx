@@ -115,8 +115,8 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
         ) : (
           <>
             <HomeHero />
-            <HomeTrainingPrograms courses={homeCourses ?? []} onSignIn={() => setAuthMode('sign-in')} />
             <HomePopularCourse courses={homeCourses ?? []} />
+            <HomeTrainingPrograms courses={homeCourses ?? []} onSignIn={() => setAuthMode('sign-in')} />
             <HomeFeature />
             <HomeTestimonial />
             <HomeOurMentors />
