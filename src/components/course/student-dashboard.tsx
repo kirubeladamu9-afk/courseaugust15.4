@@ -49,7 +49,7 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import TranslateOutlinedIcon from '@mui/icons-material/TranslateOutlined'
 import VideoCallOutlinedIcon from '@mui/icons-material/VideoCallOutlined'
 import CloseIcon from '@mui/icons-material/Close'
-import { type FC, type ReactNode, useEffect, useState } from 'react'
+import { type FC, type ReactNode, useEffect, useRef, useState } from 'react'
 import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
@@ -62,6 +62,11 @@ import { navigateTo } from '@/lib/navigation'
  type EnrollmentStatus = 'active' | 'pending_schedule' | 'completed'
  type ClassStatus = 'pending_schedule' | 'open' | 'full' | 'closed'
 
+ interface DashboardQuizResult {
+  score: number
+  passed: boolean
+ }
+
  interface DashboardEnrollment {
   id: number
   user_id: number
@@ -69,6 +74,8 @@ import { navigateTo } from '@/lib/navigation'
   item_id: number
   status: EnrollmentStatus
   progress: number
+  timeSpentSeconds: number
+  quizResults: Record<number, DashboardQuizResult>
   course?: DashboardCourse
   classRecord?: DashboardClass
  }
@@ -139,6 +146,7 @@ const formatDuration = (seconds: number) => {
   const minutes = totalMinutes % 60
   return hours ? `${hours}h${minutes ? ` ${minutes}m` : ''}` : `${minutes}m`
 }
+const formatTimeSpent = (seconds: number) => seconds < 60 ? `${seconds}s` : formatDuration(seconds)
 const formatClassTime = (time: string) => {
   if (!time) return 'Time to be confirmed'
   const [hour, minute] = time.split(':').map(Number)
@@ -207,9 +215,9 @@ const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): 
 const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
   const course = mapEnrollmentCourse(record)
   const classRecord = mapEnrollmentClass(record, course)
-  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, record.completedLessonIds), course }
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, record.completedLessonIds), timeSpentSeconds: record.timeSpentSeconds, quizResults: record.quizResults, course }
   if (!classRecord) return [courseEnrollment]
-  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, classRecord }]
+  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, timeSpentSeconds: record.timeSpentSeconds, quizResults: record.quizResults, classRecord }]
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
 const iconForLesson = (type: DashboardLesson['type']) => {
@@ -356,7 +364,8 @@ const CoursesView: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (cours
           <CardContent sx={{ display: 'flex', flex: 1, flexDirection: 'column' }}>
             <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}><Chip label={course.category} size="small" color="primary" variant="outlined" /><Typography variant="caption" color="text.secondary">{course.level}</Typography></Stack>
             <Typography variant="h6" sx={{ mb: 1 }}>{course.title}</Typography>
-            <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Tutor: {course.tutor}</Typography>
+            <Typography color="text.secondary" variant="body2" sx={{ mb: 0.5 }}>Tutor: {course.tutor}</Typography>
+            <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Time spent: {formatTimeSpent(enrollment.timeSpentSeconds)}</Typography>
             <Box sx={{ mt: 'auto' }}><Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}><Typography variant="body2">Progress</Typography><Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>{enrollment.progress}%</Typography></Stack><LinearProgress variant="determinate" value={enrollment.progress} sx={{ height: 8, borderRadius: 4, mb: 2 }} /><Button fullWidth variant="contained" onClick={() => onOpenCourse(course.id)}>{enrollment.progress ? 'Continue course' : 'Start course'}</Button></Box>
           </CardContent>
         </Card>
@@ -369,11 +378,11 @@ const ClassesView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onOpenCou
   const classEnrollments = enrollments.filter((enrollment) => enrollment.type === 'class' && enrollment.classRecord)
   return <>
     <ViewHeading title="My Classes" description="See your live learning schedule and join sessions when they are ready." />
-    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => <ClassCard key={enrollment.id} classRecord={enrollment.classRecord!} now={now} onOpenCourse={onOpenCourse} />)}</Stack>}
+    {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Stack spacing={2}>{classEnrollments.map((enrollment) => <ClassCard key={enrollment.id} classRecord={enrollment.classRecord!} timeSpentSeconds={enrollment.timeSpentSeconds} now={now} onOpenCourse={onOpenCourse} />)}</Stack>}
   </>
 }
 
-const ClassCard: FC<{ classRecord: DashboardClass; now: Date; onOpenCourse: (courseId: number) => void }> = ({ classRecord, now, onOpenCourse }) => {
+const ClassCard: FC<{ classRecord: DashboardClass; timeSpentSeconds: number; now: Date; onOpenCourse: (courseId: number) => void }> = ({ classRecord, timeSpentSeconds, now, onOpenCourse }) => {
   const hasStarted = classHasStarted(classRecord.schedule, now)
   const isJoinable = classRecord.status === 'open' && hasStarted && Boolean(classRecord.meeting_link)
   const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? hasStarted ? 'Scheduled' : classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set' : classRecord.status === 'full' ? 'Full' : 'Closed'
@@ -382,7 +391,7 @@ const ClassCard: FC<{ classRecord: DashboardClass; now: Date; onOpenCourse: (cou
   return <Card elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
     <CardContent>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={statusLabel} size="small" color={statusColor} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography>{classRecord.status === 'open' && <Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set'}</Typography>}</>}</Box></Box>
+        <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={statusLabel} size="small" color={statusColor} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography><Typography color="text.secondary" variant="body2">Time spent learning: {formatTimeSpent(timeSpentSeconds)}</Typography>{classRecord.status === 'open' && <Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set'}</Typography>}</>}</Box></Box>
         {classRecord.status === 'open' && <Button variant="contained" component="a" href={isJoinable ? classRecord.meeting_link : undefined} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : 'Available on start date'}</Button>}
       </Stack>
       {linkedCourse && <><Divider sx={{ my: 2 }} /><Button variant="text" size="small" startIcon={<MenuBookOutlinedIcon />} onClick={() => onOpenCourse(linkedCourse.id)}>View {linkedCourse.title} curriculum summary</Button></>}
@@ -390,17 +399,17 @@ const ClassCard: FC<{ classRecord: DashboardClass; now: Date; onOpenCourse: (cou
   </Card>
 }
 
-const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Record<number, number[]>; onOpenCourse: (courseId: number) => void }> = ({ enrollments, completedLessons, onOpenCourse }) => {
+const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Record<number, number[]>; quizResults: Record<number, Record<number, DashboardQuizResult>>; onOpenCourse: (courseId: number, lessonId?: number) => void }> = ({ enrollments, completedLessons, quizResults, onOpenCourse }) => {
   const enrolledQuizzes = enrollments.flatMap((enrollment) => {
     const course = enrollment.type === 'course' ? enrollment.course : enrollment.classRecord?.course
     if (!course) return []
     const source = enrollment.type === 'class' ? `Class: ${enrollment.classRecord?.title ?? course.title}` : `Course: ${course.title}`
-    return course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => ({ course, lesson, moduleTitle: module.title, source, completed: (completedLessons[course.id] ?? []).includes(lesson.id) })))
+    return course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => ({ course, lesson, moduleTitle: module.title, source, completed: (completedLessons[course.id] ?? []).includes(lesson.id), result: quizResults[course.id]?.[lesson.id] })))
   })
 
   return <>
     <ViewHeading title="Quizzes & Results" description="Review results and continue quizzes from your enrolled courses and classes." />
-    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses and classes will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map(({ course, lesson, moduleTitle, source, completed }) => <Card key={`${course.id}-${lesson.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{lesson.title}</Typography><Typography color="text.secondary" variant="body2">{source} · {moduleTitle}</Typography></Box></Box><Stack direction="row" spacing={1} alignItems="center"><Chip icon={completed ? <CheckCircleOutlineIcon /> : undefined} label={completed ? 'Completed' : 'Ready to take'} color={completed ? 'success' : 'primary'} size="small" variant={completed ? 'filled' : 'outlined'} /><Button variant={completed ? 'outlined' : 'contained'} size="small" onClick={() => onOpenCourse(course.id)}>{completed ? 'Review' : 'Open quiz'}</Button></Stack></Stack></CardContent></Card>)}</Stack>}
+    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses and classes will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map(({ course, lesson, moduleTitle, source, completed, result }) => <Card key={`${course.id}-${lesson.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{lesson.title}</Typography><Typography color="text.secondary" variant="body2">{source} · {moduleTitle}</Typography>{result && <Typography color={result.passed ? 'success.main' : 'warning.main'} variant="body2" sx={{ mt: 0.75, fontWeight: 600 }}>{result.passed ? 'Passed' : 'Latest attempt'} · Score {result.score}%</Typography>}</Box></Box><Stack direction="row" spacing={1} alignItems="center"><Chip icon={completed ? <CheckCircleOutlineIcon /> : undefined} label={completed ? 'Completed' : result ? 'Attempted' : 'Ready to take'} color={completed ? 'success' : result ? 'warning' : 'primary'} size="small" variant={completed ? 'filled' : 'outlined'} /><Button variant={completed ? 'outlined' : 'contained'} size="small" onClick={() => onOpenCourse(course.id, lesson.id)}>{completed ? 'Review' : 'Open quiz'}</Button></Stack></Stack></CardContent></Card>)}</Stack>}
   </>
 }
 
@@ -490,15 +499,15 @@ const paymentColumns: DataColumn<MyPayment>[] = [
   { key: 'txRef', label: 'Transaction Reference' },
 ]
 
-const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void }> = ({ course, progress, completedLessonIds, started, onBack, onStart, onCompleteLesson }) => {
+const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void; onQuizSubmit: (lessonId: number, result: DashboardQuizResult) => void }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizSubmit }) => {
   const lessons = getLessons(course)
-  const [selectedLessonId, setSelectedLessonId] = useState(lessons[0]?.id)
+  const [selectedLessonId, setSelectedLessonId] = useState(initialLessonId ?? lessons[0]?.id)
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
-  const [quizResult, setQuizResult] = useState<{ score: number; passed: boolean } | null>(null)
+  const [quizResult, setQuizResult] = useState<DashboardQuizResult | null>(null)
   const selectedLesson = lessons.find((lesson) => lesson.id === selectedLessonId) ?? lessons[0]
 
-  useEffect(() => { setSelectedLessonId(lessons[0]?.id) }, [course.id])
-  useEffect(() => { setQuizAnswers({}); setQuizResult(null) }, [selectedLessonId])
+  useEffect(() => { setSelectedLessonId(initialLessonId ?? lessons[0]?.id) }, [course.id, initialLessonId])
+  useEffect(() => { setQuizAnswers({}); setQuizResult(selectedLessonId === undefined ? null : quizResults[selectedLessonId] ?? null) }, [selectedLessonId, quizResults])
 
   if (!selectedLesson) return <EmptyState title="Course content unavailable" description="This course does not have any lessons yet." actionLabel="Back to courses" onAction={onBack} />
 
@@ -518,7 +527,9 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
     const correctAnswers = quizQuestions.filter((question) => quizAnswers[question.id] === question.correctOption).length
     const score = Math.round((correctAnswers / quizQuestions.length) * 100)
     const passed = score >= passingScore
-    setQuizResult({ score, passed })
+    const result = { score, passed }
+    setQuizResult(result)
+    onQuizSubmit(selectedLesson.id, result)
     toast.add({ title: passed ? 'Quiz passed' : 'Quiz not passed', description: passed ? 'You scored ' + score + '%. You can now complete this lesson.' : 'You scored ' + score + '%. You need at least ' + passingScore + '% to pass.', type: passed ? 'success' : 'error' })
   }
 
@@ -531,7 +542,7 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Courses</Box>
     {isCourseComplete && <Paper elevation={0} role="status" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2, mb: 3, border: 1, borderColor: 'primary.main', backgroundColor: 'primary.main', color: 'primary.contrastText' }}><CelebrationOutlinedIcon /><Box><Typography sx={{ fontWeight: 700 }}>Congratulations!</Typography><Typography variant="body2" sx={{ color: 'inherit', opacity: 0.9 }}>You completed every lesson in this course.</Typography></Box></Paper>}
-    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={1} sx={{ mb: 3 }}><Box><Typography variant="h4" sx={{ mb: 0.5 }}>{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.level} · Tutor: {course.tutor}</Typography></Box><Chip label={progress + '% complete'} color="primary" /></Stack>
+    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={1} sx={{ mb: 3 }}><Box><Typography variant="h4" sx={{ mb: 0.5 }}>{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.level} · Tutor: {course.tutor}</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: 0.5 }}>Time spent learning: {formatTimeSpent(timeSpentSeconds)}</Typography></Box><Chip label={progress + '% complete'} color="primary" /></Stack>
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '320px minmax(0, 1fr)' }, gap: 3 }}>
       <Paper elevation={0} sx={{ p: 2, border: 1, borderColor: 'divider', alignSelf: 'start' }}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Course content</Typography><Stack spacing={1}>{course.modules.map((module) => <Box key={module.id}><Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1, mb: 0.5, fontWeight: 700, textTransform: 'uppercase' }}>{module.title}</Typography><Stack spacing={0.5}>{module.lessons.map((lesson) => { const locked = isLessonLocked(lesson.id); return <Box key={lesson.id} component="button" type="button" disabled={locked} aria-disabled={locked} onClick={() => setSelectedLessonId(lesson.id)} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1, p: 1, border: 0, borderRadius: 1.5, backgroundColor: selectedLesson.id === lesson.id ? 'action.selected' : 'transparent', color: 'text.primary', cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.55 : 1, fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: locked ? 'transparent' : 'action.hover' } }}><Box sx={{ display: 'flex', color: completedLessonIds.includes(lesson.id) ? 'success.main' : 'text.secondary' }}>{completedLessonIds.includes(lesson.id) ? <CheckCircleOutlineIcon fontSize="small" /> : iconForLesson(lesson.type)}</Box><Box sx={{ flex: 1, minWidth: 0 }}><Typography variant="body2" noWrap sx={{ fontWeight: selectedLesson.id === lesson.id ? 600 : 400 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{lesson.duration}</Typography></Box></Box> })}</Stack></Box>)}</Stack></Paper>
       <Stack spacing={2}><Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}><Box sx={{ minHeight: { xs: 220, md: 340 }, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(16, 125, 111, 0.18), rgba(16, 125, 111, 0.04))' }}>{selectedLesson.type === 'video' && selectedLesson.videoUrl ? <Box component="video" controls preload="metadata" src={selectedLesson.videoUrl} poster={selectedLesson.thumbnailUrl} sx={{ width: '100%', height: '100%', maxHeight: { xs: 340, md: 520 }, objectFit: 'contain' }}>Your browser does not support video playback.</Box> : selectedLesson.type === 'video' ? <PlayCircleOutlineIcon color="primary" sx={{ fontSize: 78 }} /> : selectedLesson.type === 'article' ? <ArticleOutlinedIcon color="primary" sx={{ fontSize: 72 }} /> : <QuizOutlinedIcon color="primary" sx={{ fontSize: 72 }} />}</Box><Box sx={{ p: { xs: 2.5, md: 3 } }}><Stack direction="row" justifyContent="space-between" spacing={2} sx={{ mb: 1 }}><Typography variant="overline" color="primary.main" sx={{ fontWeight: 700 }}>{selectedLesson.type}</Typography><Typography variant="body2" color="text.secondary">{selectedLesson.duration}</Typography></Stack><Typography variant="h5" sx={{ mb: 1 }}>{selectedLesson.title}</Typography><Typography color="text.secondary" sx={{ lineHeight: 1.7 }}>{selectedLesson.description}</Typography>{selectedLesson.type === 'article' && <Typography sx={{ mt: 2, lineHeight: 1.8 }}>Work through the article carefully, then mark this lesson complete when you are ready.</Typography>}{selectedLesson.type === 'quiz' && <Box sx={{ mt: 3 }}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>Knowledge check</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Answer every question, then submit the quiz. You need at least {passingScore}% to pass.</Typography>{quizQuestions.length === 0 ? <Alert severity="info">No questions have been added to this quiz yet. You can still mark this lesson complete.</Alert> : <Stack spacing={2.5}>{quizQuestions.map((question, questionIndex) => <FormControl key={question.id} component="fieldset"><FormLabel component="legend">{questionIndex + 1}. {question.question}</FormLabel><RadioGroup value={quizAnswers[question.id] === undefined ? '' : String(quizAnswers[question.id])} onChange={(event) => { setQuizAnswers((current) => ({ ...current, [question.id]: Number(event.target.value) })); setQuizResult(null) }} sx={{ mt: 0.5 }}>{question.options.map((option, optionIndex) => <FormControlLabel key={question.id + '-' + optionIndex} value={optionIndex} control={<Radio />} label={option} />)}</RadioGroup></FormControl>)}</Stack>}{quizQuestions.length > 0 && <Button variant="contained" onClick={submitQuiz} disabled={!hasAnsweredQuiz} startIcon={<QuizOutlinedIcon />} sx={{ mt: 2 }}>Submit quiz</Button>}{quizResult && <Alert severity={quizResult.passed ? 'success' : 'error'} sx={{ mt: 2 }}>Score: {quizResult.score}% — {quizResult.passed ? 'Passed' : 'Not passed. You need at least ' + passingScore + '% to pass.'}</Alert>}</Box>}{selectedLesson.type !== 'quiz' && <Typography sx={{ mt: 3, lineHeight: 1.8 }}>Mark this lesson complete when you are ready to continue.</Typography>}<Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}><Button variant="contained" onClick={() => onCompleteLesson(selectedLesson.id)} disabled={isCompleted || !canCompleteLesson}>{isCompleted ? 'Lesson completed' : 'Mark lesson complete'}</Button></Box></Box></Paper></Stack>
@@ -568,10 +579,26 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [isLoadingOtherClasses, setIsLoadingOtherClasses] = useState(true)
   const [otherClassesError, setOtherClassesError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
+  const [selectedLessonId, setSelectedLessonId] = useState<number | undefined>(undefined)
   const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>({})
   const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>({})
+  const [timeSpent, setTimeSpent] = useState<Record<number, number>>({})
+  const [quizResults, setQuizResults] = useState<Record<number, Record<number, DashboardQuizResult>>>({})
   const [progressError, setProgressError] = useState<string | null>(null)
   const [profileMessage, setProfileMessage] = useState('')
+  const progressSnapshot = useRef({ completedLessons, startedCourses, timeSpent, quizResults })
+  progressSnapshot.current = { completedLessons, startedCourses, timeSpent, quizResults }
+
+  const persistProgress = (courseId: number, overrides: { completedLessonIds?: number[]; started?: boolean; timeSpentSeconds?: number; quizResults?: Record<number, DashboardQuizResult> } = {}) => {
+    const current = progressSnapshot.current
+    const progress = {
+      completedLessonIds: overrides.completedLessonIds ?? current.completedLessons[courseId] ?? [],
+      started: overrides.started ?? Boolean(current.startedCourses[courseId]),
+      timeSpentSeconds: overrides.timeSpentSeconds ?? current.timeSpent[courseId] ?? 0,
+      quizResults: overrides.quizResults ?? current.quizResults[courseId] ?? {},
+    }
+    void saveCourseProgress(courseId, progress).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course activity.'))
+  }
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30000)
@@ -585,14 +612,38 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   }, [])
 
   useEffect(() => {
+    if (activeView !== 'course-view' || selectedCourseId === null) return
+    let lastTrackedAt = Date.now()
+    const flushTime = () => {
+      const elapsedSeconds = Math.floor((Date.now() - lastTrackedAt) / 1000)
+      if (elapsedSeconds <= 0) return
+      const currentSeconds = progressSnapshot.current.timeSpent[selectedCourseId] ?? 0
+      const nextSeconds = currentSeconds + elapsedSeconds
+      lastTrackedAt = Date.now()
+      progressSnapshot.current = { ...progressSnapshot.current, timeSpent: { ...progressSnapshot.current.timeSpent, [selectedCourseId]: nextSeconds } }
+      setTimeSpent((current) => ({ ...current, [selectedCourseId]: nextSeconds }))
+      persistProgress(selectedCourseId, { timeSpentSeconds: nextSeconds, started: true })
+    }
+    const timer = window.setInterval(flushTime, 30000)
+    return () => {
+      window.clearInterval(timer)
+      flushTime()
+    }
+  }, [activeView, selectedCourseId])
+
+  useEffect(() => {
     let isCurrent = true
     getMyEnrollments()
       .then((records) => {
         if (!isCurrent) return
         const completedByCourse = Object.fromEntries(records.filter((record) => record.completedLessonIds.length > 0).map((record) => [record.courseId, record.completedLessonIds]))
         const startedByCourse = Object.fromEntries(records.filter((record) => record.started).map((record) => [record.courseId, true]))
+        const timeByCourse = Object.fromEntries(records.filter((record) => record.timeSpentSeconds > 0).map((record) => [record.courseId, record.timeSpentSeconds]))
+        const resultsByCourse = Object.fromEntries(records.filter((record) => Object.keys(record.quizResults).length > 0).map((record) => [record.courseId, record.quizResults]))
         setCompletedLessons(completedByCourse)
         setStartedCourses(startedByCourse)
+        setTimeSpent(timeByCourse)
+        setQuizResults(resultsByCourse)
         setEnrollments(mapMyEnrollments(records, currentUserId))
         setEnrollmentError(null)
       })
@@ -683,8 +734,9 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setActiveView(view)
     setMobileOpen(false)
   }
-  const openCourse = (courseId: number) => {
+  const openCourse = (courseId: number, lessonId?: number) => {
     setSelectedCourseId(courseId)
+    setSelectedLessonId(lessonId)
     setActiveView('course-view')
     setMobileOpen(false)
   }
@@ -693,7 +745,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setStartedCourses((current) => ({ ...current, [courseId]: true }))
     toast.add({ title: 'Course started', description: 'You are ready to begin learning.', type: 'info' })
     setProgressError(null)
-    void saveCourseProgress(courseId, nextCompleted, true).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course progress.'))
+    persistProgress(courseId, { completedLessonIds: nextCompleted, started: true })
   }
   const completeLesson = (lessonId: number) => {
     if (!selectedCourseId || !selectedCourse) return
@@ -706,7 +758,14 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setEnrollments((current) => current.map((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId ? { ...enrollment, progress: nextProgress } : enrollment))
     if (nextProgress === 100) toast.add({ title: 'Course completed!', description: `Excellent work finishing ${selectedCourse.title}.`, type: 'success', priority: 'high', duration: 6000 })
     setProgressError(null)
-    void saveCourseProgress(selectedCourseId, nextCompleted, true).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course progress.'))
+    persistProgress(selectedCourseId, { completedLessonIds: nextCompleted, started: true })
+  }
+  const submitQuiz = (lessonId: number, result: DashboardQuizResult) => {
+    if (!selectedCourseId) return
+    const nextResults = { ...(quizResults[selectedCourseId] ?? {}), [lessonId]: result }
+    setQuizResults((current) => ({ ...current, [selectedCourseId]: nextResults }))
+    setProgressError(null)
+    persistProgress(selectedCourseId, { quizResults: nextResults, started: true })
   }
   const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
 
@@ -723,13 +782,13 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'overview' && <OverviewView enrollments={enrollments} now={now} onSelectView={selectView} onOpenCourse={openCourse} />}
           {activeView === 'courses' && <CoursesView enrollments={enrollments} onOpenCourse={openCourse} />}
           {activeView === 'classes' && <ClassesView enrollments={enrollments} now={now} onOpenCourse={openCourse} />}
-          {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} completedLessons={completedLessons} onOpenCourse={openCourse} />}
+          {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} completedLessons={completedLessons} quizResults={quizResults} onOpenCourse={openCourse} />}
           {activeView === 'purchases' && <PurchasesView />}
           {activeView === 'other-courses' && <OtherCoursesView courses={otherCourses} enrolledCourseIds={enrolledCourseIds} isLoading={isLoadingOtherCourses} error={otherCoursesError} />}
           {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
-          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} />}
+          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizSubmit={submitQuiz} />}
         </>}
       </Box>
     </Box>

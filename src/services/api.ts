@@ -71,6 +71,8 @@ export interface MyEnrollment {
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
   completedLessonIds: number[]
   started: boolean
+  timeSpentSeconds: number
+  quizResults: Record<number, { score: number; passed: boolean }>
 }
 
 export interface PublicClass {
@@ -446,11 +448,11 @@ export const getMyEnrollments = async (): Promise<MyEnrollment[]> => {
   return response.json()
 }
 
-export const saveCourseProgress = async (courseId: number, completedLessonIds: number[], started: boolean): Promise<void> => {
+export const saveCourseProgress = async (courseId: number, progress: { completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, { score: number; passed: boolean }> }): Promise<void> => {
   const response = await requestApi(`/api/enrollments/${courseId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ completedLessonIds, started }),
+    body: JSON.stringify(progress),
   })
   if (!response.ok) throw new Error(await getErrorMessage(response))
 }

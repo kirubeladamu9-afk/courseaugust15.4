@@ -197,10 +197,14 @@ const initializeDatabase = async () => {
       course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
       completed_lesson_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
       started BOOLEAN NOT NULL DEFAULT false,
+      time_spent_seconds INTEGER NOT NULL DEFAULT 0 CHECK (time_spent_seconds >= 0),
+      quiz_results JSONB NOT NULL DEFAULT '{}'::jsonb,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (user_id, course_id)
     )
   `
+  await sql`ALTER TABLE course_progress ADD COLUMN IF NOT EXISTS time_spent_seconds INTEGER NOT NULL DEFAULT 0`
+  await sql`ALTER TABLE course_progress ADD COLUMN IF NOT EXISTS quiz_results JSONB NOT NULL DEFAULT '{}'::jsonb`
 
   for (const seedTutor of seedTutors) {
     await sql`
@@ -579,7 +583,9 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            classes.meeting_link AS "meetingLink",
            classes.status AS "classStatus",
            COALESCE(course_progress.completed_lesson_ids, '[]'::jsonb) AS "completedLessonIds",
-           COALESCE(course_progress.started, false) AS started
+           COALESCE(course_progress.started, false) AS started,
+           COALESCE(course_progress.time_spent_seconds, 0) AS "timeSpentSeconds",
+           COALESCE(course_progress.quiz_results, '{}'::jsonb) AS "quizResults"
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
@@ -594,12 +600,15 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
     const modules = deserializeJson(enrollment.modules)
     const classSchedule = deserializeJson(enrollment.classSchedule)
     const completedLessonIds = deserializeJson(enrollment.completedLessonIds)
+    const quizResults = deserializeJson(enrollment.quizResults)
     return {
       ...enrollment,
       modules: Array.isArray(modules) ? modules : [],
       classSchedule: classSchedule && typeof classSchedule === 'object' && !Array.isArray(classSchedule) ? classSchedule : null,
       completedLessonIds: Array.isArray(completedLessonIds) ? completedLessonIds : [],
       started: Boolean(enrollment.started),
+      timeSpentSeconds: Number.isInteger(enrollment.timeSpentSeconds) ? enrollment.timeSpentSeconds : 0,
+      quizResults: quizResults && typeof quizResults === 'object' && !Array.isArray(quizResults) ? quizResults : {},
     }
   }))
 })
@@ -608,7 +617,13 @@ app.put('/api/enrollments/:courseId/progress', requireAuthenticated, async (requ
   const courseId = parseCourseId(request.params.courseId)
   const completedLessonIds = request.body?.completedLessonIds
   const started = request.body?.started
-  if (courseId === null || !Array.isArray(completedLessonIds) || !completedLessonIds.every((lessonId) => Number.isInteger(lessonId)) || new Set(completedLessonIds).size !== completedLessonIds.length || typeof started !== 'boolean') return response.status(400).json({ message: 'Invalid course progress.' })
+  const timeSpentSeconds = request.body?.timeSpentSeconds
+  const quizResults = request.body?.quizResults
+  const hasValidQuizResults = quizResults && typeof quizResults === 'object' && !Array.isArray(quizResults) && Object.entries(quizResults).every(([lessonId, result]) => {
+    const parsedLessonId = Number(lessonId)
+    return Number.isInteger(parsedLessonId) && result && typeof result === 'object' && !Array.isArray(result) && Number.isInteger(result.score) && result.score >= 0 && result.score <= 100 && typeof result.passed === 'boolean'
+  })
+  if (courseId === null || !Array.isArray(completedLessonIds) || !completedLessonIds.every((lessonId) => Number.isInteger(lessonId)) || new Set(completedLessonIds).size !== completedLessonIds.length || typeof started !== 'boolean' || !Number.isInteger(timeSpentSeconds) || timeSpentSeconds < 0 || !hasValidQuizResults) return response.status(400).json({ message: 'Invalid course progress.' })
 
   const [enrollment] = await sql`
     SELECT courses.modules
@@ -622,12 +637,14 @@ app.put('/api/enrollments/:courseId/progress', requireAuthenticated, async (requ
   if (!enrollment) return response.status(404).json({ message: 'Course enrollment not found.' })
 
   const modules = deserializeJson(enrollment.modules)
-  const lessonIds = new Set(Array.isArray(modules) ? modules.flatMap((module) => Array.isArray(module?.lessons) ? module.lessons.map((lesson) => lesson?.id) : []) : [])
-  if (completedLessonIds.some((lessonId) => !lessonIds.has(lessonId))) return response.status(400).json({ message: 'Invalid lesson progress.' })
+  const lessons = Array.isArray(modules) ? modules.flatMap((module) => Array.isArray(module?.lessons) ? module.lessons : []) : []
+  const lessonIds = new Set(lessons.map((lesson) => lesson?.id))
+  const quizLessonIds = new Set(lessons.filter((lesson) => lesson?.type === 'quiz').map((lesson) => lesson?.id))
+  if (completedLessonIds.some((lessonId) => !lessonIds.has(lessonId)) || Object.keys(quizResults).some((lessonId) => !quizLessonIds.has(Number(lessonId)))) return response.status(400).json({ message: 'Invalid lesson progress.' })
 
   await sql`
-    INSERT INTO course_progress ${sql({ user_id: request.userId, course_id: courseId, completed_lesson_ids: JSON.stringify(completedLessonIds), started })}
-    ON CONFLICT (user_id, course_id) DO UPDATE SET completed_lesson_ids = EXCLUDED.completed_lesson_ids, started = EXCLUDED.started, updated_at = NOW()
+    INSERT INTO course_progress ${sql({ user_id: request.userId, course_id: courseId, completed_lesson_ids: JSON.stringify(completedLessonIds), started, time_spent_seconds: timeSpentSeconds, quiz_results: JSON.stringify(quizResults) })}
+    ON CONFLICT (user_id, course_id) DO UPDATE SET completed_lesson_ids = EXCLUDED.completed_lesson_ids, started = EXCLUDED.started, time_spent_seconds = EXCLUDED.time_spent_seconds, quiz_results = EXCLUDED.quiz_results, updated_at = NOW()
   `
   return response.status(204).end()
 })
