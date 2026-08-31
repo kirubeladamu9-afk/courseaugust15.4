@@ -493,7 +493,7 @@ const PaymentHistoryView: FC<{ payments: MyPayment[]; isLoading: boolean; error:
 
 const paymentColumns: DataColumn<MyPayment>[] = [
   { key: 'itemName', label: 'Item' },
-  { key: 'type', label: 'Type' },
+  { key: 'type', label: 'Type', render: () => 'Course / Class' },
   { key: 'amount', label: 'Amount', render: (value, row) => `${row.currency} ${Number(value).toFixed(2)}` },
   { key: 'status', label: 'Status', render: (value) => <Chip label={String(value)} color={value === 'Paid' ? 'success' : value === 'Failed' ? 'error' : 'warning'} size="small" /> },
   { key: 'date', label: 'Date' },
