@@ -17,7 +17,7 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import { type FC, useEffect, useMemo, useState } from 'react'
 import { toast } from '@/components/toast'
 import EnrollmentModal from '@/components/course/enrollment-modal'
-import { getAuthenticatedUser, getPublicClasses, type PublicClass } from '@/services/api'
+import { getPublicClasses, type PublicClass } from '@/services/api'
 import { type Course } from '@/interfaces/course'
 
 type ProgramId = 'international-online-interactive' | 'summer-camp' | 'ministry-exam-prep'
@@ -90,10 +90,9 @@ const findCourse = (courses: Course[], classRecord?: PublicClass, preferInternat
     ? courses.find((course) => course.category.toLowerCase().includes('international') || course.title.toLowerCase().includes('interactive'))
     : classRecord?.courseId !== null && classRecord?.courseId !== undefined
       ? courses.find((course) => Number(course.id) === classRecord.courseId)
-      : courses.find((course) => classRecord?.courseTitle ? course.title.toLowerCase().includes(classRecord.courseTitle.toLowerCase()) : false)
-  const fallback = candidate ?? courses[0]
-  if (!fallback || typeof fallback.id !== 'number') return null
-  return { id: fallback.id, title: fallback.title, price: fallback.price }
+      : undefined
+  if (!candidate || typeof candidate.id !== 'number') return null
+  return { id: candidate.id, title: candidate.title, price: candidate.price }
 }
 
 const AvailabilityBadge: FC<{ classRecord: PublicClass }> = ({ classRecord }) => (
@@ -243,7 +242,7 @@ const ProgramCard: FC<ProgramCardProps> = ({ program, classes, onEnroll }) => {
         {isBatchProgram && <Box component="button" type="button" onClick={() => setIsDrawerOpen((current) => !current)} aria-expanded={isDrawerOpen} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', p: 0, mb: 1.5, border: 0, background: 'none', color: 'text.primary', cursor: 'pointer', font: 'inherit', textAlign: 'left' }}><Typography variant="body2" sx={{ fontWeight: 700 }}>{program.id === 'summer-camp' ? 'View open batches' : 'View exam prep batches'}</Typography><Typography aria-hidden="true" sx={{ color: 'primary.main', fontSize: 27, lineHeight: 0.7, fontWeight: 400 }}>{isDrawerOpen ? '×' : '›'}</Typography></Box>}
         {isBatchProgram && <Divider sx={{ mb: 2 }} />}
         <Box sx={{ mt: 'auto' }}>
-          <Button fullWidth variant="contained" onClick={() => onEnroll(undefined, program.id === 'international-online-interactive')}>{program.id === 'international-online-interactive' ? 'Enroll Now' : 'Choose a batch'}</Button>
+          <Button fullWidth variant="contained" onClick={() => isBatchProgram ? setIsDrawerOpen(true) : onEnroll(undefined, true)}>{program.id === 'international-online-interactive' ? 'Enroll Now' : 'Choose a batch'}</Button>
           {program.id === 'international-online-interactive' && <Typography color="text.secondary" variant="caption" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>Pending — we&apos;ll contact you to schedule your class</Typography>}
         </Box>
       </CardContent>
@@ -254,10 +253,9 @@ const ProgramCard: FC<ProgramCardProps> = ({ program, classes, onEnroll }) => {
 
 interface HomeTrainingProgramsProps {
   courses: Course[]
-  onSignIn: () => void
 }
 
-const HomeTrainingPrograms: FC<HomeTrainingProgramsProps> = ({ courses, onSignIn }) => {
+const HomeTrainingPrograms: FC<HomeTrainingProgramsProps> = ({ courses }) => {
   const [liveClasses, setLiveClasses] = useState<PublicClass[]>([])
   const [enrollmentCourse, setEnrollmentCourse] = useState<CheckoutCourse | null>(null)
   const [enrollmentClassId, setEnrollmentClassId] = useState<number | null>(null)
@@ -284,13 +282,9 @@ const HomeTrainingPrograms: FC<HomeTrainingProgramsProps> = ({ courses, onSignIn
   }, [liveClasses])
 
   const handleEnroll = (classRecord?: PublicClass, preferInternational = false) => {
-    if (!getAuthenticatedUser()) {
-      onSignIn()
-      return
-    }
     const course = findCourse(courses, classRecord, preferInternational)
     if (!course) {
-      toast.add({ title: 'Enrollment is not ready', description: 'A published course is needed before checkout can begin.', type: 'error' })
+      toast.add({ title: 'Enrollment is not ready', description: classRecord ? 'This batch needs a linked published course before checkout can begin.' : 'Create a published International Online Interactive course before checkout can begin.', type: 'error' })
       return
     }
     const isLiveClass = classRecord ? liveClasses.some((liveClass) => liveClass.id === classRecord.id) : false

@@ -666,18 +666,18 @@ app.post('/api/payments/chapa/class', requireAuthenticated, async (request, resp
            classes.title,
            classes.course_id AS "courseId",
            classes.price::FLOAT AS price,
-           classes.status,
+           courses.id AS "paymentCourseId",
            users.name,
            users.email,
-           users.phone,
-           COALESCE(classes.course_id, (SELECT id FROM courses WHERE status = 'Published' ORDER BY id LIMIT 1)) AS "paymentCourseId"
+           users.phone
     FROM classes
+    INNER JOIN courses ON courses.id = classes.course_id AND courses.status = 'Published'
     INNER JOIN users ON users.id = ${request.userId}
     WHERE classes.id = ${classId}
       AND classes.published = true
       AND classes.status IN ('open', 'full')
   `
-  if (!classRecord || classRecord.paymentCourseId === null) return response.status(404).json({ message: 'This batch is not available for enrollment.' })
+  if (!classRecord) return response.status(404).json({ message: 'This batch is not available for enrollment or has no linked published course.' })
 
   const students = [{
     fullName: classRecord.name.trim() || 'Student',
