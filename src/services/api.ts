@@ -44,6 +44,7 @@ interface EnrollmentLesson {
   thumbnailUrl?: string
   estimatedDuration?: number
   articleBody?: string
+  resources?: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   passThreshold?: number
 }
