@@ -237,7 +237,7 @@ const getLatestQuizResults = (attempts: MyEnrollment['quizAttempts']): Record<nu
   .filter((attempt) => attempt.score !== null && attempt.passed !== null)
   .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())
   .reduce<Record<number, DashboardQuizResult>>((results, attempt) => {
-    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, answerStatuses: Object.fromEntries(Object.entries(attempt.answers ?? {}).map(([id, answer]) => [Number(id), typeof answer === 'object' && answer !== null ? answer.status : typeof answer === 'number' ? 'answered' : 'unanswered'])), violationCount: attempt.violations?.length ?? 0, questionResults: attempt.questionResults }
+    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, answerStatuses: Object.fromEntries((attempt.questionResults ?? Object.entries(attempt.answers ?? {}).map(([id, answer]) => ({ questionId: Number(id), status: typeof answer === 'object' && answer !== null ? answer.status : typeof answer === 'number' ? 'answered' : 'unanswered' }))).map((item) => [item.questionId, item.status])), violationCount: attempt.violations?.length ?? 0, questionResults: attempt.questionResults }
     return results
   }, {})
 const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
@@ -1000,6 +1000,15 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       }
       setQuizResults((current) => ({ ...current, [selectedCourseId]: { ...(current[selectedCourseId] ?? {}), [lessonId]: result } }))
       setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
+      if (result.passed) {
+        await completeLessonApi(selectedCourseEnrollment.id, lessonId)
+        const completed = completedLessons[selectedCourseId] ?? []
+        if (!completed.includes(lessonId)) {
+          const nextCompleted = [...completed, lessonId]
+          setCompletedLessons((current) => ({ ...current, [selectedCourseId]: nextCompleted }))
+          setEnrollments((current) => current.map((enrollment) => getEnrollmentCourse(enrollment)?.id === selectedCourseId ? { ...enrollment, progress: getCourseProgress(selectedCourse!, nextCompleted) } : enrollment))
+        }
+      }
       setProgressError(null)
       selectView('quizzes')
       return result
