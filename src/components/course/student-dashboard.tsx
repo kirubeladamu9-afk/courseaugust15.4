@@ -67,6 +67,7 @@ import { navigateTo } from '@/lib/navigation'
  interface DashboardQuizResult {
   score: number
   passed: boolean
+  disqualified?: boolean
   answerStatuses?: Record<number, QuizAnswerStatus>
   violationCount?: number
   questionResults?: QuizQuestionResult[]
@@ -237,7 +238,7 @@ const getLatestQuizResults = (attempts: MyEnrollment['quizAttempts']): Record<nu
   .filter((attempt) => attempt.score !== null && attempt.passed !== null)
   .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())
   .reduce<Record<number, DashboardQuizResult>>((results, attempt) => {
-    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, answerStatuses: Object.fromEntries((attempt.questionResults ?? Object.entries(attempt.answers ?? {}).map(([id, answer]) => ({ questionId: Number(id), status: typeof answer === 'object' && answer !== null ? answer.status : typeof answer === 'number' ? 'answered' : 'unanswered' }))).map((item) => [item.questionId, item.status])), violationCount: attempt.violations?.length ?? 0, questionResults: attempt.questionResults }
+    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, disqualified: attempt.disqualified, answerStatuses: Object.fromEntries((attempt.questionResults ?? Object.entries(attempt.answers ?? {}).map(([id, answer]) => ({ questionId: Number(id), status: typeof answer === 'object' && answer !== null ? answer.status : typeof answer === 'number' ? 'answered' : 'unanswered' }))).map((item) => [item.questionId, item.status])), violationCount: attempt.violations?.length ?? 0, questionResults: attempt.questionResults }
     return results
   }, {})
 const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
@@ -561,7 +562,7 @@ const QuizResultReview: FC<{ lesson: DashboardLesson; result: DashboardQuizResul
   const statuses = Object.values(result?.answerStatuses ?? {})
   const answered = statuses.filter((status) => status === 'answered').length
   const expired = statuses.filter((status) => status === 'expired').length
-  return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Typography variant="h4">{lesson.title}</Typography><Typography color="text.secondary">Read-only result review. This completed attempt cannot be retaken from here.</Typography>{result ? <><Alert severity={result.passed ? 'success' : 'warning'}>Score: {result.score}% · {result.passed ? 'Passed' : `Need ${passingScore}% to pass`}</Alert><Typography variant="body2">{answered} answered · {expired} expired{result.violationCount ? ` · ${result.violationCount} violation${result.violationCount === 1 ? '' : 's'}` : ''}</Typography><Stack spacing={1.5}>{(result.questionResults ?? []).map((item, index) => <Paper key={item.questionId} variant="outlined" sx={{ p: 2 }}><Typography sx={{ fontWeight: 700 }}>{index + 1}. {item.question}</Typography><Typography variant="body2" sx={{ mt: 1 }}>My answer: {item.studentAnswer ?? 'Unanswered'}</Typography><Typography variant="body2" color="success.main">Correct answer: {item.correctAnswer ?? 'Unavailable'}</Typography><Typography variant="caption" color="text.secondary">Status: {item.status}</Typography></Paper>)}</Stack></> : <Alert severity="info">No recorded score is available for this completed quiz.</Alert>}</Stack></Paper>
+  return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Typography variant="h4">{lesson.title}</Typography><Typography color="text.secondary">Read-only result review. This completed attempt cannot be retaken from here.</Typography>{result ? <><Alert severity={result.passed ? 'success' : 'warning'}>Score: {result.score}% · {result.disqualified ? 'Disqualified' : result.passed ? 'Passed' : `Need ${passingScore}% to pass`}</Alert><Typography variant="body2">{answered} answered · {expired} expired{result.violationCount ? ` · ${result.violationCount} violation${result.violationCount === 1 ? '' : 's'}` : ''}</Typography><Stack spacing={1.5}>{(result.questionResults ?? []).map((item, index) => <Paper key={item.questionId} variant="outlined" sx={{ p: 2 }}><Typography sx={{ fontWeight: 700 }}>{index + 1}. {item.question}</Typography><Typography variant="body2" sx={{ mt: 1 }}>My answer: {item.studentAnswer ?? 'Unanswered'}</Typography><Typography variant="body2" color="success.main">Correct answer: {item.correctAnswer ?? 'Unavailable'}</Typography><Typography variant="caption" color="text.secondary">Status: {item.status}</Typography></Paper>)}</Stack></> : <Alert severity="info">No recorded score is available for this completed quiz.</Alert>}</Stack></Paper>
 }
 
 const LessonResources: FC<{ resources: DashboardLesson['resources'] }> = ({ resources }) => {
@@ -574,7 +575,7 @@ const LessonResources: FC<{ resources: DashboardLesson['resources'] }> = ({ reso
   </Paper>
 }
 
-const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null; onBegin: () => Promise<QuizAttempt | null>; onSave: (questionId: number, answer: QuizAnswerRecord) => Promise<void>; onSubmit: (answers: Record<number, QuizAnswerRecord>) => Promise<DashboardQuizResult | null>; onViolation: (violation: QuizViolation) => Promise<void>; onActiveChange: (active: boolean) => void; result: DashboardQuizResult | null; passingScore: number; strikeThreshold: number }> = ({ lesson, attempt, onBegin, onSave, onSubmit, onViolation, onActiveChange, result, passingScore, strikeThreshold }) => {
+const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null; onBegin: () => Promise<QuizAttempt | null>; onSave: (questionId: number, answer: QuizAnswerRecord) => Promise<void>; onSubmit: (answers: Record<number, QuizAnswerRecord>, disqualified?: boolean) => Promise<DashboardQuizResult | null>; onViolation: (violation: QuizViolation) => Promise<void>; onActiveChange: (active: boolean) => void; result: DashboardQuizResult | null; passingScore: number; strikeThreshold: number }> = ({ lesson, attempt, onBegin, onSave, onSubmit, onViolation, onActiveChange, result, passingScore, strikeThreshold }) => {
   const questions = lesson.quizQuestions ?? []
   const [current, setCurrent] = useState(0)
   const [answers, setAnswers] = useState<Record<number, QuizAnswerRecord>>({})
@@ -631,7 +632,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
     if (!attempt) return
     const onBeforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     const onVisibilityChange = () => { if (document.visibilityState === 'hidden') void registerViolation('visibility') }
-    const onFullscreenChange = () => { if (!document.fullscreenElement) void registerViolation('fullscreen') }
+    const onFullscreenChange = () => { if (!document.fullscreenElement) void disqualifyForFullscreenExit() }
     window.addEventListener('beforeunload', onBeforeUnload)
     document.addEventListener('visibilitychange', onVisibilityChange)
     document.addEventListener('fullscreenchange', onFullscreenChange)
@@ -641,6 +642,16 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
       document.removeEventListener('fullscreenchange', onFullscreenChange)
     }
   }, [attempt, locked, violationCount])
+
+  const disqualifyForFullscreenExit = async () => {
+    if (!attempt || submitting || submittingRef.current) return
+    const violation = { type: 'fullscreen', occurredAt: new Date().toISOString() } satisfies QuizViolation
+    submittingRef.current = true
+    setSubmitting(true)
+    await onViolation(violation)
+    await onSubmit(Object.fromEntries(questions.map((item) => [item.id, answersRef.current[item.id] ?? { status: 'unanswered', value: null }])), true)
+    setSubmitting(false)
+  }
 
   const registerViolation = async (type: QuizViolationType) => {
     if (!attempt || submitting || submittingRef.current) return
@@ -659,10 +670,18 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   }
 
   const startQuiz = async () => {
+    if (!document.documentElement.requestFullscreen) return
+    try {
+      await document.documentElement.requestFullscreen()
+    } catch {
+      return
+    }
     const next = await onBegin()
-    if (!next) return
+    if (!next) {
+      await document.exitFullscreen?.().catch(() => undefined)
+      return
+    }
     onActiveChange(true)
-    if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen().catch(() => undefined)
   }
 
   const selectAnswer = (value: string | number | string[] | null) => {
@@ -690,7 +709,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}>{warning && <Alert severity="warning" onClose={() => setWarning(false)}>Leaving the quiz may result in disqualification. Violation {violationCount} of {strikeThreshold}.</Alert>}<Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="overline" color="primary.main">Question {current + 1} of {questions.length}</Typography><Chip color={secondsLeft <= 10 ? 'error' : 'primary'} label={locked ? 'Time expired' : formatQuizCountdown(secondsLeft)} /></Stack><Typography variant="h5">{question.question}</Typography>{isText ? <TextField fullWidth multiline minRows={3} disabled={locked} value={typeof answer?.value === 'string' ? answer.value : ''} placeholder="Type your answer" onChange={(event) => selectAnswer(event.target.value)} /> : <FormControl disabled={locked}><FormLabel>Choose an answer</FormLabel><RadioGroup value={typeof answer?.value === 'number' ? String(answer.value) : ''} onChange={(event) => selectAnswer(Number(event.target.value))}>{question.options.map((option, index) => <FormControlLabel key={option + index} value={String(index)} control={<Radio />} label={option} />)}</RadioGroup></FormControl>}<Typography variant="caption" color="text.secondary">This question limit: {formatQuizCountdown(getQuestionSeconds(question))}. Status: {answer?.status ?? 'unanswered'}.</Typography><Stack direction="row" justifyContent="space-between"><Button disabled={current === 0} onClick={() => setCurrent((index) => index - 1)}>Previous</Button>{current < questions.length - 1 ? <Button variant="outlined" onClick={() => setCurrent((index) => index + 1)}>Next question</Button> : <Button variant="contained" disabled={!canSubmit || submitting} onClick={() => void submit()}>{submitting ? 'Submitting...' : 'Submit quiz'}</Button>}</Stack>{result && <Alert severity={result.passed ? 'success' : 'warning'}>Latest result: {result.score}% ({result.passed ? 'passed' : `need ${passingScore}% to pass`}).</Alert>}</Stack></Paper>
 }
 
-const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>) => Promise<DashboardQuizResult | null>; onQuizViolation: (lessonId: number, attemptId: number, violation: QuizViolation) => Promise<void>; onQuizActiveChange: (active: boolean) => void; readOnly?: boolean }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit, onQuizViolation, onQuizActiveChange, readOnly = false }) => {
+const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>, disqualified?: boolean) => Promise<DashboardQuizResult | null>; onQuizViolation: (lessonId: number, attemptId: number, violation: QuizViolation) => Promise<void>; onQuizActiveChange: (active: boolean) => void; readOnly?: boolean }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit, onQuizViolation, onQuizActiveChange, readOnly = false }) => {
   const lessons = getLessons(course)
   const [selectedLessonId, setSelectedLessonId] = useState(initialLessonId ?? lessons[0]?.id)
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
@@ -726,7 +745,7 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
 
   if ((selectedLesson.type as string) === 'quiz') return <>
     {!quizAttempt && <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>}
-    {readOnly ? <QuizResultReview lesson={selectedLesson} result={quizResult} passingScore={passingScore} /> : <QuizLessonView lesson={selectedLesson} attempt={quizAttempt} onBegin={async () => { const next = await onQuizStart(selectedLesson.id); setQuizAttempt(next); return next }} onSave={(questionId, answer) => quizAttempt ? onQuizAnswer(selectedLesson.id, quizAttempt.id, questionId, answer) : Promise.resolve()} onSubmit={async (answers) => { if (!quizAttempt) return null; const submitted = await onQuizSubmit(selectedLesson.id, quizAttempt.id, answers); if (submitted) { onQuizActiveChange(false); if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen().catch(() => undefined) }; return submitted }} onViolation={(violation) => quizAttempt ? onQuizViolation(selectedLesson.id, quizAttempt.id, violation) : Promise.resolve()} onActiveChange={onQuizActiveChange} result={quizResult} passingScore={passingScore} strikeThreshold={3} />}
+    {readOnly ? <QuizResultReview lesson={selectedLesson} result={quizResult} passingScore={passingScore} /> : <QuizLessonView lesson={selectedLesson} attempt={quizAttempt} onBegin={async () => { const next = await onQuizStart(selectedLesson.id); setQuizAttempt(next); return next }} onSave={(questionId, answer) => quizAttempt ? onQuizAnswer(selectedLesson.id, quizAttempt.id, questionId, answer) : Promise.resolve()} onSubmit={async (answers, disqualified) => { if (!quizAttempt) return null; const submitted = await onQuizSubmit(selectedLesson.id, quizAttempt.id, answers, disqualified); if (submitted) { setQuizResult(submitted); setQuizAttempt(null); onQuizActiveChange(false); if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen().catch(() => undefined) }; return submitted }} onViolation={(violation) => quizAttempt ? onQuizViolation(selectedLesson.id, quizAttempt.id, violation) : Promise.resolve()} onActiveChange={onQuizActiveChange} result={quizResult} passingScore={passingScore} strikeThreshold={3} />}
   </>
 
   return <>
@@ -986,14 +1005,15 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     if (selectedCourseId === null || !selectedCourseEnrollment) return
     try { await saveQuizViolation(selectedCourseEnrollment.id, lessonId, attemptId, violation) } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to save quiz violation.') }
   }
-  const submitQuiz = async (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>): Promise<DashboardQuizResult | null> => {
+  const submitQuiz = async (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>, disqualified = false): Promise<DashboardQuizResult | null> => {
     if (selectedCourseId === null || !selectedCourseEnrollment) return null
     try {
-      const submittedAttempt = await submitQuizAttempt(selectedCourseEnrollment.id, lessonId, attemptId, answers)
+      const submittedAttempt = await submitQuizAttempt(selectedCourseEnrollment.id, lessonId, attemptId, answers, disqualified)
       if (submittedAttempt.score === null || submittedAttempt.passed === null) throw new Error('Quiz result was unavailable.')
       const result = {
         score: submittedAttempt.score,
         passed: submittedAttempt.passed,
+        disqualified: submittedAttempt.disqualified || disqualified,
         answerStatuses: Object.fromEntries(Object.entries(submittedAttempt.answers ?? {}).map(([id, answer]) => [Number(id), answer.status])),
         violationCount: submittedAttempt.violations?.length ?? 0,
         questionResults: submittedAttempt.questionResults,

@@ -235,6 +235,7 @@ const initializeDatabase = async () => {
     )
   `
   await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS violations JSONB NOT NULL DEFAULT '[]'::jsonb`
+  await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS disqualified BOOLEAN NOT NULL DEFAULT false`
   await sql`CREATE INDEX IF NOT EXISTS student_lesson_progress_enrollment_idx ON student_lesson_progress(enrollment_id, last_accessed_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS quiz_attempts_enrollment_lesson_idx ON quiz_attempts(enrollment_id, lesson_id, submitted_at DESC)`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_one_open_attempt_idx ON quiz_attempts(enrollment_id, lesson_id) WHERE submitted_at IS NULL`
@@ -501,7 +502,7 @@ const getQuestionResults = (modules, attempt) => {
     const rawRecord = answers[String(question.id)]
     const record = Number.isInteger(rawRecord) ? { status: 'answered', value: rawRecord } : rawRecord
     const selected = selectedOptionFromRecord(record, question)
-    return { questionId: Number(question.id), question: question.question, studentAnswer: selected === null ? null : question.options[selected] ?? null, correctAnswer: question.options[question.correctOption] ?? null, status: record?.status === 'expired' ? 'expired' : selected === null ? 'unanswered' : 'answered' }
+    return { questionId: Number(question.id), question: question.question, studentAnswer: record?.status === 'answered' && typeof record?.value === 'string' ? record.value : selected === null ? null : question.options[selected] ?? null, correctAnswer: question.options[question.correctOption] ?? null, status: record?.status === 'expired' ? 'expired' : selected === null ? 'unanswered' : 'answered' }
   })
 }
 
@@ -725,6 +726,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
                  'violations', COALESCE(violations, '[]'::jsonb),
                  'score', score,
                  'passed', passed,
+                 'disqualified', disqualified,
                  'submittedAt', submitted_at
                )
                ORDER BY started_at DESC
@@ -883,6 +885,16 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
     const lesson = findCourseLesson(enrollment.modules, lessonId)
     if (!lesson || lesson.type !== 'quiz') return { error: 'Quiz lesson not found.' }
 
+    const [completedAttempt] = await transaction`
+      SELECT id
+      FROM quiz_attempts
+      WHERE enrollment_id = ${enrollmentId}
+        AND lesson_id = ${lessonId}
+        AND submitted_at IS NOT NULL
+      LIMIT 1
+    `
+    if (completedAttempt) return { error: 'This quiz has already been completed and cannot be retaken.' }
+
     const [attempt] = await transaction`
       INSERT INTO quiz_attempts (enrollment_id, lesson_id)
       VALUES (${enrollmentId}, ${lessonId})
@@ -896,6 +908,7 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
                 COALESCE(violations, '[]'::jsonb) AS violations,
                 score,
                 passed,
+                disqualified,
                 submitted_at AS "submittedAt"
     `
     return { attempt }
@@ -968,7 +981,8 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
   const lessonId = parseEnrollmentId(request.params.lessonId)
   const attemptId = parseEnrollmentId(request.params.attemptId)
   const answers = request.body?.answers
-  if (enrollmentId === null || lessonId === null || attemptId === null || !isPlainObject(answers)) return response.status(400).json({ message: 'Invalid quiz submission.' })
+  const disqualified = request.body?.disqualified === true
+  if (enrollmentId === null || lessonId === null || attemptId === null || !isPlainObject(answers) || (request.body?.disqualified !== undefined && typeof request.body.disqualified !== 'boolean')) return response.status(400).json({ message: 'Invalid quiz submission.' })
 
   const result = await sql.begin(async (transaction) => {
     const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
@@ -983,12 +997,13 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
     const correctAnswers = questions.filter((question) => selectedOptionFromRecord(parsedAnswers[String(question.id)], question) === question.correctOption).length
     const score = Math.round((correctAnswers / questions.length) * 100)
     const passThreshold = Number.isInteger(lesson.passThreshold) ? lesson.passThreshold : 70
-    const passed = score >= passThreshold
+    const passed = !disqualified && score >= passThreshold
     const [attempt] = await transaction`
       UPDATE quiz_attempts
       SET answers = ${JSON.stringify(parsedAnswers)}::JSONB,
           score = ${score},
           passed = ${passed},
+          disqualified = ${disqualified},
           submitted_at = NOW(),
           updated_at = NOW()
       WHERE id = ${attemptId}
@@ -1003,6 +1018,7 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
                 violations,
                 score,
                 passed,
+                disqualified,
                 submitted_at AS "submittedAt"
     `
     if (!attempt) return { error: 'Quiz attempt is no longer active.' }

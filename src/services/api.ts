@@ -91,6 +91,7 @@ export interface QuizAttempt {
   questionResults?: QuizQuestionResult[]
   score: number | null
   passed: boolean | null
+  disqualified?: boolean
   submittedAt: string | null
 }
 
@@ -524,10 +525,10 @@ export const saveQuizViolation = (enrollmentId: number, lessonId: number, attemp
   body: JSON.stringify({ violation }),
 })
 
-export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/submit`, {
+export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>, disqualified = false) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/submit`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ answers }),
+  body: JSON.stringify({ answers, disqualified }),
 })
 
 export const signOut = async () => {
