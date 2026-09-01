@@ -69,6 +69,13 @@ export interface QuizViolation {
   type: QuizViolationType
   occurredAt: string
 }
+export interface QuizQuestionResult {
+  questionId: number
+  question: string
+  studentAnswer: string | null
+  correctAnswer: string | null
+  status: QuizAnswerStatus
+}
 export interface QuizAnswerRecord {
   status: QuizAnswerStatus
   value: string | number | string[] | null
@@ -81,6 +88,7 @@ export interface QuizAttempt {
   activeSeconds: number
   answers?: Record<number, QuizAnswerRecord>
   violations?: QuizViolation[]
+  questionResults?: QuizQuestionResult[]
   score: number | null
   passed: boolean | null
   submittedAt: string | null

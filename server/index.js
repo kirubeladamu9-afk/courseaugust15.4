@@ -493,12 +493,23 @@ const getEnrollmentProgress = (modules, lessonProgress) => {
   }
 }
 
+const getQuestionResults = (modules, attempt) => {
+  if (!attempt?.submittedAt) return undefined
+  const answers = isPlainObject(attempt.answers) ? attempt.answers : {}
+  const questions = getCourseLessons(modules).find((lesson) => lesson?.id === attempt.lessonId)?.quizQuestions ?? []
+  return questions.map((question) => {
+    const record = answers[String(question.id)]
+    const selected = selectedOptionFromRecord(record, question)
+    return { questionId: Number(question.id), question: question.question, studentAnswer: selected === null ? null : question.options[selected] ?? null, correctAnswer: question.options[question.correctOption] ?? null, status: record?.status ?? 'unanswered' }
+  })
+}
+
 const serializeEnrollment = (enrollment) => {
   const modules = deserializeJson(enrollment.modules)
   const rawLessonProgress = deserializeJson(enrollment.lessonProgress)
   const rawQuizAttempts = deserializeJson(enrollment.quizAttempts)
   const lessonProgress = isPlainObject(rawLessonProgress) ? rawLessonProgress : {}
-  const quizAttempts = Array.isArray(rawQuizAttempts) ? rawQuizAttempts : []
+  const quizAttempts = Array.isArray(rawQuizAttempts) ? rawQuizAttempts.map((attempt) => ({ ...attempt, questionResults: getQuestionResults(modules, attempt) })) : []
   const { completedLessonIds, progressPercentage } = getEnrollmentProgress(modules, lessonProgress)
 
   return {
@@ -985,12 +996,13 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
                 started_at AS "startedAt",
                 active_seconds AS "activeSeconds",
                 answers,
+                violations,
                 score,
                 passed,
                 submitted_at AS "submittedAt"
     `
     if (!attempt) return { error: 'Quiz attempt is no longer active.' }
-    return { attempt }
+    return { attempt: { ...attempt, questionResults: getQuestionResults(deserializeJson(enrollment.modules), attempt) } }
   })
 
   if (!result) return response.status(404).json({ message: 'Course enrollment not found.' })
