@@ -971,10 +971,16 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     try {
       const submittedAttempt = await submitQuizAttempt(selectedCourseEnrollment.id, lessonId, attemptId, answers)
       if (submittedAttempt.score === null || submittedAttempt.passed === null) throw new Error('Quiz result was unavailable.')
-      const result = { score: submittedAttempt.score, passed: submittedAttempt.passed }
+      const result = {
+        score: submittedAttempt.score,
+        passed: submittedAttempt.passed,
+        answerStatuses: Object.fromEntries(Object.entries(submittedAttempt.answers ?? {}).map(([id, answer]) => [Number(id), answer.status])),
+        violationCount: submittedAttempt.violations?.length ?? 0,
+      }
       setQuizResults((current) => ({ ...current, [selectedCourseId]: { ...(current[selectedCourseId] ?? {}), [lessonId]: result } }))
       setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
       setProgressError(null)
+      selectView('quizzes')
       return result
     } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to submit quiz.'); return null }
   }
