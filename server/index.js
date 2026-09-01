@@ -498,7 +498,8 @@ const getQuestionResults = (modules, attempt) => {
   const answers = isPlainObject(attempt.answers) ? attempt.answers : {}
   const questions = getCourseLessons(modules).find((lesson) => lesson?.id === attempt.lessonId)?.quizQuestions ?? []
   return questions.map((question) => {
-    const record = answers[String(question.id)]
+    const rawRecord = answers[String(question.id)]
+    const record = Number.isInteger(rawRecord) ? { status: 'answered', value: rawRecord } : rawRecord
     const selected = selectedOptionFromRecord(record, question)
     return { questionId: Number(question.id), question: question.question, studentAnswer: selected === null ? null : question.options[selected] ?? null, correctAnswer: question.options[question.correctOption] ?? null, status: record?.status ?? 'unanswered' }
   })
@@ -768,7 +769,7 @@ const parseQuizAnswers = (answers, questions) => {
   return Object.fromEntries(entries.map(([id, value]) => [id, parseQuizAnswerRecord(value)]))
 }
 const selectedOptionFromRecord = (record, question) => {
-  const value = Number.isInteger(record) ? record : record?.status === 'answered' ? record.value : null
+  const value = Number.isInteger(record) ? record : ['answered', 'expired'].includes(record?.status) ? record.value : null
   return Number.isInteger(value) && value >= 0 && value < (question?.options?.length ?? 0) ? value : null
 }
 
