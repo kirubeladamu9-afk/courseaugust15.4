@@ -51,7 +51,7 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import TranslateOutlinedIcon from '@mui/icons-material/TranslateOutlined'
 import VideoCallOutlinedIcon from '@mui/icons-material/VideoCallOutlined'
 import CloseIcon from '@mui/icons-material/Close'
-import { type FC, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FC, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
@@ -602,6 +602,23 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
     setSecondsLeft(questions[current] ? getQuestionSeconds(questions[current]) : 0)
     setLocked(false)
   }, [current, questions])
+
+  const updateAnswer = useCallback((questionId: number, answer: QuizAnswerRecord) => {
+    const nextAnswers = { ...answersRef.current, [questionId]: answer }
+    answersRef.current = nextAnswers
+    setAnswers(nextAnswers)
+    return nextAnswers
+  }, [])
+
+  const saveCurrentAnswer = useCallback(async (status: 'answered' | 'expired') => {
+    const question = questions[current]
+    if (!attempt || !question) return null
+    const answer = { ...(answersRef.current[question.id] ?? { value: null }), status } satisfies QuizAnswerRecord
+    updateAnswer(question.id, answer)
+    await onSave(question.id, answer)
+    return answersRef.current
+  }, [attempt, current, onSave, questions, updateAnswer])
+
   useEffect(() => {
     if (!attempt || locked || !questions[current]) return
     const timer = window.setInterval(() => setSecondsLeft((value) => Math.max(0, value - 1)), 1000)
@@ -609,24 +626,26 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   }, [attempt, current, locked, questions])
   useEffect(() => {
     if (secondsLeft !== 0 || locked || !attempt || !questions[current]) return
-    const question = questions[current]
-    const expired = answersRef.current[question.id] ?? { status: 'unanswered', value: null }
+    const isFinalQuestion = current === questions.length - 1
     setLocked(true)
-    const next = { ...expired, status: 'expired' as const }
-    const savedAnswers = { ...answersRef.current, [question.id]: next }
-    answersRef.current = savedAnswers
-    setAnswers(savedAnswers)
-    void onSave(question.id, next).then(async () => {
-      if (current < questions.length - 1) {
+    if (isFinalQuestion) {
+      submittingRef.current = true
+      setSubmitting(true)
+    }
+    void saveCurrentAnswer('expired').then(async (savedAnswers) => {
+      if (!savedAnswers) return
+      if (!isFinalQuestion) {
         setCurrent((index) => index + 1)
-      } else {
-        submittingRef.current = true
-        setSubmitting(true)
-        await onSubmit(Object.fromEntries(questions.map((item) => [item.id, savedAnswers[item.id] ?? { status: 'unanswered', value: null }])))
+        return
+      }
+      await onSubmit(Object.fromEntries(questions.map((item) => [item.id, savedAnswers[item.id] ?? { status: 'unanswered', value: null }])))
+    }).finally(() => {
+      if (isFinalQuestion) {
+        submittingRef.current = false
         setSubmitting(false)
       }
     })
-  }, [secondsLeft, locked, attempt, current, questions, answers, onSave])
+  }, [secondsLeft, locked, attempt, current, onSubmit, questions, saveCurrentAnswer])
 
   useEffect(() => {
     if (!attempt) return
@@ -687,22 +706,25 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   const selectAnswer = (value: string | number | string[] | null) => {
     const question = questions[current]
     if (!question || locked) return
-    const answer: QuizAnswerRecord = { status: 'answered', value }
-    const nextAnswers = { ...answersRef.current, [question.id]: answer }
-    answersRef.current = nextAnswers
-    setAnswers(nextAnswers)
-    void onSave(question.id, answer)
+    updateAnswer(question.id, { status: 'answered', value })
+    void saveCurrentAnswer('answered')
   }
   const canSubmit = questions.every((item) => (answers[item.id]?.status ?? 'unanswered') !== 'unanswered')
   const submit = async () => {
     if (!attempt || submitting || submittingRef.current || !canSubmit) return
     submittingRef.current = true
     setSubmitting(true)
-    await onSubmit(Object.fromEntries(questions.map((question) => [question.id, answersRef.current[question.id] ?? { status: 'unanswered', value: null }])))
-    setSubmitting(false)
+    try {
+      const savedAnswers = await saveCurrentAnswer('answered')
+      if (!savedAnswers) return
+      await onSubmit(Object.fromEntries(questions.map((question) => [question.id, savedAnswers[question.id] ?? { status: 'unanswered', value: null }])))
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
   }
   if (!questions.length) return <EmptyState title="Quiz unavailable" description="This quiz does not have any questions." />
-  if (!attempt) return <Paper elevation={0} sx={{ p: 3, border: 1, borderColor: 'divider' }}><Typography variant="h5" sx={{ mb: 1 }}>{lesson.title}</Typography><Typography color="text.secondary" sx={{ mb: 2 }}>Each question has its own time limit. Your answer is saved as you go.</Typography><Button variant="contained" onClick={() => void startQuiz()}>Start Quiz</Button></Paper>
+  if (!attempt) return <Paper elevation={0} sx={{ p: 3, border: 1, borderColor: 'divider' }}><Typography variant="h5" sx={{ mb: 1 }}>{lesson.title}</Typography><Typography color="text.secondary" sx={{ mb: 2 }}>Each question has its own time limit. Your answer is saved as you go and when a timer expires.</Typography><Button variant="contained" onClick={() => void startQuiz()}>Start Quiz</Button></Paper>
   const question = questions[current]
   const answer = answers[question.id]
   const isText = question.options.length === 0 || /fill|short|essay|file|calculation|data/i.test(`${question.type ?? ''} ${question.category ?? ''}`)
