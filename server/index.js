@@ -9,7 +9,7 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL must be set.')
 }
 
-const sql = postgres(databaseUrl, { max: 10, ssl: 'require' })
+const sql = postgres(databaseUrl, { max: 10, ssl: 'require', prepare: false })
 const scrypt = promisify(scryptCallback)
 const app = express()
 const port = Number(process.env.PORT ?? 3001)
