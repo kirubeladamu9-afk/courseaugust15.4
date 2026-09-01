@@ -578,6 +578,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   const questions = lesson.quizQuestions ?? []
   const [current, setCurrent] = useState(0)
   const [answers, setAnswers] = useState<Record<number, QuizAnswerRecord>>({})
+  const answersRef = useRef<Record<number, QuizAnswerRecord>>({})
   const [secondsLeft, setSecondsLeft] = useState(questions[0] ? getQuestionSeconds(questions[0]) : 0)
   const [locked, setLocked] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -592,7 +593,9 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   useEffect(() => {
     if (!attempt) return
     const saved = attempt.answers ?? {}
-    setAnswers(Object.fromEntries(questions.map((question) => [question.id, saved[question.id] ?? { status: 'unanswered', value: null }])))
+    const restoredAnswers = Object.fromEntries(questions.map((question) => [question.id, saved[question.id] ?? { status: 'unanswered', value: null }]))
+    answersRef.current = restoredAnswers
+    setAnswers(restoredAnswers)
   }, [attempt, questions])
   useEffect(() => {
     setSecondsLeft(questions[current] ? getQuestionSeconds(questions[current]) : 0)
@@ -606,15 +609,17 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   useEffect(() => {
     if (secondsLeft !== 0 || locked || !attempt || !questions[current]) return
     const question = questions[current]
-    const expired = answers[question.id] ?? { status: 'unanswered', value: null }
+    const expired = answersRef.current[question.id] ?? { status: 'unanswered', value: null }
     setLocked(true)
     const next = { ...expired, status: 'expired' as const }
-    setAnswers((saved) => ({ ...saved, [question.id]: next }))
+    const savedAnswers = { ...answersRef.current, [question.id]: next }
+    answersRef.current = savedAnswers
+    setAnswers(savedAnswers)
     void onSave(question.id, next).then(async () => {
-      const savedAnswers = { ...answers, [question.id]: next }
       if (current < questions.length - 1) {
         setCurrent((index) => index + 1)
       } else {
+        submittingRef.current = true
         setSubmitting(true)
         await onSubmit(Object.fromEntries(questions.map((item) => [item.id, savedAnswers[item.id] ?? { status: 'unanswered', value: null }])))
         setSubmitting(false)
@@ -645,7 +650,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
     setWarning(true)
     await onViolation(violation)
     if (nextCount >= strikeThreshold) {
-      const savedAnswers = Object.fromEntries(questions.map((item) => [item.id, answers[item.id] ?? { status: 'unanswered', value: null }]))
+      const savedAnswers = Object.fromEntries(questions.map((item) => [item.id, answersRef.current[item.id] ?? { status: 'unanswered', value: null }]))
       submittingRef.current = true
       setSubmitting(true)
       await onSubmit(savedAnswers)
@@ -664,7 +669,9 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
     const question = questions[current]
     if (!question || locked) return
     const answer: QuizAnswerRecord = { status: 'answered', value }
-    setAnswers((saved) => ({ ...saved, [question.id]: answer }))
+    const nextAnswers = { ...answersRef.current, [question.id]: answer }
+    answersRef.current = nextAnswers
+    setAnswers(nextAnswers)
     void onSave(question.id, answer)
   }
   const canSubmit = questions.every((item) => (answers[item.id]?.status ?? 'unanswered') !== 'unanswered')
@@ -672,7 +679,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
     if (!attempt || submitting || submittingRef.current || !canSubmit) return
     submittingRef.current = true
     setSubmitting(true)
-    await onSubmit(Object.fromEntries(questions.map((question) => [question.id, answers[question.id] ?? { status: 'unanswered', value: null }])))
+    await onSubmit(Object.fromEntries(questions.map((question) => [question.id, answersRef.current[question.id] ?? { status: 'unanswered', value: null }])))
     setSubmitting(false)
   }
   if (!questions.length) return <EmptyState title="Quiz unavailable" description="This quiz does not have any questions." />

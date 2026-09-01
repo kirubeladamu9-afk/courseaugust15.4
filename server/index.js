@@ -767,7 +767,10 @@ const parseQuizAnswers = (answers, questions) => {
   if (entries.length !== questions.length || entries.some(([id, value]) => !expected.has(id) || !parseQuizAnswerRecord(value))) return null
   return Object.fromEntries(entries.map(([id, value]) => [id, parseQuizAnswerRecord(value)]))
 }
-const selectedOptionFromRecord = (record, question) => record?.status === 'answered' && Number.isInteger(record.value) && record.value >= 0 && record.value < (question?.options?.length ?? 0) ? record.value : null
+const selectedOptionFromRecord = (record, question) => {
+  const value = Number.isInteger(record) ? record : record?.status === 'answered' ? record.value : null
+  return Number.isInteger(value) && value >= 0 && value < (question?.options?.length ?? 0) ? value : null
+}
 
 
 app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/engagement', requireAuthenticated, async (request, response) => {
