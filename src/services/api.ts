@@ -64,6 +64,11 @@ export interface LessonProgress {
 }
 
 export type QuizAnswerStatus = 'unanswered' | 'answered' | 'expired'
+export type QuizViolationType = 'visibility' | 'fullscreen'
+export interface QuizViolation {
+  type: QuizViolationType
+  occurredAt: string
+}
 export interface QuizAnswerRecord {
   status: QuizAnswerStatus
   value: string | number | string[] | null
@@ -75,6 +80,7 @@ export interface QuizAttempt {
   startedAt: string
   activeSeconds: number
   answers?: Record<number, QuizAnswerRecord>
+  violations?: QuizViolation[]
   score: number | null
   passed: boolean | null
   submittedAt: string | null
@@ -502,6 +508,12 @@ export const saveQuizAnswer = (enrollmentId: number, lessonId: number, attemptId
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ questionId, answer }),
+})
+
+export const saveQuizViolation = (enrollmentId: number, lessonId: number, attemptId: number, violation: QuizViolation) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/violations`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ violation }),
 })
 
 export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/submit`, {

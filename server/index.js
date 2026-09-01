@@ -234,6 +234,7 @@ const initializeDatabase = async () => {
       CHECK ((submitted_at IS NULL AND score IS NULL AND passed IS NULL) OR (submitted_at IS NOT NULL AND score IS NOT NULL AND passed IS NOT NULL))
     )
   `
+  await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS violations JSONB NOT NULL DEFAULT '[]'::jsonb`
   await sql`CREATE INDEX IF NOT EXISTS student_lesson_progress_enrollment_idx ON student_lesson_progress(enrollment_id, last_accessed_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS quiz_attempts_enrollment_lesson_idx ON quiz_attempts(enrollment_id, lesson_id, submitted_at DESC)`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_one_open_attempt_idx ON quiz_attempts(enrollment_id, lesson_id) WHERE submitted_at IS NULL`
@@ -709,6 +710,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
                  'startedAt', started_at,
                  'activeSeconds', active_seconds,
                  'answers', COALESCE(answers, '{}'::jsonb),
+                 'violations', COALESCE(violations, '[]'::jsonb),
                  'score', score,
                  'passed', passed,
                  'submittedAt', submitted_at
@@ -876,6 +878,7 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
                 started_at AS "startedAt",
                 active_seconds AS "activeSeconds",
                 COALESCE(answers, '{}'::jsonb) AS answers,
+                COALESCE(violations, '[]'::jsonb) AS violations,
                 score,
                 passed,
                 submitted_at AS "submittedAt"
@@ -886,6 +889,32 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
   if (!quizAttempt) return response.status(404).json({ message: 'Course enrollment not found.' })
   if (quizAttempt.error) return response.status(404).json({ message: quizAttempt.error })
   return response.status(201).json(quizAttempt.attempt)
+})
+
+app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemptId/violations', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  const attemptId = parseEnrollmentId(request.params.attemptId)
+  const violation = request.body?.violation
+  if (enrollmentId === null || lessonId === null || attemptId === null || !isPlainObject(violation) || !['visibility', 'fullscreen'].includes(violation.type) || typeof violation.occurredAt !== 'string' || Number.isNaN(Date.parse(violation.occurredAt))) return response.status(400).json({ message: 'Invalid quiz violation.' })
+
+  const saved = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    const lesson = findCourseLesson(enrollment.modules, lessonId)
+    if (!lesson || lesson.type !== 'quiz') return { error: 'Quiz lesson not found.' }
+    const [attempt] = await transaction`
+      UPDATE quiz_attempts
+      SET violations = COALESCE(violations, '[]'::jsonb) || ${JSON.stringify([{ type: violation.type, occurredAt: violation.occurredAt }])}::jsonb,
+          updated_at = NOW()
+      WHERE id = ${attemptId} AND enrollment_id = ${enrollmentId} AND lesson_id = ${lessonId} AND submitted_at IS NULL
+      RETURNING id::INTEGER AS id, lesson_id::INTEGER AS "lessonId", started_at AS "startedAt", active_seconds AS "activeSeconds", COALESCE(answers, '{}'::jsonb) AS answers, COALESCE(violations, '[]'::jsonb) AS violations, score, passed, submitted_at AS "submittedAt"
+    `
+    return attempt ? { attempt } : { error: 'Quiz attempt is no longer active.' }
+  })
+  if (!saved) return response.status(404).json({ message: 'Course enrollment not found.' })
+  if (saved.error) return response.status(400).json({ message: saved.error })
+  return response.json(saved.attempt)
 })
 
 app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemptId/answers', requireAuthenticated, async (request, response) => {
