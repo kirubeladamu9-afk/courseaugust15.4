@@ -482,15 +482,21 @@ const maxEngagementSeconds = 60
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
-const getEnrollmentProgress = (modules, lessonProgress) => {
+const getEnrollmentProgress = (modules, lessonProgress, quizAttempts = []) => {
   const lessons = getCourseLessons(modules)
   const completedLessonIds = lessons
     .filter((lesson) => lessonProgress?.[lesson.id]?.completedAt)
     .map((lesson) => lesson.id)
+  const completedQuizLessonIds = new Set(quizAttempts
+    .filter((attempt) => attempt?.submittedAt)
+    .map((attempt) => Number(attempt.lessonId)))
+  const allCompletedLessonIds = lessons
+    .map((lesson) => lesson.id)
+    .filter((lessonId) => completedLessonIds.includes(lessonId) || completedQuizLessonIds.has(lessonId))
 
   return {
-    completedLessonIds,
-    progressPercentage: Math.round((completedLessonIds.length / Math.max(1, lessons.length)) * 100),
+    completedLessonIds: allCompletedLessonIds,
+    progressPercentage: Math.round((allCompletedLessonIds.length / Math.max(1, lessons.length)) * 100),
   }
 }
 
@@ -512,7 +518,7 @@ const serializeEnrollment = (enrollment) => {
   const rawQuizAttempts = deserializeJson(enrollment.quizAttempts)
   const lessonProgress = isPlainObject(rawLessonProgress) ? rawLessonProgress : {}
   const quizAttempts = Array.isArray(rawQuizAttempts) ? rawQuizAttempts.map((attempt) => ({ ...attempt, questionResults: getQuestionResults(modules, attempt) })) : []
-  const { completedLessonIds, progressPercentage } = getEnrollmentProgress(modules, lessonProgress)
+  const { completedLessonIds, progressPercentage } = getEnrollmentProgress(modules, lessonProgress, quizAttempts)
 
   return {
     ...enrollment,
@@ -842,16 +848,15 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/complete', requireAut
     if (!lesson) return { error: 'Lesson not found.' }
 
     if (lesson.type === 'quiz') {
-      const [passedAttempt] = await transaction`
+      const [completedAttempt] = await transaction`
         SELECT id
         FROM quiz_attempts
         WHERE enrollment_id = ${enrollmentId}
           AND lesson_id = ${lessonId}
-          AND passed = true
           AND submitted_at IS NOT NULL
         LIMIT 1
       `
-      if (!passedAttempt) return { error: 'Pass the quiz before completing this lesson.' }
+      if (!completedAttempt) return { error: 'Submit the quiz before completing this lesson.' }
     }
 
     const [lessonProgress] = await transaction`

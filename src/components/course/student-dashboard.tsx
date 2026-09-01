@@ -752,9 +752,8 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const quizQuestions = selectedLesson.quizQuestions ?? []
   const passingScore = selectedLesson.passThreshold ?? 70
   const hasAnsweredQuiz = quizQuestions.length > 0 && quizQuestions.every((question) => quizAnswers[question.id] !== undefined)
-  const isQuizPassed = selectedLesson.type === 'quiz' && (quizResult?.passed ?? false)
   const isQuizFinished = selectedLesson.type === 'quiz' && (isCompleted || Boolean(quizResult))
-  const canCompleteLesson = selectedLesson.type !== 'quiz' || isQuizPassed
+  const canCompleteLesson = selectedLesson.type !== 'quiz' || isQuizFinished
   const isLessonLocked = (lessonId: number) => {
     const lessonIndex = lessons.findIndex((lesson) => lesson.id === lessonId)
     return lessonIndex > 0 && lessons.slice(0, lessonIndex).some((lesson) => !completedLessonIds.includes(lesson.id))
@@ -1045,14 +1044,12 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       }
       setQuizResults((current) => ({ ...current, [selectedCourseId]: { ...(current[selectedCourseId] ?? {}), [lessonId]: result } }))
       setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
-      if (result.passed) {
-        await completeLessonApi(selectedCourseEnrollment.id, lessonId)
-        const completed = completedLessons[selectedCourseId] ?? []
-        if (!completed.includes(lessonId)) {
-          const nextCompleted = [...completed, lessonId]
-          setCompletedLessons((current) => ({ ...current, [selectedCourseId]: nextCompleted }))
-          setEnrollments((current) => current.map((enrollment) => getEnrollmentCourse(enrollment)?.id === selectedCourseId ? { ...enrollment, progress: getCourseProgress(selectedCourse!, nextCompleted) } : enrollment))
-        }
+      await completeLessonApi(selectedCourseEnrollment.id, lessonId)
+      const completed = completedLessons[selectedCourseId] ?? []
+      if (!completed.includes(lessonId)) {
+        const nextCompleted = [...completed, lessonId]
+        setCompletedLessons((current) => ({ ...current, [selectedCourseId]: nextCompleted }))
+        setEnrollments((current) => current.map((enrollment) => getEnrollmentCourse(enrollment)?.id === selectedCourseId ? { ...enrollment, progress: getCourseProgress(selectedCourse!, nextCompleted) } : enrollment))
       }
       setProgressError(null)
       selectView('quizzes')
