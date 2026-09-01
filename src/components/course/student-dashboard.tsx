@@ -56,7 +56,7 @@ import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
 import { toast } from '@/components/toast'
-import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, saveLessonEngagement, submitQuizAttempt, signOut, type MyEnrollment, type MyPayment, type PublicClass } from '@/services/api'
+import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, saveLessonEngagement, saveQuizAnswer, submitQuizAttempt, signOut, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
  type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
@@ -67,7 +67,8 @@ import { navigateTo } from '@/lib/navigation'
  interface DashboardQuizResult {
   score: number
   passed: boolean
- }
+  answerStatuses?: Record<number, QuizAnswerStatus>
+}
 
  interface DashboardEnrollment {
   id: number
@@ -82,6 +83,19 @@ import { navigateTo } from '@/lib/navigation'
   classRecord?: DashboardClass
  }
 
+type QuizQuestion = { id: number; question: string; options: string[]; type?: string; category?: string }
+const getQuestionSeconds = (question: QuizQuestion) => {
+  const kind = `${question.type ?? ''} ${question.category ?? ''}`.toLowerCase()
+  if (/true|false|boolean/.test(kind)) return 30
+  if (/multiple|choice/.test(kind)) return 90
+  if (/matching|ordering|order/.test(kind)) return 90
+  if (/fill|short|text/.test(kind)) return 180
+  if (/calculation|data|numeric|math/.test(kind)) return 240
+  if (/essay|file|upload/.test(kind)) return 900
+  return 90
+}
+const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+
  interface DashboardLesson {
   id: number
   title: string
@@ -91,7 +105,7 @@ import { navigateTo } from '@/lib/navigation'
   videoUrl?: string
   thumbnailUrl?: string
   resources: Array<{ id: number; name: string; url?: string }>
-  quizQuestions?: Array<{ id: number; question: string; options: string[] }>
+  quizQuestions?: QuizQuestion[]
   passThreshold?: number
 }
 
@@ -221,7 +235,7 @@ const getLatestQuizResults = (attempts: MyEnrollment['quizAttempts']): Record<nu
   .filter((attempt) => attempt.score !== null && attempt.passed !== null)
   .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())
   .reduce<Record<number, DashboardQuizResult>>((results, attempt) => {
-    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed! }
+    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, answerStatuses: Object.fromEntries(Object.entries(attempt.answers ?? {}).map(([id, answer]) => [Number(id), answer.status])) }
     return results
   }, {})
 const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
@@ -429,7 +443,7 @@ const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
 
   return <>
     <ViewHeading title="Quizzes & Results" description="Complete the lesson before each quiz to unlock it, then review your quiz results." />
-    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses and classes will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map(({ enrollmentId, enrollmentType, course, lesson, moduleTitle, source, available, completed, result, finished }) => <Card key={`${enrollmentType}-${enrollmentId}-${course.id}-${lesson.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{lesson.title}</Typography><Typography color="text.secondary" variant="body2">{source} · {moduleTitle}</Typography>{result ? <Typography color={result.passed ? 'success.main' : 'warning.main'} variant="body2" sx={{ mt: 0.75, fontWeight: 600 }}>{result.passed ? 'Passed' : 'Latest attempt'} · Score {result.score}% · Grade {getQuizGrade(result.score)}</Typography> : completed && <Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>Completed · Score not recorded</Typography>}</Box></Box><Stack direction="row" spacing={1} alignItems="center"><Chip icon={completed ? <CheckCircleOutlineIcon /> : undefined} label={completed ? 'Completed' : result ? 'Finished' : available ? 'Ready to take' : 'Complete previous lesson'} color={completed ? 'success' : result ? 'warning' : 'primary'} size="small" variant={finished ? 'filled' : 'outlined'} /><Button variant={finished ? 'outlined' : 'contained'} size="small" onClick={() => onOpenCourse(course.id, lesson.id)} disabled={!available && !finished}>{finished ? 'View result' : 'Open quiz'}</Button></Stack></Stack></CardContent></Card>)}</Stack>}
+    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses and classes will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map(({ enrollmentId, enrollmentType, course, lesson, moduleTitle, source, available, completed, result, finished }) => <Card key={`${enrollmentType}-${enrollmentId}-${course.id}-${lesson.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{lesson.title}</Typography><Typography color="text.secondary" variant="body2">{source} · {moduleTitle}</Typography>{result ? <Typography color={result.passed ? 'success.main' : 'warning.main'} variant="body2" sx={{ mt: 0.75, fontWeight: 600 }}>{result.passed ? 'Passed' : 'Latest attempt'} · Score {result.score}% · Grade {getQuizGrade(result.score)} · {Object.values(result.answerStatuses ?? {}).filter((status) => status === 'answered').length} answered / {Object.values(result.answerStatuses ?? {}).filter((status) => status === 'expired').length} expired</Typography> : completed && <Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>Completed · Score not recorded</Typography>}</Box></Box><Stack direction="row" spacing={1} alignItems="center"><Chip icon={completed ? <CheckCircleOutlineIcon /> : undefined} label={completed ? 'Completed' : result ? 'Finished' : available ? 'Ready to take' : 'Complete previous lesson'} color={completed ? 'success' : result ? 'warning' : 'primary'} size="small" variant={finished ? 'filled' : 'outlined'} /><Button variant={finished ? 'outlined' : 'contained'} size="small" onClick={() => onOpenCourse(course.id, lesson.id)} disabled={!available && !finished}>{finished ? 'View result' : 'Open quiz'}</Button></Stack></Stack></CardContent></Card>)}</Stack>}
   </>
 }
 
@@ -551,15 +565,80 @@ const LessonResources: FC<{ resources: DashboardLesson['resources'] }> = ({ reso
   </Paper>
 }
 
-const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizSubmit: (lessonId: number, answers: Record<number, number>) => Promise<DashboardQuizResult | null> }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizSubmit }) => {
+const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null; onBegin: () => Promise<QuizAttempt | null>; onSave: (questionId: number, answer: QuizAnswerRecord) => Promise<void>; onSubmit: (answers: Record<number, QuizAnswerRecord>) => Promise<DashboardQuizResult | null>; result: DashboardQuizResult | null; passingScore: number }> = ({ lesson, attempt, onBegin, onSave, onSubmit, result, passingScore }) => {
+  const questions = lesson.quizQuestions ?? []
+  const [current, setCurrent] = useState(0)
+  const [answers, setAnswers] = useState<Record<number, QuizAnswerRecord>>({})
+  const [secondsLeft, setSecondsLeft] = useState(questions[0] ? getQuestionSeconds(questions[0]) : 0)
+  const [locked, setLocked] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!attempt) return
+    const saved = attempt.answers ?? {}
+    setAnswers(Object.fromEntries(questions.map((question) => [question.id, saved[question.id] ?? { status: 'unanswered', value: null }])))
+  }, [attempt, questions])
+  useEffect(() => {
+    setSecondsLeft(questions[current] ? getQuestionSeconds(questions[current]) : 0)
+    setLocked(false)
+  }, [current, questions])
+  useEffect(() => {
+    if (!attempt || locked || !questions[current]) return
+    const timer = window.setInterval(() => setSecondsLeft((value) => Math.max(0, value - 1)), 1000)
+    return () => window.clearInterval(timer)
+  }, [attempt, current, locked, questions])
+  useEffect(() => {
+    if (secondsLeft !== 0 || locked || !attempt || !questions[current]) return
+    const question = questions[current]
+    const expired = answers[question.id] ?? { status: 'unanswered', value: null }
+    setLocked(true)
+    const next = { ...expired, status: 'expired' as const }
+    setAnswers((saved) => ({ ...saved, [question.id]: next }))
+    void onSave(question.id, next).then(async () => {
+      const savedAnswers = { ...answers, [question.id]: next }
+      if (current < questions.length - 1) {
+        setCurrent((index) => index + 1)
+      } else {
+        setSubmitting(true)
+        await onSubmit(Object.fromEntries(questions.map((item) => [item.id, savedAnswers[item.id] ?? { status: 'unanswered', value: null }])))
+        setSubmitting(false)
+      }
+    })
+  }, [secondsLeft, locked, attempt, current, questions, answers, onSave])
+
+  const selectAnswer = (value: string | number | string[] | null) => {
+    const question = questions[current]
+    if (!question || locked) return
+    const answer: QuizAnswerRecord = { status: 'answered', value }
+    setAnswers((saved) => ({ ...saved, [question.id]: answer }))
+    void onSave(question.id, answer)
+  }
+  const canSubmit = questions.every((item) => (answers[item.id]?.status ?? 'unanswered') !== 'unanswered')
+  const submit = async () => {
+    if (!attempt || submitting || !canSubmit) return
+    setSubmitting(true)
+    await onSubmit(Object.fromEntries(questions.map((question) => [question.id, answers[question.id] ?? { status: 'unanswered', value: null }])))
+    setSubmitting(false)
+  }
+  if (!questions.length) return <EmptyState title="Quiz unavailable" description="This quiz does not have any questions." />
+  if (!attempt) return <Paper elevation={0} sx={{ p: 3, border: 1, borderColor: 'divider' }}><Typography variant="h5" sx={{ mb: 1 }}>{lesson.title}</Typography><Typography color="text.secondary" sx={{ mb: 2 }}>Each question has its own time limit. Your answer is saved as you go.</Typography><Button variant="contained" onClick={() => void onBegin()}>Start quiz</Button></Paper>
+  const question = questions[current]
+  const answer = answers[question.id]
+  const isText = question.options.length === 0 || /fill|short|essay|file|calculation|data/i.test(`${question.type ?? ''} ${question.category ?? ''}`)
+  return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="overline" color="primary.main">Question {current + 1} of {questions.length}</Typography><Chip color={secondsLeft <= 10 ? 'error' : 'primary'} label={locked ? 'Time expired' : formatQuizCountdown(secondsLeft)} /></Stack><Typography variant="h5">{question.question}</Typography>{isText ? <TextField fullWidth multiline minRows={3} disabled={locked} value={typeof answer?.value === 'string' ? answer.value : ''} placeholder="Type your answer" onChange={(event) => selectAnswer(event.target.value)} /> : <FormControl disabled={locked}><FormLabel>Choose an answer</FormLabel><RadioGroup value={typeof answer?.value === 'number' ? String(answer.value) : ''} onChange={(event) => selectAnswer(Number(event.target.value))}>{question.options.map((option, index) => <FormControlLabel key={option + index} value={String(index)} control={<Radio />} label={option} />)}</RadioGroup></FormControl>}<Typography variant="caption" color="text.secondary">This question limit: {formatQuizCountdown(getQuestionSeconds(question))}. Status: {answer?.status ?? 'unanswered'}.</Typography><Stack direction="row" justifyContent="space-between"><Button disabled={current === 0} onClick={() => setCurrent((index) => index - 1)}>Previous</Button>{current < questions.length - 1 ? <Button variant="outlined" onClick={() => setCurrent((index) => index + 1)}>Next question</Button> : <Button variant="contained" disabled={!canSubmit || submitting} onClick={() => void submit()}>{submitting ? 'Submitting...' : 'Submit quiz'}</Button>}</Stack>{result && <Alert severity={result.passed ? 'success' : 'warning'}>Latest result: {result.score}% ({result.passed ? 'passed' : `need ${passingScore}% to pass`}).</Alert>}</Stack></Paper>
+}
+
+const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>) => Promise<DashboardQuizResult | null> }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit }) => {
   const lessons = getLessons(course)
   const [selectedLessonId, setSelectedLessonId] = useState(initialLessonId ?? lessons[0]?.id)
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
   const [quizResult, setQuizResult] = useState<DashboardQuizResult | null>(null)
+  const [quizAttempt, setQuizAttempt] = useState<QuizAttempt | null>(null)
+  const submitQuiz = () => undefined
   const selectedLesson = lessons.find((lesson) => lesson.id === selectedLessonId) ?? lessons[0]
 
   useEffect(() => { setSelectedLessonId(initialLessonId ?? lessons[0]?.id) }, [course.id, initialLessonId])
-  useEffect(() => { setQuizAnswers({}); setQuizResult(selectedLessonId === undefined ? null : quizResults[selectedLessonId] ?? null) }, [selectedLessonId, quizResults])
+  useEffect(() => { setQuizResult(selectedLessonId === undefined ? null : quizResults[selectedLessonId] ?? null); setQuizAttempt(null) }, [selectedLessonId, quizResults])
 
   if (!selectedLesson) return <EmptyState title="Course content unavailable" description="This course does not have any lessons yet." actionLabel="Back to courses" onAction={onBack} />
 
@@ -575,18 +654,16 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
     const lessonIndex = lessons.findIndex((lesson) => lesson.id === lessonId)
     return lessonIndex > 0 && lessons.slice(0, lessonIndex).some((lesson) => !completedLessonIds.includes(lesson.id))
   }
-  const submitQuiz = async () => {
-    if (!hasAnsweredQuiz || isQuizFinished) return
-    const result = await onQuizSubmit(selectedLesson.id, quizAnswers)
-    if (!result) return
-    setQuizResult(result)
-    toast.add({ title: result.passed ? 'Quiz passed' : 'Quiz not passed', description: result.passed ? 'You scored ' + result.score + '%. You can now complete this lesson.' : 'You scored ' + result.score + '%. You need at least ' + passingScore + '% to pass.', type: result.passed ? 'success' : 'error' })
-  }
 
   if (!started) return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Courses</Box>
     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={1} sx={{ mb: 3 }}><Box><Typography variant="h4" sx={{ mb: 0.5 }}>{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.level} · Tutor: {course.tutor}</Typography></Box><Chip label="Not started" color="default" /></Stack>
     <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, border: 1, borderColor: 'divider' }}><Typography variant="h5" sx={{ mb: 0.5 }}>Course content</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>Review the lessons below, then start the course when you&apos;re ready to learn.</Typography><Stack spacing={2} sx={{ mb: 3 }}>{course.modules.map((module) => <Box key={module.id}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.75 }}>{module.title}</Typography><Stack spacing={0.5}>{module.lessons.map((lesson) => <Box key={lesson.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box sx={{ display: 'flex', color: 'text.secondary' }}>{iconForLesson(lesson.type)}</Box><Typography variant="body2" sx={{ flex: 1 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{lesson.duration}</Typography></Box>)}</Stack></Box>)}</Stack><Button variant="contained" size="large" onClick={onStart} startIcon={<PlayCircleOutlineIcon />}>Start course</Button></Paper>
+  </>
+
+  if ((selectedLesson.type as string) === 'quiz') return <>
+    <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Courses</Box>
+    <QuizLessonView lesson={selectedLesson} attempt={quizAttempt} onBegin={async () => { const next = await onQuizStart(selectedLesson.id); setQuizAttempt(next); return next }} onSave={(questionId, answer) => quizAttempt ? onQuizAnswer(selectedLesson.id, quizAttempt.id, questionId, answer) : Promise.resolve()} onSubmit={(answers) => quizAttempt ? onQuizSubmit(selectedLesson.id, quizAttempt.id, answers) : Promise.resolve(null)} result={quizResult} passingScore={passingScore} />
   </>
 
   return <>
@@ -831,22 +908,25 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       setProgressError(error instanceof Error ? error.message : 'Unable to complete lesson.')
     }
   }
-  const submitQuiz = async (lessonId: number, answers: Record<number, number>): Promise<DashboardQuizResult | null> => {
+  const startQuizAttempt = async (lessonId: number): Promise<QuizAttempt | null> => {
+    if (selectedCourseId === null || !selectedCourseEnrollment) return null
+    try { return await beginQuizAttempt(selectedCourseEnrollment.id, lessonId) } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to start quiz.'); return null }
+  }
+  const saveQuizAnswerForAttempt = async (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => {
+    if (selectedCourseId === null || !selectedCourseEnrollment) return
+    try { await saveQuizAnswer(selectedCourseEnrollment.id, lessonId, attemptId, questionId, answer) } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to save quiz answer.') }
+  }
+  const submitQuiz = async (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>): Promise<DashboardQuizResult | null> => {
     if (selectedCourseId === null || !selectedCourseEnrollment) return null
     try {
-      const attempt = await beginQuizAttempt(selectedCourseEnrollment.id, lessonId)
-      const submittedAttempt = await submitQuizAttempt(selectedCourseEnrollment.id, lessonId, attempt.id, answers)
+      const submittedAttempt = await submitQuizAttempt(selectedCourseEnrollment.id, lessonId, attemptId, answers)
       if (submittedAttempt.score === null || submittedAttempt.passed === null) throw new Error('Quiz result was unavailable.')
       const result = { score: submittedAttempt.score, passed: submittedAttempt.passed }
-      const nextResults = { ...(quizResults[selectedCourseId] ?? {}), [lessonId]: result }
-      setQuizResults((current) => ({ ...current, [selectedCourseId]: nextResults }))
+      setQuizResults((current) => ({ ...current, [selectedCourseId]: { ...(current[selectedCourseId] ?? {}), [lessonId]: result } }))
       setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
       setProgressError(null)
       return result
-    } catch (error) {
-      setProgressError(error instanceof Error ? error.message : 'Unable to submit quiz.')
-      return null
-    }
+    } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to submit quiz.'); return null }
   }
   const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
 
@@ -870,7 +950,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
-          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizSubmit={submitQuiz} />}
+          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizStart={startQuizAttempt} onQuizAnswer={saveQuizAnswerForAttempt} onQuizSubmit={submitQuiz} />}
         </>}
       </Box>
     </Box>

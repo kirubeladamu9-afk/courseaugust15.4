@@ -63,11 +63,18 @@ export interface LessonProgress {
   lastAccessedAt: string
 }
 
+export type QuizAnswerStatus = 'unanswered' | 'answered' | 'expired'
+export interface QuizAnswerRecord {
+  status: QuizAnswerStatus
+  value: string | number | string[] | null
+}
+
 export interface QuizAttempt {
   id: number
   lessonId: number
   startedAt: string
   activeSeconds: number
+  answers?: Record<number, QuizAnswerRecord>
   score: number | null
   passed: boolean | null
   submittedAt: string | null
@@ -491,7 +498,13 @@ export const beginQuizAttempt = (enrollmentId: number, lessonId: number) => requ
   method: 'POST',
 })
 
-export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemptId: number, answers: Record<number, number>) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/submit`, {
+export const saveQuizAnswer = (enrollmentId: number, lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/answers`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ questionId, answer }),
+})
+
+export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/submit`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ answers }),

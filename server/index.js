@@ -708,6 +708,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
                  'lessonId', lesson_id,
                  'startedAt', started_at,
                  'activeSeconds', active_seconds,
+                 'answers', COALESCE(answers, '{}'::jsonb),
                  'score', score,
                  'passed', passed,
                  'submittedAt', submitted_at
@@ -739,6 +740,22 @@ const getOwnedEnrollment = async (transaction, userId, enrollmentId) => {
 }
 
 const findCourseLesson = (modules, lessonId) => getCourseLessons(deserializeJson(modules)).find((lesson) => lesson?.id === lessonId) ?? null
+
+const quizAnswerStatuses = new Set(['unanswered', 'answered', 'expired'])
+const isValidQuizAnswerValue = (value) => value === null || typeof value === 'string' || Number.isInteger(value) || (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+const parseQuizAnswerRecord = (value) => {
+  if (!isPlainObject(value) || !quizAnswerStatuses.has(value.status) || !isValidQuizAnswerValue(value.value)) return null
+  return { status: value.status, value: value.value }
+}
+const parseQuizAnswers = (answers, questions) => {
+  if (!isPlainObject(answers)) return null
+  const expected = new Set(questions.map((question) => String(question?.id)))
+  const entries = Object.entries(answers)
+  if (entries.length !== questions.length || entries.some(([id, value]) => !expected.has(id) || !parseQuizAnswerRecord(value))) return null
+  return Object.fromEntries(entries.map(([id, value]) => [id, parseQuizAnswerRecord(value)]))
+}
+const selectedOptionFromRecord = (record, question) => record?.status === 'answered' && Number.isInteger(record.value) && record.value >= 0 && record.value < (question?.options?.length ?? 0) ? record.value : null
+
 
 app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/engagement', requireAuthenticated, async (request, response) => {
   const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
@@ -858,6 +875,7 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
                 lesson_id::INTEGER AS "lessonId",
                 started_at AS "startedAt",
                 active_seconds AS "activeSeconds",
+                COALESCE(answers, '{}'::jsonb) AS answers,
                 score,
                 passed,
                 submitted_at AS "submittedAt"
@@ -868,6 +886,37 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
   if (!quizAttempt) return response.status(404).json({ message: 'Course enrollment not found.' })
   if (quizAttempt.error) return response.status(404).json({ message: quizAttempt.error })
   return response.status(201).json(quizAttempt.attempt)
+})
+
+app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemptId/answers', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  const attemptId = parseEnrollmentId(request.params.attemptId)
+  const questionId = parseEnrollmentId(String(request.body?.questionId ?? ''))
+  const answer = parseQuizAnswerRecord(request.body?.answer)
+  if (enrollmentId === null || lessonId === null || attemptId === null || questionId === null || !answer) return response.status(400).json({ message: 'Invalid quiz answer.' })
+
+  const saved = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    const lesson = findCourseLesson(enrollment.modules, lessonId)
+    const question = (lesson?.quizQuestions ?? []).find((item) => Number(item?.id) === questionId)
+    if (!lesson || lesson.type !== 'quiz' || !question) return { error: 'Quiz question not found.' }
+    const [attempt] = await transaction`
+      UPDATE quiz_attempts
+      SET answers = CASE
+            WHEN COALESCE(answers->${String(questionId)}->>'status', '') = 'expired' THEN COALESCE(answers, '{}'::jsonb)
+            ELSE COALESCE(answers, '{}'::jsonb) || ${JSON.stringify({ [questionId]: answer })}::JSONB
+          END,
+          updated_at = NOW()
+      WHERE id = ${attemptId} AND enrollment_id = ${enrollmentId} AND lesson_id = ${lessonId} AND submitted_at IS NULL
+      RETURNING id::INTEGER AS id, lesson_id::INTEGER AS "lessonId", started_at AS "startedAt", active_seconds AS "activeSeconds", COALESCE(answers, '{}'::jsonb) AS answers, score, passed, submitted_at AS "submittedAt"
+    `
+    return attempt ? { attempt } : { error: 'Quiz attempt is no longer active.' }
+  })
+  if (!saved) return response.status(404).json({ message: 'Course enrollment not found.' })
+  if (saved.error) return response.status(400).json({ message: saved.error })
+  return response.json(saved.attempt)
 })
 
 app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemptId/submit', requireAuthenticated, async (request, response) => {
@@ -884,18 +933,16 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
     const questions = Array.isArray(lesson?.quizQuestions) ? lesson.quizQuestions : []
     if (!lesson || lesson.type !== 'quiz' || !questions.length) return { error: 'Quiz questions are unavailable.' }
 
-    const expectedQuestionIds = new Set(questions.map((question) => String(question?.id)))
-    const answerEntries = Object.entries(answers)
-    const hasValidAnswers = answerEntries.length === questions.length && answerEntries.every(([questionId, optionIndex]) => expectedQuestionIds.has(questionId) && Number.isInteger(optionIndex) && optionIndex >= 0 && optionIndex < (questions.find((question) => String(question.id) === questionId)?.options?.length ?? 0))
-    if (!hasValidAnswers) return { error: 'Answer every quiz question with a valid option.' }
+    const parsedAnswers = parseQuizAnswers(answers, questions)
+    if (!parsedAnswers) return { error: 'Invalid quiz answer records.' }
 
-    const correctAnswers = questions.filter((question) => answers[question.id] === question.correctOption).length
+    const correctAnswers = questions.filter((question) => selectedOptionFromRecord(parsedAnswers[String(question.id)], question) === question.correctOption).length
     const score = Math.round((correctAnswers / questions.length) * 100)
     const passThreshold = Number.isInteger(lesson.passThreshold) ? lesson.passThreshold : 70
     const passed = score >= passThreshold
     const [attempt] = await transaction`
       UPDATE quiz_attempts
-      SET answers = ${JSON.stringify(answers)}::JSONB,
+      SET answers = ${JSON.stringify(parsedAnswers)}::JSONB,
           score = ${score},
           passed = ${passed},
           submitted_at = NOW(),
@@ -908,6 +955,7 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
                 lesson_id::INTEGER AS "lessonId",
                 started_at AS "startedAt",
                 active_seconds AS "activeSeconds",
+                answers,
                 score,
                 passed,
                 submitted_at AS "submittedAt"
