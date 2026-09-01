@@ -44,7 +44,7 @@ interface EnrollmentLesson {
   thumbnailUrl?: string
   estimatedDuration?: number
   articleBody?: string
-  quizQuestions?: Array<{ id: number; question: string; options: string[]; correctOption: number }>
+  quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   passThreshold?: number
 }
 
@@ -52,6 +52,24 @@ interface EnrollmentModule {
   id: number
   title: string
   lessons: EnrollmentLesson[]
+}
+
+export interface LessonProgress {
+  startedAt: string
+  completedAt: string | null
+  activeSeconds: number
+  videoPositionSeconds: number
+  lastAccessedAt: string
+}
+
+export interface QuizAttempt {
+  id: number
+  lessonId: number
+  startedAt: string
+  activeSeconds: number
+  score: number | null
+  passed: boolean | null
+  submittedAt: string | null
 }
 
 export interface MyEnrollment {
@@ -69,10 +87,13 @@ export interface MyEnrollment {
   classSchedule: { days: string[]; time: string; flexible: boolean; startDate: string } | null
   meetingLink: string | null
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
+  lessonProgress: Record<number, LessonProgress>
+  quizAttempts: QuizAttempt[]
   completedLessonIds: number[]
   started: boolean
   timeSpentSeconds: number
-  quizResults: Record<number, { score: number; passed: boolean }>
+  progressPercentage: number
+  lastActivityAt: string | null
 }
 
 export interface PublicClass {
@@ -448,14 +469,32 @@ export const getMyEnrollments = async (): Promise<MyEnrollment[]> => {
   return response.json()
 }
 
-export const saveCourseProgress = async (courseId: number, progress: { completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, { score: number; passed: boolean }> }): Promise<void> => {
-  const response = await requestApi(`/api/enrollments/${courseId}/progress`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(progress),
-  })
+const requestLearningProgress = async <T>(url: string, init: RequestInit): Promise<T> => {
+  const response = await requestApi(url, init)
   if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
 }
+
+export const saveLessonEngagement = (enrollmentId: number, lessonId: number, values: { activeSeconds: number; videoPositionSeconds?: number; quizAttemptId?: number; keepalive?: boolean }) => requestLearningProgress<LessonProgress>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/engagement`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ activeSeconds: values.activeSeconds, videoPositionSeconds: values.videoPositionSeconds, quizAttemptId: values.quizAttemptId }),
+  keepalive: values.keepalive,
+})
+
+export const completeLesson = (enrollmentId: number, lessonId: number) => requestLearningProgress<LessonProgress>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/complete`, {
+  method: 'POST',
+})
+
+export const beginQuizAttempt = (enrollmentId: number, lessonId: number) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts`, {
+  method: 'POST',
+})
+
+export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemptId: number, answers: Record<number, number>) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts/${attemptId}/submit`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ answers }),
+})
 
 export const signOut = async () => {
   try {

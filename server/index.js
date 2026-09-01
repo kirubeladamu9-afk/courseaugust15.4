@@ -206,6 +206,38 @@ const initializeDatabase = async () => {
   await sql`ALTER TABLE course_progress ADD COLUMN IF NOT EXISTS time_spent_seconds INTEGER NOT NULL DEFAULT 0`
   await sql`ALTER TABLE course_progress ADD COLUMN IF NOT EXISTS quiz_results JSONB NOT NULL DEFAULT '{}'::jsonb`
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS student_lesson_progress (
+      enrollment_id BIGINT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      lesson_id BIGINT NOT NULL,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      active_seconds INTEGER NOT NULL DEFAULT 0 CHECK (active_seconds >= 0),
+      video_position_seconds NUMERIC(12, 3) NOT NULL DEFAULT 0 CHECK (video_position_seconds >= 0),
+      last_accessed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (enrollment_id, lesson_id)
+    )
+  `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS quiz_attempts (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      enrollment_id BIGINT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      lesson_id BIGINT NOT NULL,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      active_seconds INTEGER NOT NULL DEFAULT 0 CHECK (active_seconds >= 0),
+      answers JSONB,
+      score INTEGER CHECK (score BETWEEN 0 AND 100),
+      passed BOOLEAN,
+      submitted_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CHECK ((submitted_at IS NULL AND score IS NULL AND passed IS NULL) OR (submitted_at IS NOT NULL AND score IS NOT NULL AND passed IS NOT NULL))
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS student_lesson_progress_enrollment_idx ON student_lesson_progress(enrollment_id, last_accessed_at DESC)`
+  await sql`CREATE INDEX IF NOT EXISTS quiz_attempts_enrollment_lesson_idx ON quiz_attempts(enrollment_id, lesson_id, submitted_at DESC)`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_one_open_attempt_idx ON quiz_attempts(enrollment_id, lesson_id) WHERE submitted_at IS NULL`
+
   for (const seedTutor of seedTutors) {
     await sql`
       INSERT INTO tutors ${sql(seedTutor)}
@@ -420,6 +452,67 @@ const deserializeCourse = (course) => course ? {
   modules: deserializeJson(course.modules),
 } : null
 
+const getCourseLessons = (modules) => Array.isArray(modules)
+  ? modules.flatMap((module) => Array.isArray(module?.lessons) ? module.lessons : [])
+  : []
+
+const sanitizeModulesForLearner = (modules) => Array.isArray(modules)
+  ? modules.map((module) => ({
+    ...module,
+    lessons: Array.isArray(module?.lessons)
+      ? module.lessons.map(({ quizQuestions, ...lesson }) => ({
+        ...lesson,
+        quizQuestions: Array.isArray(quizQuestions)
+          ? quizQuestions.map(({ correctOption, ...question }) => question)
+          : quizQuestions,
+      }))
+      : [],
+  }))
+  : []
+
+const sanitizeCourseForLearner = (course) => course ? {
+  ...course,
+  modules: sanitizeModulesForLearner(course.modules),
+} : null
+
+const parseEnrollmentId = (value) => /^\d+$/.test(value) ? Number(value) : null
+const maxEngagementSeconds = 60
+
+const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const getEnrollmentProgress = (modules, lessonProgress) => {
+  const lessons = getCourseLessons(modules)
+  const completedLessonIds = lessons
+    .filter((lesson) => lessonProgress?.[lesson.id]?.completedAt)
+    .map((lesson) => lesson.id)
+
+  return {
+    completedLessonIds,
+    progressPercentage: Math.round((completedLessonIds.length / Math.max(1, lessons.length)) * 100),
+  }
+}
+
+const serializeEnrollment = (enrollment) => {
+  const modules = deserializeJson(enrollment.modules)
+  const rawLessonProgress = deserializeJson(enrollment.lessonProgress)
+  const rawQuizAttempts = deserializeJson(enrollment.quizAttempts)
+  const lessonProgress = isPlainObject(rawLessonProgress) ? rawLessonProgress : {}
+  const quizAttempts = Array.isArray(rawQuizAttempts) ? rawQuizAttempts : []
+  const { completedLessonIds, progressPercentage } = getEnrollmentProgress(modules, lessonProgress)
+
+  return {
+    ...enrollment,
+    modules: sanitizeModulesForLearner(modules),
+    classSchedule: isPlainObject(deserializeJson(enrollment.classSchedule)) ? deserializeJson(enrollment.classSchedule) : null,
+    lessonProgress,
+    quizAttempts,
+    completedLessonIds,
+    started: Object.keys(lessonProgress).length > 0,
+    timeSpentSeconds: Number(enrollment.timeSpentSeconds) || 0,
+    progressPercentage,
+  }
+}
+
 const readCourse = async (id, publishedOnly = false) => {
   const [course] = await sql`
     SELECT ${courseColumns}
@@ -538,7 +631,7 @@ app.get('/api/courses', async (_request, response) => {
     WHERE status = 'Published'
     ORDER BY id
   `
-  response.json(courses.map(deserializeCourse))
+  response.json(courses.map(deserializeCourse).map(sanitizeCourseForLearner))
 })
 
 app.get('/api/courses/:id', async (request, response) => {
@@ -547,7 +640,7 @@ app.get('/api/courses/:id', async (request, response) => {
 
   const course = await readCourse(id, true)
   if (!course) return response.status(404).json({ message: 'Course not found.' })
-  return response.json(course)
+  return response.json(sanitizeCourseForLearner(course))
 })
 
 app.get('/api/students', requireAuthenticated, async (request, response) => {
@@ -582,83 +675,248 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            classes.schedule AS "classSchedule",
            classes.meeting_link AS "meetingLink",
            classes.status AS "classStatus",
-           COALESCE(course_progress.completed_lesson_ids, '[]'::jsonb) AS "completedLessonIds",
-           COALESCE(course_progress.started, false) AS started,
-           COALESCE(course_progress.time_spent_seconds, 0) AS "timeSpentSeconds",
-           COALESCE(course_progress.quiz_results, '{}'::jsonb) AS "quizResults"
+           lesson_summary."lessonProgress",
+           lesson_summary."timeSpentSeconds",
+           lesson_summary."lastActivityAt",
+           quiz_summary."quizAttempts"
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
     INNER JOIN students ON students.id = enrollments.student_id
     LEFT JOIN classes ON classes.id = enrollments.class_id
     LEFT JOIN tutors ON tutors.id = classes.tutor_id
-    LEFT JOIN course_progress ON course_progress.user_id = enrollments.user_id AND course_progress.course_id = enrollments.course_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_object_agg(
+               lesson_id::TEXT,
+               jsonb_build_object(
+                 'startedAt', started_at,
+                 'completedAt', completed_at,
+                 'activeSeconds', active_seconds,
+                 'videoPositionSeconds', video_position_seconds,
+                 'lastAccessedAt', last_accessed_at
+               )
+             ), '{}'::jsonb) AS "lessonProgress",
+             COALESCE(SUM(active_seconds), 0)::INTEGER AS "timeSpentSeconds",
+             MAX(last_accessed_at) AS "lastActivityAt"
+      FROM student_lesson_progress
+      WHERE enrollment_id = enrollments.id
+    ) AS lesson_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(
+               jsonb_build_object(
+                 'id', id,
+                 'lessonId', lesson_id,
+                 'startedAt', started_at,
+                 'activeSeconds', active_seconds,
+                 'score', score,
+                 'passed', passed,
+                 'submittedAt', submitted_at
+               )
+               ORDER BY started_at DESC
+             ), '[]'::jsonb) AS "quizAttempts"
+      FROM quiz_attempts
+      WHERE enrollment_id = enrollments.id
+    ) AS quiz_summary ON true
     WHERE enrollments.user_id = ${request.userId}
-    ORDER BY enrollments.created_at DESC
+    ORDER BY lesson_summary."lastActivityAt" DESC NULLS LAST, enrollments.created_at DESC
   `
-  response.json(enrollments.map((enrollment) => {
-    const modules = deserializeJson(enrollment.modules)
-    const classSchedule = deserializeJson(enrollment.classSchedule)
-    const completedLessonIds = deserializeJson(enrollment.completedLessonIds)
-    const quizResults = deserializeJson(enrollment.quizResults)
-    return {
-      ...enrollment,
-      modules: Array.isArray(modules) ? modules : [],
-      classSchedule: classSchedule && typeof classSchedule === 'object' && !Array.isArray(classSchedule) ? classSchedule : null,
-      completedLessonIds: Array.isArray(completedLessonIds) ? completedLessonIds : [],
-      started: Boolean(enrollment.started),
-      timeSpentSeconds: Number.isInteger(enrollment.timeSpentSeconds) ? enrollment.timeSpentSeconds : 0,
-      quizResults: quizResults && typeof quizResults === 'object' && !Array.isArray(quizResults) ? quizResults : {},
-    }
-  }))
+  response.json(enrollments.map(serializeEnrollment))
 })
 
-app.put('/api/enrollments/:courseId/progress', requireAuthenticated, async (request, response) => {
-  const courseId = parseCourseId(request.params.courseId)
-  const completedLessonIds = request.body?.completedLessonIds
-  const started = request.body?.started
-  const timeSpentSeconds = request.body?.timeSpentSeconds
-  const quizResults = request.body?.quizResults
-  const hasValidQuizResults = quizResults && typeof quizResults === 'object' && !Array.isArray(quizResults) && Object.entries(quizResults).every(([lessonId, result]) => {
-    const parsedLessonId = Number(lessonId)
-    return Number.isInteger(parsedLessonId) && result && typeof result === 'object' && !Array.isArray(result) && Number.isInteger(result.score) && result.score >= 0 && result.score <= 100 && typeof result.passed === 'boolean'
-  })
-  if (courseId === null || !Array.isArray(completedLessonIds) || !completedLessonIds.every((lessonId) => Number.isInteger(lessonId)) || new Set(completedLessonIds).size !== completedLessonIds.length || typeof started !== 'boolean' || !Number.isInteger(timeSpentSeconds) || timeSpentSeconds < 0 || !hasValidQuizResults) return response.status(400).json({ message: 'Invalid course progress.' })
-
-  const [enrollment] = await sql`
-    SELECT courses.modules,
-           COALESCE(course_progress.completed_lesson_ids, '[]'::jsonb) AS "completedLessonIds",
-           COALESCE(course_progress.quiz_results, '{}'::jsonb) AS "quizResults"
+const getOwnedEnrollment = async (transaction, userId, enrollmentId) => {
+  const [enrollment] = await transaction`
+    SELECT enrollments.id,
+           enrollments.course_id AS "courseId",
+           courses.modules
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
-    LEFT JOIN course_progress ON course_progress.user_id = enrollments.user_id AND course_progress.course_id = enrollments.course_id
-    WHERE enrollments.user_id = ${request.userId}
-      AND enrollments.course_id = ${courseId}
-    LIMIT 1
+    WHERE enrollments.id = ${enrollmentId}
+      AND enrollments.user_id = ${userId}
+    FOR UPDATE OF enrollments
   `
-  if (!enrollment) return response.status(404).json({ message: 'Course enrollment not found.' })
+  return enrollment ?? null
+}
 
-  const modules = deserializeJson(enrollment.modules)
-  const existingCompletedLessonIds = deserializeJson(enrollment.completedLessonIds)
-  const existingQuizResults = deserializeJson(enrollment.quizResults)
-  const lessons = Array.isArray(modules) ? modules.flatMap((module) => Array.isArray(module?.lessons) ? module.lessons : []) : []
-  const lessonIds = new Set(lessons.map((lesson) => lesson?.id))
-  const quizLessonIds = new Set(lessons.filter((lesson) => lesson?.type === 'quiz').map((lesson) => lesson?.id))
-  const completedIds = Array.isArray(existingCompletedLessonIds) ? existingCompletedLessonIds : []
-  const previousResults = existingQuizResults && typeof existingQuizResults === 'object' && !Array.isArray(existingQuizResults) ? existingQuizResults : {}
-  const hasRemovedCompletedLesson = completedIds.some((lessonId) => !completedLessonIds.includes(lessonId))
-  const hasChangedQuizResult = Object.entries(previousResults).some(([lessonId, previous]) => {
-    const next = quizResults[lessonId]
-    return !next || previous?.score !== next.score || previous?.passed !== next.passed
+const findCourseLesson = (modules, lessonId) => getCourseLessons(deserializeJson(modules)).find((lesson) => lesson?.id === lessonId) ?? null
+
+app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/engagement', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  const activeSeconds = request.body?.activeSeconds
+  const videoPositionSeconds = request.body?.videoPositionSeconds
+  const quizAttemptId = request.body?.quizAttemptId
+
+  if (enrollmentId === null || lessonId === null || !Number.isInteger(activeSeconds) || activeSeconds < 0 || activeSeconds > maxEngagementSeconds || (videoPositionSeconds !== undefined && (!Number.isFinite(videoPositionSeconds) || videoPositionSeconds < 0)) || (quizAttemptId !== undefined && (!Number.isInteger(quizAttemptId) || quizAttemptId <= 0))) {
+    return response.status(400).json({ message: 'Invalid lesson engagement.' })
+  }
+
+  const progress = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    if (!findCourseLesson(enrollment.modules, lessonId)) return { error: 'Lesson not found.' }
+
+    const [lessonProgress] = await transaction`
+      INSERT INTO student_lesson_progress (enrollment_id, lesson_id, active_seconds, video_position_seconds)
+      VALUES (${enrollmentId}, ${lessonId}, ${activeSeconds}, ${videoPositionSeconds ?? 0})
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE
+      SET active_seconds = student_lesson_progress.active_seconds + ${activeSeconds},
+          video_position_seconds = CASE
+            WHEN ${videoPositionSeconds ?? null}::NUMERIC IS NULL THEN student_lesson_progress.video_position_seconds
+            ELSE ${videoPositionSeconds ?? 0}
+          END,
+          last_accessed_at = NOW()
+      RETURNING started_at AS "startedAt",
+                completed_at AS "completedAt",
+                active_seconds AS "activeSeconds",
+                video_position_seconds::FLOAT AS "videoPositionSeconds",
+                last_accessed_at AS "lastAccessedAt"
+    `
+
+    if (quizAttemptId !== undefined) {
+      const [quizAttempt] = await transaction`
+        UPDATE quiz_attempts
+        SET active_seconds = active_seconds + ${activeSeconds}, updated_at = NOW()
+        WHERE id = ${quizAttemptId}
+          AND enrollment_id = ${enrollmentId}
+          AND lesson_id = ${lessonId}
+          AND submitted_at IS NULL
+        RETURNING id
+      `
+      if (!quizAttempt) return { error: 'Quiz attempt is no longer active.' }
+    }
+
+    return { lessonProgress }
   })
-  if (completedLessonIds.some((lessonId) => !lessonIds.has(lessonId)) || Object.keys(quizResults).some((lessonId) => !quizLessonIds.has(Number(lessonId))) || hasRemovedCompletedLesson || hasChangedQuizResult) return response.status(400).json({ message: 'Completed quizzes and lessons cannot be changed.' })
 
-  await sql`
-    INSERT INTO course_progress ${sql({ user_id: request.userId, course_id: courseId, completed_lesson_ids: JSON.stringify(completedLessonIds), started, time_spent_seconds: timeSpentSeconds, quiz_results: JSON.stringify(quizResults) })}
-    ON CONFLICT (user_id, course_id) DO UPDATE SET completed_lesson_ids = EXCLUDED.completed_lesson_ids, started = EXCLUDED.started, time_spent_seconds = EXCLUDED.time_spent_seconds, quiz_results = EXCLUDED.quiz_results, updated_at = NOW()
-  `
-  return response.status(204).end()
+  if (!progress) return response.status(404).json({ message: 'Course enrollment not found.' })
+  if (progress.error) return response.status(404).json({ message: progress.error })
+  return response.json(progress.lessonProgress)
+})
+
+app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/complete', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  if (enrollmentId === null || lessonId === null) return response.status(400).json({ message: 'Invalid lesson.' })
+
+  const completion = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    const lesson = findCourseLesson(enrollment.modules, lessonId)
+    if (!lesson) return { error: 'Lesson not found.' }
+
+    if (lesson.type === 'quiz') {
+      const [passedAttempt] = await transaction`
+        SELECT id
+        FROM quiz_attempts
+        WHERE enrollment_id = ${enrollmentId}
+          AND lesson_id = ${lessonId}
+          AND passed = true
+          AND submitted_at IS NOT NULL
+        LIMIT 1
+      `
+      if (!passedAttempt) return { error: 'Pass the quiz before completing this lesson.' }
+    }
+
+    const [lessonProgress] = await transaction`
+      INSERT INTO student_lesson_progress (enrollment_id, lesson_id, completed_at)
+      VALUES (${enrollmentId}, ${lessonId}, NOW())
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE
+      SET completed_at = COALESCE(student_lesson_progress.completed_at, NOW()),
+          last_accessed_at = NOW()
+      RETURNING started_at AS "startedAt",
+                completed_at AS "completedAt",
+                active_seconds AS "activeSeconds",
+                video_position_seconds::FLOAT AS "videoPositionSeconds",
+                last_accessed_at AS "lastAccessedAt"
+    `
+    return { lessonProgress }
+  })
+
+  if (!completion) return response.status(404).json({ message: 'Course enrollment not found.' })
+  if (completion.error) return response.status(400).json({ message: completion.error })
+  return response.json(completion.lessonProgress)
+})
+
+app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  if (enrollmentId === null || lessonId === null) return response.status(400).json({ message: 'Invalid quiz lesson.' })
+
+  const quizAttempt = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    const lesson = findCourseLesson(enrollment.modules, lessonId)
+    if (!lesson || lesson.type !== 'quiz') return { error: 'Quiz lesson not found.' }
+
+    const [attempt] = await transaction`
+      INSERT INTO quiz_attempts (enrollment_id, lesson_id)
+      VALUES (${enrollmentId}, ${lessonId})
+      ON CONFLICT (enrollment_id, lesson_id) WHERE submitted_at IS NULL
+      DO UPDATE SET updated_at = NOW()
+      RETURNING id::INTEGER AS id,
+                lesson_id::INTEGER AS "lessonId",
+                started_at AS "startedAt",
+                active_seconds AS "activeSeconds",
+                submitted_at AS "submittedAt"
+    `
+    return { attempt }
+  })
+
+  if (!quizAttempt) return response.status(404).json({ message: 'Course enrollment not found.' })
+  if (quizAttempt.error) return response.status(404).json({ message: quizAttempt.error })
+  return response.status(201).json(quizAttempt.attempt)
+})
+
+app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemptId/submit', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  const attemptId = parseEnrollmentId(request.params.attemptId)
+  const answers = request.body?.answers
+  if (enrollmentId === null || lessonId === null || attemptId === null || !isPlainObject(answers)) return response.status(400).json({ message: 'Invalid quiz submission.' })
+
+  const result = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    const lesson = findCourseLesson(enrollment.modules, lessonId)
+    const questions = Array.isArray(lesson?.quizQuestions) ? lesson.quizQuestions : []
+    if (!lesson || lesson.type !== 'quiz' || !questions.length) return { error: 'Quiz questions are unavailable.' }
+
+    const expectedQuestionIds = new Set(questions.map((question) => String(question?.id)))
+    const answerEntries = Object.entries(answers)
+    const hasValidAnswers = answerEntries.length === questions.length && answerEntries.every(([questionId, optionIndex]) => expectedQuestionIds.has(questionId) && Number.isInteger(optionIndex) && optionIndex >= 0 && optionIndex < (questions.find((question) => String(question.id) === questionId)?.options?.length ?? 0))
+    if (!hasValidAnswers) return { error: 'Answer every quiz question with a valid option.' }
+
+    const correctAnswers = questions.filter((question) => answers[question.id] === question.correctOption).length
+    const score = Math.round((correctAnswers / questions.length) * 100)
+    const passThreshold = Number.isInteger(lesson.passThreshold) ? lesson.passThreshold : 70
+    const passed = score >= passThreshold
+    const [attempt] = await transaction`
+      UPDATE quiz_attempts
+      SET answers = ${JSON.stringify(answers)}::JSONB,
+          score = ${score},
+          passed = ${passed},
+          submitted_at = NOW(),
+          updated_at = NOW()
+      WHERE id = ${attemptId}
+        AND enrollment_id = ${enrollmentId}
+        AND lesson_id = ${lessonId}
+        AND submitted_at IS NULL
+      RETURNING id::INTEGER AS id,
+                lesson_id::INTEGER AS "lessonId",
+                started_at AS "startedAt",
+                active_seconds AS "activeSeconds",
+                score,
+                passed,
+                submitted_at AS "submittedAt"
+    `
+    if (!attempt) return { error: 'Quiz attempt is no longer active.' }
+    return { attempt }
+  })
+
+  if (!result) return response.status(404).json({ message: 'Course enrollment not found.' })
+  if (result.error) return response.status(400).json({ message: result.error })
+  return response.json(result.attempt)
 })
 
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
