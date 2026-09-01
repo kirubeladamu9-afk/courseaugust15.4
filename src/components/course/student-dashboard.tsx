@@ -236,7 +236,7 @@ const getLatestQuizResults = (attempts: MyEnrollment['quizAttempts']): Record<nu
   .filter((attempt) => attempt.score !== null && attempt.passed !== null)
   .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())
   .reduce<Record<number, DashboardQuizResult>>((results, attempt) => {
-    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, answerStatuses: Object.fromEntries(Object.entries(attempt.answers ?? {}).map(([id, answer]) => [Number(id), answer.status])), violationCount: attempt.violations?.length ?? 0 }
+    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, answerStatuses: Object.fromEntries(Object.entries(attempt.answers ?? {}).map(([id, answer]) => [Number(id), typeof answer === 'object' && answer !== null ? answer.status : typeof answer === 'number' ? 'answered' : 'unanswered'])), violationCount: attempt.violations?.length ?? 0 }
     return results
   }, {})
 const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
@@ -429,7 +429,7 @@ const ClassCard: FC<{ classRecord: DashboardClass; timeSpentSeconds: number; now
   </Card>
 }
 
-const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Record<number, number[]>; quizResults: Record<number, Record<number, DashboardQuizResult>>; onOpenCourse: (courseId: number, lessonId?: number) => void }> = ({ enrollments, completedLessons, quizResults, onOpenCourse }) => {
+const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Record<number, number[]>; quizResults: Record<number, Record<number, DashboardQuizResult>>; onOpenCourse: (courseId: number, lessonId?: number, readOnly?: boolean) => void }> = ({ enrollments, completedLessons, quizResults, onOpenCourse }) => {
   const enrolledQuizzes = enrollments.flatMap((enrollment) => {
     const course = enrollment.type === 'course' ? enrollment.course : enrollment.classRecord?.course
     if (!course) return []
@@ -444,7 +444,7 @@ const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
 
   return <>
     <ViewHeading title="Quizzes & Results" description="Complete the lesson before each quiz to unlock it, then review your quiz results." />
-    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses and classes will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map(({ enrollmentId, enrollmentType, course, lesson, moduleTitle, source, available, completed, result, finished }) => <Card key={`${enrollmentType}-${enrollmentId}-${course.id}-${lesson.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{lesson.title}</Typography><Typography color="text.secondary" variant="body2">{source} · {moduleTitle}</Typography>{result ? <Typography color={result.passed ? 'success.main' : 'warning.main'} variant="body2" sx={{ mt: 0.75, fontWeight: 600 }}>{result.passed ? 'Passed' : 'Latest attempt'} · Score {result.score}% · Grade {getQuizGrade(result.score)} · {Object.values(result.answerStatuses ?? {}).filter((status) => status === 'answered').length} answered / {Object.values(result.answerStatuses ?? {}).filter((status) => status === 'expired').length} expired{result.violationCount ? ` · Flagged: ${result.violationCount} violation${result.violationCount === 1 ? '' : 's'}` : ''}</Typography> : completed && <Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>Completed · Score not recorded</Typography>}</Box></Box><Stack direction="row" spacing={1} alignItems="center"><Chip icon={completed ? <CheckCircleOutlineIcon /> : undefined} label={completed ? 'Completed' : result ? 'Finished' : available ? 'Ready to take' : 'Complete previous lesson'} color={completed ? 'success' : result ? 'warning' : 'primary'} size="small" variant={finished ? 'filled' : 'outlined'} /><Button variant={finished ? 'outlined' : 'contained'} size="small" onClick={() => onOpenCourse(course.id, lesson.id)} disabled={!available && !finished}>{finished ? 'View result' : 'Open quiz'}</Button></Stack></Stack></CardContent></Card>)}</Stack>}
+    {enrolledQuizzes.length === 0 ? <EmptyState title="No quizzes available" description="Quizzes from your enrolled courses and classes will appear here." /> : <Stack spacing={2}>{enrolledQuizzes.map(({ enrollmentId, enrollmentType, course, lesson, moduleTitle, source, available, completed, result, finished }) => <Card key={`${enrollmentType}-${enrollmentId}-${course.id}-${lesson.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}><Box sx={{ display: 'flex', gap: 1.5 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><QuizOutlinedIcon /></Box><Box><Typography variant="h6">{lesson.title}</Typography><Typography color="text.secondary" variant="body2">{source} · {moduleTitle}</Typography>{result ? <Typography color={result.passed ? 'success.main' : 'warning.main'} variant="body2" sx={{ mt: 0.75, fontWeight: 600 }}>{result.passed ? 'Passed' : 'Latest attempt'} · Score {result.score}% · Grade {getQuizGrade(result.score)} · {Object.values(result.answerStatuses ?? {}).filter((status) => status === 'answered').length} answered / {Object.values(result.answerStatuses ?? {}).filter((status) => status === 'expired').length} expired{result.violationCount ? ` · Flagged: ${result.violationCount} violation${result.violationCount === 1 ? '' : 's'}` : ''}</Typography> : completed && <Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>Completed · Score not recorded</Typography>}</Box></Box><Stack direction="row" spacing={1} alignItems="center"><Chip icon={completed ? <CheckCircleOutlineIcon /> : undefined} label={completed ? 'Completed' : result ? 'Finished' : available ? 'Ready to take' : 'Complete previous lesson'} color={completed ? 'success' : result ? 'warning' : 'primary'} size="small" variant={finished ? 'filled' : 'outlined'} /><Button variant={finished ? 'outlined' : 'contained'} size="small" onClick={() => onOpenCourse(course.id, lesson.id, finished)} disabled={!available && !finished}>{finished ? 'View result' : 'Open quiz'}</Button></Stack></Stack></CardContent></Card>)}</Stack>}
   </>
 }
 
@@ -556,6 +556,13 @@ const LessonVideoPlayer: FC<{ src?: string; poster?: string; fallbackDuration: s
   </Box>
 }
 
+const QuizResultReview: FC<{ lesson: DashboardLesson; result: DashboardQuizResult | null; passingScore: number }> = ({ lesson, result, passingScore }) => {
+  const statuses = Object.values(result?.answerStatuses ?? {})
+  const answered = statuses.filter((status) => status === 'answered').length
+  const expired = statuses.filter((status) => status === 'expired').length
+  return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Typography variant="h4">{lesson.title}</Typography><Typography color="text.secondary">Read-only result review. This completed attempt cannot be retaken from here.</Typography>{result ? <><Alert severity={result.passed ? 'success' : 'warning'}>Score: {result.score}% · {result.passed ? 'Passed' : `Need ${passingScore}% to pass`}</Alert><Typography variant="body2">{answered} answered · {expired} expired{result.violationCount ? ` · ${result.violationCount} violation${result.violationCount === 1 ? '' : 's'}` : ''}</Typography></> : <Alert severity="info">No recorded score is available for this completed quiz.</Alert>}</Stack></Paper>
+}
+
 const LessonResources: FC<{ resources: DashboardLesson['resources'] }> = ({ resources }) => {
   if (!resources.length) return null
   return <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}>
@@ -573,6 +580,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   const [secondsLeft, setSecondsLeft] = useState(questions[0] ? getQuestionSeconds(questions[0]) : 0)
   const [locked, setLocked] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
   const [violationCount, setViolationCount] = useState(attempt?.violations?.length ?? 0)
   const [warning, setWarning] = useState(false)
 
@@ -629,7 +637,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   }, [attempt, locked, violationCount])
 
   const registerViolation = async (type: QuizViolationType) => {
-    if (!attempt || submitting) return
+    if (!attempt || submitting || submittingRef.current) return
     const violation = { type, occurredAt: new Date().toISOString() } satisfies QuizViolation
     const nextCount = violationCount + 1
     setViolationCount(nextCount)
@@ -637,6 +645,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
     await onViolation(violation)
     if (nextCount >= strikeThreshold) {
       const savedAnswers = Object.fromEntries(questions.map((item) => [item.id, answers[item.id] ?? { status: 'unanswered', value: null }]))
+      submittingRef.current = true
       setSubmitting(true)
       await onSubmit(savedAnswers)
       setSubmitting(false)
@@ -659,7 +668,8 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   }
   const canSubmit = questions.every((item) => (answers[item.id]?.status ?? 'unanswered') !== 'unanswered')
   const submit = async () => {
-    if (!attempt || submitting || !canSubmit) return
+    if (!attempt || submitting || submittingRef.current || !canSubmit) return
+    submittingRef.current = true
     setSubmitting(true)
     await onSubmit(Object.fromEntries(questions.map((question) => [question.id, answers[question.id] ?? { status: 'unanswered', value: null }])))
     setSubmitting(false)
@@ -672,7 +682,7 @@ const QuizLessonView: FC<{ lesson: DashboardLesson; attempt: QuizAttempt | null;
   return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}>{warning && <Alert severity="warning" onClose={() => setWarning(false)}>Leaving the quiz may result in disqualification. Violation {violationCount} of {strikeThreshold}.</Alert>}<Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="overline" color="primary.main">Question {current + 1} of {questions.length}</Typography><Chip color={secondsLeft <= 10 ? 'error' : 'primary'} label={locked ? 'Time expired' : formatQuizCountdown(secondsLeft)} /></Stack><Typography variant="h5">{question.question}</Typography>{isText ? <TextField fullWidth multiline minRows={3} disabled={locked} value={typeof answer?.value === 'string' ? answer.value : ''} placeholder="Type your answer" onChange={(event) => selectAnswer(event.target.value)} /> : <FormControl disabled={locked}><FormLabel>Choose an answer</FormLabel><RadioGroup value={typeof answer?.value === 'number' ? String(answer.value) : ''} onChange={(event) => selectAnswer(Number(event.target.value))}>{question.options.map((option, index) => <FormControlLabel key={option + index} value={String(index)} control={<Radio />} label={option} />)}</RadioGroup></FormControl>}<Typography variant="caption" color="text.secondary">This question limit: {formatQuizCountdown(getQuestionSeconds(question))}. Status: {answer?.status ?? 'unanswered'}.</Typography><Stack direction="row" justifyContent="space-between"><Button disabled={current === 0} onClick={() => setCurrent((index) => index - 1)}>Previous</Button>{current < questions.length - 1 ? <Button variant="outlined" onClick={() => setCurrent((index) => index + 1)}>Next question</Button> : <Button variant="contained" disabled={!canSubmit || submitting} onClick={() => void submit()}>{submitting ? 'Submitting...' : 'Submit quiz'}</Button>}</Stack>{result && <Alert severity={result.passed ? 'success' : 'warning'}>Latest result: {result.score}% ({result.passed ? 'passed' : `need ${passingScore}% to pass`}).</Alert>}</Stack></Paper>
 }
 
-const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>) => Promise<DashboardQuizResult | null>; onQuizViolation: (lessonId: number, attemptId: number, violation: QuizViolation) => Promise<void>; onQuizActiveChange: (active: boolean) => void }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit, onQuizViolation, onQuizActiveChange }) => {
+const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>) => Promise<DashboardQuizResult | null>; onQuizViolation: (lessonId: number, attemptId: number, violation: QuizViolation) => Promise<void>; onQuizActiveChange: (active: boolean) => void; readOnly?: boolean }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit, onQuizViolation, onQuizActiveChange, readOnly = false }) => {
   const lessons = getLessons(course)
   const [selectedLessonId, setSelectedLessonId] = useState(initialLessonId ?? lessons[0]?.id)
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
@@ -708,7 +718,7 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
 
   if ((selectedLesson.type as string) === 'quiz') return <>
     {!quizAttempt && <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>}
-    <QuizLessonView lesson={selectedLesson} attempt={quizAttempt} onBegin={async () => { const next = await onQuizStart(selectedLesson.id); setQuizAttempt(next); return next }} onSave={(questionId, answer) => quizAttempt ? onQuizAnswer(selectedLesson.id, quizAttempt.id, questionId, answer) : Promise.resolve()} onSubmit={async (answers) => { if (!quizAttempt) return null; const submitted = await onQuizSubmit(selectedLesson.id, quizAttempt.id, answers); if (submitted) { onQuizActiveChange(false); if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen().catch(() => undefined) }; return submitted }} onViolation={(violation) => quizAttempt ? onQuizViolation(selectedLesson.id, quizAttempt.id, violation) : Promise.resolve()} onActiveChange={onQuizActiveChange} result={quizResult} passingScore={passingScore} strikeThreshold={3} />
+    {readOnly ? <QuizResultReview lesson={selectedLesson} result={quizResult} passingScore={passingScore} /> : <QuizLessonView lesson={selectedLesson} attempt={quizAttempt} onBegin={async () => { const next = await onQuizStart(selectedLesson.id); setQuizAttempt(next); return next }} onSave={(questionId, answer) => quizAttempt ? onQuizAnswer(selectedLesson.id, quizAttempt.id, questionId, answer) : Promise.resolve()} onSubmit={async (answers) => { if (!quizAttempt) return null; const submitted = await onQuizSubmit(selectedLesson.id, quizAttempt.id, answers); if (submitted) { onQuizActiveChange(false); if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen().catch(() => undefined) }; return submitted }} onViolation={(violation) => quizAttempt ? onQuizViolation(selectedLesson.id, quizAttempt.id, violation) : Promise.resolve()} onActiveChange={onQuizActiveChange} result={quizResult} passingScore={passingScore} strikeThreshold={3} />}
   </>
 
   return <>
@@ -764,6 +774,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [otherClassesError, setOtherClassesError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [selectedLessonId, setSelectedLessonId] = useState<number | undefined>(undefined)
+  const [readOnlyQuizResult, setReadOnlyQuizResult] = useState(false)
   const [completedLessons, setCompletedLessons] = useState<Record<number, number[]>>({})
   const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>({})
   const [timeSpent, setTimeSpent] = useState<Record<number, number>>({})
@@ -917,9 +928,10 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setActiveView(view)
     setMobileOpen(false)
   }
-  const openCourse = (courseId: number, lessonId?: number) => {
+  const openCourse = (courseId: number, lessonId?: number, readOnly = false) => {
     setSelectedCourseId(courseId)
     setSelectedLessonId(lessonId)
+    setReadOnlyQuizResult(readOnly)
     setActiveView('course-view')
     setMobileOpen(false)
   }
@@ -1007,7 +1019,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
-          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizStart={startQuizAttempt} onQuizAnswer={saveQuizAnswerForAttempt} onQuizSubmit={submitQuiz} onQuizViolation={saveQuizViolationForAttempt} onQuizActiveChange={setQuizActive} />}
+          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizStart={startQuizAttempt} onQuizAnswer={saveQuizAnswerForAttempt} onQuizSubmit={submitQuiz} onQuizViolation={saveQuizViolationForAttempt} onQuizActiveChange={setQuizActive} readOnly={readOnlyQuizResult} />}
         </>}
       </Box>
     </Box>
