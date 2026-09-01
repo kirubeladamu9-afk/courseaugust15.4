@@ -682,7 +682,8 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const selectedLesson = lessons.find((lesson) => lesson.id === selectedLessonId) ?? lessons[0]
 
   useEffect(() => { setSelectedLessonId(initialLessonId ?? lessons[0]?.id) }, [course.id, initialLessonId])
-  useEffect(() => { setQuizResult(selectedLessonId === undefined ? null : quizResults[selectedLessonId] ?? null); setQuizAttempt(null) }, [selectedLessonId, quizResults])
+  useEffect(() => { setQuizResult(selectedLessonId === undefined ? null : quizResults[selectedLessonId] ?? null) }, [selectedLessonId, quizResults])
+  useEffect(() => { setQuizAttempt(null); onQuizActiveChange(false) }, [selectedLessonId])
 
   if (!selectedLesson) return <EmptyState title="Course content unavailable" description="This course does not have any lessons yet." actionLabel="Back to courses" onAction={onBack} />
 
