@@ -21,7 +21,7 @@ const HomeNewsLetter: FC = () => {
           <Typography variant="h1" component="h2" sx={{ mb: 1, fontSize: { xs: 32, md: 42 } }}>
             Subscribe to Our News Letter
           </Typography>
-          <Typography sx={{ mb: 6 }}>Subscribe to our newsletter to get information about our courses.</Typography>
+          <Typography sx={{ mb: 6 }}>Get new batch openings and learning tips sent to your inbox.</Typography>
 
           <Box
             sx={{

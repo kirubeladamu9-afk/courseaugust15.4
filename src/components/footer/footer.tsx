@@ -19,7 +19,7 @@ const Footer: FC = () => {
                 Coursespace
               </Typography>
               <Typography variant="subtitle1" sx={{ letterSpacing: 1, mb: 2 }}>
-                Coursespace is an online learning platform that has been operating since 2018 until now.
+                Coursespace is an online learning platform helping students build real skills through live tutor-led classes.
               </Typography>
               <FooterSocialLinks />
             </Box>

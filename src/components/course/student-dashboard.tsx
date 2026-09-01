@@ -56,7 +56,7 @@ import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
 import { toast } from '@/components/toast'
-import { getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, saveCourseProgress, signOut, type MyEnrollment, type MyPayment, type PublicClass } from '@/services/api'
+import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, saveLessonEngagement, submitQuizAttempt, signOut, type MyEnrollment, type MyPayment, type PublicClass } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
  type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
@@ -90,7 +90,7 @@ import { navigateTo } from '@/lib/navigation'
   description: string
   videoUrl?: string
   thumbnailUrl?: string
-  quizQuestions?: Array<{ id: number; question: string; options: string[]; correctOption: number }>
+  quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   passThreshold?: number
 }
 
@@ -215,14 +215,24 @@ const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): 
   course_id: enrollment.courseId,
   course,
 }
+const getLatestQuizResults = (attempts: MyEnrollment['quizAttempts']): Record<number, DashboardQuizResult> => attempts
+  .filter((attempt) => attempt.score !== null && attempt.passed !== null)
+  .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())
+  .reduce<Record<number, DashboardQuizResult>>((results, attempt) => {
+    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed! }
+    return results
+  }, {})
 const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
   const course = mapEnrollmentCourse(record)
   const classRecord = mapEnrollmentClass(record, course)
-  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, record.completedLessonIds), timeSpentSeconds: record.timeSpentSeconds, quizResults: record.quizResults, course }
+  const quizResults = getLatestQuizResults(record.quizAttempts)
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: getCourseProgress(course, record.completedLessonIds), timeSpentSeconds: record.timeSpentSeconds, quizResults, course }
   if (!classRecord) return [courseEnrollment]
-  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, timeSpentSeconds: record.timeSpentSeconds, quizResults: record.quizResults, classRecord }]
+  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: 0, timeSpentSeconds: record.timeSpentSeconds, quizResults, classRecord }]
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
+const getEnrollmentCourse = (enrollment: DashboardEnrollment) => enrollment.course ?? enrollment.classRecord?.course
+const findCourseEnrollment = (records: DashboardEnrollment[], courseId: number) => records.find((enrollment) => getEnrollmentCourse(enrollment)?.id === courseId)
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
@@ -524,7 +534,7 @@ const LessonVideoPlayer: FC<{ src?: string; poster?: string; fallbackDuration: s
   </Box>
 }
 
-const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void; onQuizSubmit: (lessonId: number, result: DashboardQuizResult) => void }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizSubmit }) => {
+const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizSubmit: (lessonId: number, answers: Record<number, number>) => Promise<DashboardQuizResult | null> }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, initialLessonId, onBack, onStart, onCompleteLesson, onQuizSubmit }) => {
   const lessons = getLessons(course)
   const [selectedLessonId, setSelectedLessonId] = useState(initialLessonId ?? lessons[0]?.id)
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
@@ -542,21 +552,18 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const passingScore = selectedLesson.passThreshold ?? 70
   const hasAnsweredQuiz = quizQuestions.length > 0 && quizQuestions.every((question) => quizAnswers[question.id] !== undefined)
   const isQuizPassed = selectedLesson.type === 'quiz' && (quizResult?.passed ?? false)
-  const isQuizFinished = selectedLesson.type === 'quiz' && (isCompleted || quizResult !== null)
-  const canCompleteLesson = selectedLesson.type !== 'quiz' || quizQuestions.length === 0 || isQuizPassed
+  const isQuizFinished = selectedLesson.type === 'quiz' && (isCompleted || quizResult?.passed === true)
+  const canCompleteLesson = selectedLesson.type !== 'quiz' || isQuizPassed
   const isLessonLocked = (lessonId: number) => {
     const lessonIndex = lessons.findIndex((lesson) => lesson.id === lessonId)
     return lessonIndex > 0 && lessons.slice(0, lessonIndex).some((lesson) => !completedLessonIds.includes(lesson.id))
   }
-  const submitQuiz = () => {
+  const submitQuiz = async () => {
     if (!hasAnsweredQuiz || isQuizFinished) return
-    const correctAnswers = quizQuestions.filter((question) => quizAnswers[question.id] === question.correctOption).length
-    const score = Math.round((correctAnswers / quizQuestions.length) * 100)
-    const passed = score >= passingScore
-    const result = { score, passed }
+    const result = await onQuizSubmit(selectedLesson.id, quizAnswers)
+    if (!result) return
     setQuizResult(result)
-    onQuizSubmit(selectedLesson.id, result)
-    toast.add({ title: passed ? 'Quiz passed' : 'Quiz not passed', description: passed ? 'You scored ' + score + '%. You can now complete this lesson.' : 'You scored ' + score + '%. You need at least ' + passingScore + '% to pass.', type: passed ? 'success' : 'error' })
+    toast.add({ title: result.passed ? 'Quiz passed' : 'Quiz not passed', description: result.passed ? 'You scored ' + result.score + '%. You can now complete this lesson.' : 'You scored ' + result.score + '%. You need at least ' + passingScore + '% to pass.', type: result.passed ? 'success' : 'error' })
   }
 
   if (!started) return <>
@@ -626,15 +633,10 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const progressSnapshot = useRef({ completedLessons, startedCourses, timeSpent, quizResults })
   progressSnapshot.current = { completedLessons, startedCourses, timeSpent, quizResults }
 
-  const persistProgress = (courseId: number, overrides: { completedLessonIds?: number[]; started?: boolean; timeSpentSeconds?: number; quizResults?: Record<number, DashboardQuizResult> } = {}) => {
-    const current = progressSnapshot.current
-    const progress = {
-      completedLessonIds: overrides.completedLessonIds ?? current.completedLessons[courseId] ?? [],
-      started: overrides.started ?? Boolean(current.startedCourses[courseId]),
-      timeSpentSeconds: overrides.timeSpentSeconds ?? current.timeSpent[courseId] ?? 0,
-      quizResults: overrides.quizResults ?? current.quizResults[courseId] ?? {},
-    }
-    void saveCourseProgress(courseId, progress).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course activity.'))
+  const persistEngagement = (courseId: number, lessonId: number, activeSeconds: number) => {
+    const enrollment = findCourseEnrollment(enrollments, courseId)
+    if (!enrollment) return
+    void saveLessonEngagement(enrollment.id, lessonId, { activeSeconds }).catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save course activity.'))
   }
 
   useEffect(() => {
@@ -649,24 +651,28 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   }, [])
 
   useEffect(() => {
-    if (activeView !== 'course-view' || selectedCourseId === null) return
+    if (activeView !== 'course-view' || selectedCourseId === null || !startedCourses[selectedCourseId]) return
     let lastTrackedAt = Date.now()
     const flushTime = () => {
       const elapsedSeconds = Math.floor((Date.now() - lastTrackedAt) / 1000)
       if (elapsedSeconds <= 0) return
+      const trackedSeconds = Math.min(elapsedSeconds, 60)
       const currentSeconds = progressSnapshot.current.timeSpent[selectedCourseId] ?? 0
-      const nextSeconds = currentSeconds + elapsedSeconds
+      const nextSeconds = currentSeconds + trackedSeconds
       lastTrackedAt = Date.now()
       progressSnapshot.current = { ...progressSnapshot.current, timeSpent: { ...progressSnapshot.current.timeSpent, [selectedCourseId]: nextSeconds } }
       setTimeSpent((current) => ({ ...current, [selectedCourseId]: nextSeconds }))
-      persistProgress(selectedCourseId, { timeSpentSeconds: nextSeconds, started: true })
+      const enrollment = findCourseEnrollment(enrollments, selectedCourseId)
+      const course = enrollment ? getEnrollmentCourse(enrollment) : undefined
+      const lessonId = selectedLessonId ?? (course ? getLessons(course)[0]?.id : undefined)
+      if (lessonId !== undefined) persistEngagement(selectedCourseId, lessonId, trackedSeconds)
     }
     const timer = window.setInterval(flushTime, 30000)
     return () => {
       window.clearInterval(timer)
       flushTime()
     }
-  }, [activeView, selectedCourseId])
+  }, [activeView, enrollments, selectedCourseId, selectedLessonId, startedCourses])
 
   useEffect(() => {
     let isCurrent = true
@@ -676,7 +682,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
         const completedByCourse = Object.fromEntries(records.filter((record) => record.completedLessonIds.length > 0).map((record) => [record.courseId, record.completedLessonIds]))
         const startedByCourse = Object.fromEntries(records.filter((record) => record.started).map((record) => [record.courseId, true]))
         const timeByCourse = Object.fromEntries(records.filter((record) => record.timeSpentSeconds > 0).map((record) => [record.courseId, record.timeSpentSeconds]))
-        const resultsByCourse = Object.fromEntries(records.filter((record) => Object.keys(record.quizResults).length > 0).map((record) => [record.courseId, record.quizResults]))
+        const resultsByCourse = Object.fromEntries(records.map((record) => [record.courseId, getLatestQuizResults(record.quizAttempts)]).filter(([, results]) => Object.keys(results).length > 0))
         setCompletedLessons(completedByCourse)
         setStartedCourses(startedByCourse)
         setTimeSpent(timeByCourse)
@@ -760,8 +766,8 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     }
   }, [])
 
-  const selectedCourse = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId)?.course ?? enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.classRecord?.course?.id === selectedCourseId)?.classRecord?.course
-  const selectedCourseEnrollment = enrollments.find((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId) ?? enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.classRecord?.course?.id === selectedCourseId)
+  const selectedCourseEnrollment = selectedCourseId === null ? undefined : findCourseEnrollment(enrollments, selectedCourseId)
+  const selectedCourse = selectedCourseEnrollment ? getEnrollmentCourse(selectedCourseEnrollment) : undefined
   const selectedCourseProgress = selectedCourse ? getCourseProgress(selectedCourse, completedLessons[selectedCourse.id] ?? []) : 0
   const enrolledCourseIds = new Set(enrollments.flatMap((enrollment) => enrollment.type === 'course' ? [String(enrollment.item_id)] : enrollment.classRecord?.course ? [String(enrollment.classRecord.course.id)] : []))
   const enrolledClassIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'class').map((enrollment) => enrollment.item_id))
@@ -777,32 +783,53 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     setActiveView('course-view')
     setMobileOpen(false)
   }
-  const startCourse = (courseId: number) => {
-    const nextCompleted = completedLessons[courseId] ?? []
-    setStartedCourses((current) => ({ ...current, [courseId]: true }))
-    toast.add({ title: 'Course started', description: 'You are ready to begin learning.', type: 'info' })
-    setProgressError(null)
-    persistProgress(courseId, { completedLessonIds: nextCompleted, started: true })
+  const startCourse = async (courseId: number) => {
+    const enrollment = findCourseEnrollment(enrollments, courseId)
+    const course = enrollment ? getEnrollmentCourse(enrollment) : undefined
+    const lessonId = course ? getLessons(course)[0]?.id : undefined
+    if (!enrollment || lessonId === undefined) return
+    try {
+      await saveLessonEngagement(enrollment.id, lessonId, { activeSeconds: 0 })
+      setStartedCourses((current) => ({ ...current, [courseId]: true }))
+      setProgressError(null)
+      toast.add({ title: 'Course started', description: 'You are ready to begin learning.', type: 'info' })
+    } catch (error) {
+      setProgressError(error instanceof Error ? error.message : 'Unable to start course.')
+    }
   }
-  const completeLesson = (lessonId: number) => {
-    if (!selectedCourseId || !selectedCourse) return
+  const completeLesson = async (lessonId: number) => {
+    if (selectedCourseId === null || !selectedCourse || !selectedCourseEnrollment) return
     const completed = completedLessons[selectedCourseId] ?? []
     if (completed.includes(lessonId)) return
-    const nextCompleted = [...completed, lessonId]
-    const nextProgress = getCourseProgress(selectedCourse, nextCompleted)
-    setCompletedLessons((current) => ({ ...current, [selectedCourseId]: nextCompleted }))
-    setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
-    setEnrollments((current) => current.map((enrollment) => enrollment.type === 'course' && enrollment.item_id === selectedCourseId ? { ...enrollment, progress: nextProgress } : enrollment))
-    if (nextProgress === 100) toast.add({ title: 'Course completed!', description: `Excellent work finishing ${selectedCourse.title}.`, type: 'success', priority: 'high', duration: 6000 })
-    setProgressError(null)
-    persistProgress(selectedCourseId, { completedLessonIds: nextCompleted, started: true })
+    try {
+      await completeLessonApi(selectedCourseEnrollment.id, lessonId)
+      const nextCompleted = [...completed, lessonId]
+      const nextProgress = getCourseProgress(selectedCourse, nextCompleted)
+      setCompletedLessons((current) => ({ ...current, [selectedCourseId]: nextCompleted }))
+      setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
+      setEnrollments((current) => current.map((enrollment) => getEnrollmentCourse(enrollment)?.id === selectedCourseId ? { ...enrollment, progress: nextProgress } : enrollment))
+      setProgressError(null)
+      if (nextProgress === 100) toast.add({ title: 'Course completed!', description: `Excellent work finishing ${selectedCourse.title}.`, type: 'success', priority: 'high', duration: 6000 })
+    } catch (error) {
+      setProgressError(error instanceof Error ? error.message : 'Unable to complete lesson.')
+    }
   }
-  const submitQuiz = (lessonId: number, result: DashboardQuizResult) => {
-    if (!selectedCourseId) return
-    const nextResults = { ...(quizResults[selectedCourseId] ?? {}), [lessonId]: result }
-    setQuizResults((current) => ({ ...current, [selectedCourseId]: nextResults }))
-    setProgressError(null)
-    persistProgress(selectedCourseId, { quizResults: nextResults, started: true })
+  const submitQuiz = async (lessonId: number, answers: Record<number, number>): Promise<DashboardQuizResult | null> => {
+    if (selectedCourseId === null || !selectedCourseEnrollment) return null
+    try {
+      const attempt = await beginQuizAttempt(selectedCourseEnrollment.id, lessonId)
+      const submittedAttempt = await submitQuizAttempt(selectedCourseEnrollment.id, lessonId, attempt.id, answers)
+      if (submittedAttempt.score === null || submittedAttempt.passed === null) throw new Error('Quiz result was unavailable.')
+      const result = { score: submittedAttempt.score, passed: submittedAttempt.passed }
+      const nextResults = { ...(quizResults[selectedCourseId] ?? {}), [lessonId]: result }
+      setQuizResults((current) => ({ ...current, [selectedCourseId]: nextResults }))
+      setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
+      setProgressError(null)
+      return result
+    } catch (error) {
+      setProgressError(error instanceof Error ? error.message : 'Unable to submit quiz.')
+      return null
+    }
   }
   const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
 

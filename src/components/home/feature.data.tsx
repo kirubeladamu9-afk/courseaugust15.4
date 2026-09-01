@@ -12,23 +12,23 @@ interface Data {
 
 export const data: Data[] = [
   {
-    title: 'Easy Accessable',
-    description: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore',
+    title: 'Easy To Access',
+    description: 'Join classes from any device, anywhere, with no complicated setup required',
     icon: <ArtTrackIcon />,
   },
   {
-    title: 'More Affordable Cost',
-    description: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore',
+    title: 'Fair, Simple Pricing',
+    description: 'Choose a learning plan that fits your family budget and goals with ease',
     icon: <AttachMoneyIcon />,
   },
   {
-    title: 'Flexible Study Time',
-    description: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore',
+    title: 'Flexible Class Time',
+    description: 'Pick class times that work for your family routine and your child’s pace',
     icon: <LocalLibraryIcon />,
   },
   {
-    title: 'Consultation With Mentor',
-    description: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore',
+    title: 'Direct Tutor Messaging',
+    description: 'Ask questions directly and keep your child supported between every class',
     icon: <ContactSupportIcon />,
   },
 ]

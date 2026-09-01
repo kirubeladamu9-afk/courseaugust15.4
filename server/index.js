@@ -858,6 +858,8 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
                 lesson_id::INTEGER AS "lessonId",
                 started_at AS "startedAt",
                 active_seconds AS "activeSeconds",
+                score,
+                passed,
                 submitted_at AS "submittedAt"
     `
     return { attempt }

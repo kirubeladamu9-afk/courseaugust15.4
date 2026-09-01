@@ -27,13 +27,13 @@ export const data: Array<Testimonial> = [
   },
   {
     id: 3,
-    title: 'Very complete class',
+    title: 'My daughter loves it',
     content:
-      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+      "She used to dread her math homework every evening. A few months into her classes here, she finishes it on her own and asks for extra practice on the weekend. I genuinely didn't expect this much change.",
     user: {
       id: 1,
-      name: 'Nguyễn Văn',
-      professional: 'FullStack Designer',
+      name: 'Amina Tesfaye',
+      professional: 'Parent of a Student',
       photo: '3.jpg',
     },
   },

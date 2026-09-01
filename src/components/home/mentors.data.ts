@@ -4,36 +4,36 @@ export const data: Array<Mentor> = [
   {
     id: 1,
     photo: '/images/mentors/christian-buehner-DItYlc26zVI-unsplash.jpg',
-    name: 'Jhon Dwirian',
-    category: 'UI/UX Design',
+    name: 'Jonas Tesema',
+    category: 'Abacus Tutor',
     description:
-      'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
+      'Years of experience teaching young learners with patience, structure, and real results in class',
     company: {
-      name: 'Grab',
+      name: '5 yrs',
       logo: '/images/companies/grab.png',
     },
   },
   {
     id: 2,
     photo: '/images/mentors/jonas-kakaroto-KIPqvvTOC1s-unsplash.jpg',
-    name: 'Leon S Kennedy',
-    category: 'Machine Learning',
+    name: 'Kaleb Wondimu',
+    category: 'Exam Prep Tutor',
     description:
-      'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
+      'Years of experience teaching young learners with patience, structure, and real results in class',
     company: {
-      name: 'Google',
+      name: '7 yrs',
       logo: '/images/companies/google.png',
     },
   },
   {
     id: 3,
     photo: '/images/mentors/noah-buscher-8A7fD6Y5VF8-unsplash.jpg',
-    name: 'Nguyễn Thuy',
-    category: 'Android Development',
+    name: 'Selam Alemu',
+    category: 'Coding Tutor',
     description:
-      'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
+      'Years of experience teaching young learners with patience, structure, and real results in class',
     company: {
-      name: 'Airbnb',
+      name: '4 yrs',
       logo: '/images/companies/airbnb.png',
     },
   },
@@ -43,9 +43,9 @@ export const data: Array<Mentor> = [
     name: 'Rizki Known',
     category: 'Fullstack Development',
     description:
-      'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
+      'Years of experience teaching young learners with patience, structure, and real results in class',
     company: {
-      name: 'Microsoft',
+      name: '6 yrs',
       logo: '/images/companies/microsoft.png',
     },
   },
