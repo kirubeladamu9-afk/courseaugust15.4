@@ -194,8 +194,19 @@ const formatClassStartDate = (schedule: DashboardClassSchedule) => {
   const date = classStartDate(schedule)
   return date ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date) : 'Start date not set'
 }
-const classHasStarted = (schedule: DashboardClassSchedule, now: Date) => {
+const classStartDateTime = (schedule: DashboardClassSchedule) => {
   const date = classStartDate(schedule)
+  if (!date) return null
+  if (!schedule.flexible && schedule.days.length) {
+    const dayIndexes = new Set(schedule.days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(day)))
+    while (!dayIndexes.has(date.getDay())) date.setDate(date.getDate() + 1)
+  }
+  const [hours, minutes] = schedule.time.split(':').map(Number)
+  if (Number.isFinite(hours) && Number.isFinite(minutes)) date.setHours(hours, minutes, 0, 0)
+  return date
+}
+const classHasStarted = (schedule: DashboardClassSchedule, now: Date) => {
+  const date = classStartDateTime(schedule)
   return date !== null && now.getTime() >= date.getTime()
 }
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
@@ -435,7 +446,7 @@ const ClassCard: FC<{ classRecord: DashboardClass; timeSpentSeconds: number; now
     <CardContent>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={statusLabel} size="small" color={statusColor} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography><Typography color="text.secondary" variant="body2">Time spent learning: {formatTimeSpent(timeSpentSeconds)}</Typography>{classRecord.status === 'open' && <Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set'}</Typography>}</>}</Box></Box>
-        {classRecord.status === 'open' && <Button variant="contained" component="a" href={isJoinable ? classRecord.meeting_link : undefined} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : 'Available on start date'}</Button>}
+        {classRecord.status === 'open' && <Button variant="contained" component="a" href={isJoinable ? classRecord.meeting_link : undefined} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : 'Available at scheduled time'}</Button>}
       </Stack>
       {linkedCourse && <><Divider sx={{ my: 2 }} /><Button variant="text" size="small" startIcon={<MenuBookOutlinedIcon />} onClick={() => onOpenCourse(linkedCourse.id)}>View {linkedCourse.title} curriculum summary</Button></>}
     </CardContent>
