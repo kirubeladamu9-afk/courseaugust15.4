@@ -435,7 +435,7 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
   const handleDeleteClass = async (classRecord: AdminClass) => {
     if (!window.confirm(`Delete ${classRecord.title}? This cannot be undone.`)) return
     try {
-      await deleteAdminClass(classRecord.id)
+      await deleteAdminClass(classRecord)
       await loadWorkspace()
       toast.add({ title: 'Class deleted', description: `${classRecord.title} was removed.`, type: 'success' })
     } catch (error) {
