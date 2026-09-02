@@ -1394,7 +1394,13 @@ app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) =
     WHERE quiz_attempts.disqualified = true OR COALESCE(jsonb_array_length(quiz_attempts.violations), 0) > 0
     ORDER BY quiz_attempts.submitted_at DESC NULLS LAST
   `
-  return response.json(violations)
+  return response.json(violations.map((violation) => ({
+    ...violation,
+    violations: (deserializeJson(violation.violations) ?? []).flatMap((item) => {
+      const parsed = deserializeJson(item)
+      return isPlainObject(parsed) ? [parsed] : []
+    }),
+  })))
 })
 
 app.get('/api/admin/overview', requireAdmin, async (_request, response) => {

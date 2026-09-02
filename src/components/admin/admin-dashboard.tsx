@@ -1137,10 +1137,17 @@ const ViolationsPage: FC = () => {
     }
   }
 
+  const formatViolation = (violation: AdminQuizViolation['violations'][number]) => {
+    const type = violation?.type || 'Unknown violation'
+    const timestamp = violation?.occurredAt ? new Date(violation.occurredAt) : null
+    const date = timestamp && !Number.isNaN(timestamp.getTime()) ? timestamp.toLocaleString() : 'Time unavailable'
+    return `${type} (${date})`
+  }
+
   return <>
     <PageHeading title="Quiz Violations" description="Review tab-switch and fullscreen violations before approving a disqualified retake." />
     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading quiz violations" /></Box> : <AdminDataTable rows={violations} columns={[{ key: 'studentName', label: 'Student' }, { key: 'courseTitle', label: 'Course' }, { key: 'violations', label: 'Violations', render: (value) => (value as AdminQuizViolation['violations']).map((violation) => `${violation.type} (${new Date(violation.occurredAt).toLocaleString()})`).join(', ') }, { key: 'disqualified', label: 'Status', render: (_, row) => <Chip label={row.retakeApproved ? 'Retake approved' : row.disqualified ? 'Disqualified' : 'Flagged'} color={row.retakeApproved ? 'success' : 'warning'} size="small" /> }]} searchPlaceholder="Search violations" searchKeys={['studentName', 'studentEmail', 'courseTitle']} actions={(row) => row.disqualified && !row.retakeApproved ? <MuiButton size="small" variant="contained" onClick={() => void approveRetake(row.id)}>Approve retake</MuiButton> : null} />}
+    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading quiz violations" /></Box> : <AdminDataTable rows={violations} columns={[{ key: 'studentName', label: 'Student' }, { key: 'courseTitle', label: 'Course' }, { key: 'violations', label: 'Violations', render: (value) => (value as AdminQuizViolation['violations']).map(formatViolation).join(', ') }, { key: 'disqualified', label: 'Status', render: (_, row) => <Chip label={row.retakeApproved ? 'Retake approved' : row.disqualified ? 'Disqualified' : 'Flagged'} color={row.retakeApproved ? 'success' : 'warning'} size="small" /> }]} searchPlaceholder="Search violations" searchKeys={['studentName', 'studentEmail', 'courseTitle']} actions={(row) => row.disqualified && !row.retakeApproved ? <MuiButton size="small" variant="contained" onClick={() => void approveRetake(row.id)}>Approve retake</MuiButton> : null} />}
   </>
 }
 
