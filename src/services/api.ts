@@ -183,6 +183,20 @@ export interface AdminDashboardOverview {
   enrollmentsByCategory: Array<{ label: string; value: number }>
 }
 
+export interface AdminQuizViolation {
+  id: number
+  studentName: string
+  studentEmail: string
+  courseTitle: string
+  lessonId: number
+  violations: Array<{ type: 'visibility' | 'fullscreen'; occurredAt: string }>
+  disqualified: boolean
+  score: number | null
+  passed: boolean | null
+  retakeApproved: boolean
+  submittedAt: string | null
+}
+
 export interface AdminPayment {
   id: number
   student: string
@@ -207,6 +221,18 @@ export const getPublicClasses = async (): Promise<PublicClass[]> => {
   const response = await requestApi('/api/classes')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
+}
+
+export const getAdminQuizViolations = async (): Promise<AdminQuizViolation[]> => {
+  const response = await requestApi('/api/admin/quiz-violations')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const approveAdminQuizRetake = async (attemptId: number) => {
+  const response = await requestApi(`/api/admin/quiz-attempts/${attemptId}/retake-approval`, { method: 'POST' })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json() as Promise<{ id: number; retakeApproved: boolean }>
 }
 
 export const getAdminPayments = async (): Promise<AdminPayment[]> => {

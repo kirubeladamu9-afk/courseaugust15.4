@@ -1373,6 +1373,30 @@ app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
   return response.json(payments)
 })
 
+app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) => {
+  const violations = await sql`
+    SELECT quiz_attempts.id::INTEGER AS id,
+           students.full_name AS "studentName",
+           users.email AS "studentEmail",
+           courses.title AS "courseTitle",
+           quiz_attempts.lesson_id::INTEGER AS "lessonId",
+           quiz_attempts.violations,
+           quiz_attempts.disqualified,
+           quiz_attempts.score,
+           quiz_attempts.passed,
+           quiz_attempts.retake_approved AS "retakeApproved",
+           quiz_attempts.submitted_at AS "submittedAt"
+    FROM quiz_attempts
+    INNER JOIN enrollments ON enrollments.id = quiz_attempts.enrollment_id
+    INNER JOIN students ON students.id = enrollments.student_id
+    INNER JOIN users ON users.id = students.user_id
+    INNER JOIN courses ON courses.id = enrollments.course_id
+    WHERE quiz_attempts.disqualified = true OR COALESCE(jsonb_array_length(quiz_attempts.violations), 0) > 0
+    ORDER BY quiz_attempts.submitted_at DESC NULLS LAST
+  `
+  return response.json(violations)
+})
+
 app.get('/api/admin/overview', requireAdmin, async (_request, response) => {
   const [totals] = await sql`
     SELECT

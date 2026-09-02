@@ -1,6 +1,7 @@
 import { useMemo, type FC, type ReactNode } from 'react'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
+import MuiButton from '@mui/material/Button'
 import Box from '@mui/material/Box'
 import Chip from '@mui/material/Chip'
 import Accordion from '@mui/material/Accordion'
@@ -67,7 +68,7 @@ import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
-import { changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AuthUser } from '@/services/api'
+import { approveAdminQuizRetake, changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminQuizViolations, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AdminQuizViolation, type AuthUser } from '@/services/api'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
 import PaymentsPage from './payments-page'
@@ -76,7 +77,7 @@ import { registrations, type AdminCourse, type AdminLesson, type AdminTutor, typ
 
 const drawerWidth = 272
 
-type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'payments' | 'reports' | 'users'
+type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'payments' | 'reports' | 'violations' | 'users'
 
 type AdminNavigationItem = {
   key: Section
@@ -93,6 +94,7 @@ const navigation: AdminNavigationItem[] = [
   { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon /> },
   { key: 'payments', label: 'Payments', icon: <PaymentsOutlinedIcon /> },
   { key: 'reports', label: 'Reports', icon: <AssessmentOutlinedIcon /> },
+  { key: 'violations', label: 'Violations', icon: <BlockIcon /> },
   { key: 'users', label: 'Users', icon: <GroupOutlinedIcon /> },
 ]
 
@@ -1113,6 +1115,35 @@ const AdminProfilePage: FC<{ user: AuthUser | null; onSignOut: () => void }> = (
   )
 }
 
+const ViolationsPage: FC = () => {
+  const [violations, setViolations] = useState<AdminQuizViolation[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadViolations = () => {
+    setIsLoading(true)
+    void getAdminQuizViolations().then(setViolations).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load quiz violations.')).finally(() => setIsLoading(false))
+  }
+
+  useEffect(() => { loadViolations() }, [])
+
+  const approveRetake = async (attemptId: number) => {
+    try {
+      await approveAdminQuizRetake(attemptId)
+      toast.add({ title: 'Retake approved', description: 'The student can now retake this quiz once.', type: 'success' })
+      loadViolations()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to approve this retake.')
+    }
+  }
+
+  return <>
+    <PageHeading title="Quiz Violations" description="Review tab-switch and fullscreen violations before approving a disqualified retake." />
+    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading quiz violations" /></Box> : <AdminDataTable rows={violations} columns={[{ key: 'studentName', label: 'Student' }, { key: 'courseTitle', label: 'Course' }, { key: 'violations', label: 'Violations', render: (value) => (value as AdminQuizViolation['violations']).map((violation) => `${violation.type} (${new Date(violation.occurredAt).toLocaleString()})`).join(', ') }, { key: 'disqualified', label: 'Status', render: (_, row) => <Chip label={row.retakeApproved ? 'Retake approved' : row.disqualified ? 'Disqualified' : 'Flagged'} color={row.retakeApproved ? 'success' : 'warning'} size="small" /> }]} searchPlaceholder="Search violations" searchKeys={['studentName', 'studentEmail', 'courseTitle']} actions={(row) => row.disqualified && !row.retakeApproved ? <MuiButton size="small" variant="contained" onClick={() => void approveRetake(row.id)}>Approve retake</MuiButton> : null} />}
+  </>
+}
+
 const getSectionFromPath = (pathname: string): Section => {
   const pathSection = pathname.split('/')[2]
   if (pathSection === 'registrations') return 'courses'
@@ -1182,6 +1213,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
       case 'blog': return <SimplePage title="Bookstore & Blog" description="Manage books, articles, and publishing content." icon={<BookOutlinedIcon fontSize="large" />} />
       case 'payments': return <PaymentsPage />
       case 'reports': return <ReportsPage />
+      case 'violations': return <ViolationsPage />
       case 'users': return <UsersPage />
       default: return <OverviewPage />
     }
