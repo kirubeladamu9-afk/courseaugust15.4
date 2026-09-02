@@ -399,16 +399,24 @@ export const updateAdminClass = (classRecord: Omit<AdminClass, 'status'>) => req
 })
 
 export const deleteAdminClass = async (classRecord: AdminClass) => {
-  const response = await requestApi(`/api/admin/classes/${classRecord.id}`, { method: 'DELETE' })
-  if (response.ok) return
-  if (response.status !== 404) throw new Error(await getErrorMessage(response))
+  const hideClass = async () => {
+    const fallbackResponse = await requestApi(`/api/admin/classes/${classRecord.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...classRecord, published: false }),
+    })
+    if (!fallbackResponse.ok) throw new Error(await getErrorMessage(fallbackResponse))
+  }
 
-  const fallbackResponse = await requestApi(`/api/admin/classes/${classRecord.id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...classRecord, published: false }),
-  })
-  if (!fallbackResponse.ok) throw new Error(await getErrorMessage(fallbackResponse))
+  try {
+    const response = await requestApi(`/api/admin/classes/${classRecord.id}`, { method: 'DELETE' })
+    if (response.ok) return
+    if (response.status !== 404) throw new Error(await getErrorMessage(response))
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error
+  }
+
+  await hideClass()
 }
 
 export const assignAdminClass = (enrollmentId: number, values: Omit<AdminClass, 'id' | 'status' | 'program_id' | 'modules' | 'published'>) => requestClasses('/api/admin/classes/assign', {
