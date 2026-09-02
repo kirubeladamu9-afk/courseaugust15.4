@@ -101,13 +101,13 @@ export interface QuizAttempt {
 
 export interface MyEnrollment {
   id: number
-  courseId: number
-  courseTitle: string
-  courseCover: string
-  category: string
-  level: string
-  tutor: string
-  certificate: boolean
+  courseId: number | null
+  courseTitle: string | null
+  courseCover: string | null
+  category: string | null
+  level: string | null
+  tutor: string | null
+  certificate: boolean | null
   modules: EnrollmentModule[]
   classId: number | null
   classTitle: string | null

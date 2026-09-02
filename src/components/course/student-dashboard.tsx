@@ -230,13 +230,14 @@ const getClassSessionState = (classRecord: DashboardClass, now: Date) => {
   return { isActive: Boolean(activeSession), hasEnded: Boolean(latestStarted && !activeSession) }
 }
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
+const getEnrollmentContentId = (enrollment: MyEnrollment) => enrollment.classId ?? enrollment.courseId ?? enrollment.id
 const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
-  id: enrollment.courseId,
-  title: enrollment.classTitle || enrollment.courseTitle,
-  category: enrollment.classId === null ? enrollment.category : 'Class',
-  level: enrollment.level,
-  tutor: enrollment.tutor || 'Tutor to be confirmed',
-  certificate: enrollment.certificate,
+  id: getEnrollmentContentId(enrollment),
+  title: enrollment.classTitle || enrollment.courseTitle || 'Enrolled class',
+  category: enrollment.classId === null ? enrollment.category || 'Course' : 'Class',
+  level: enrollment.level || 'Not specified',
+  tutor: enrollment.tutor || enrollment.classTutor || 'Tutor to be confirmed',
+  certificate: enrollment.certificate ?? false,
   modules: enrollment.modules.map((module) => ({
     id: module.id,
     title: module.title,
@@ -288,7 +289,7 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnr
   const course = mapEnrollmentCourse(record)
   const classRecord = mapEnrollmentClass(record, course)
   const quizResults = getLatestQuizResults(record.quizAttempts)
-  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: record.courseId, status: 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, course }
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: getEnrollmentContentId(record), status: 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, course }
   if (!classRecord) return [courseEnrollment]
   return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance, classRecord }]
 })
@@ -955,10 +956,10 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     getMyEnrollments()
       .then((records) => {
         if (!isCurrent) return
-        const completedByCourse = Object.fromEntries(records.filter((record) => record.completedLessonIds.length > 0).map((record) => [record.courseId, record.completedLessonIds]))
-        const startedByCourse = Object.fromEntries(records.filter((record) => record.started).map((record) => [record.courseId, true]))
-        const timeByCourse = Object.fromEntries(records.filter((record) => record.timeSpentSeconds > 0).map((record) => [record.courseId, record.timeSpentSeconds]))
-        const resultsByCourse = Object.fromEntries(records.map((record) => [record.courseId, getLatestQuizResults(record.quizAttempts)]).filter(([, results]) => Object.keys(results).length > 0))
+        const completedByCourse = Object.fromEntries(records.filter((record) => record.completedLessonIds.length > 0).map((record) => [getEnrollmentContentId(record), record.completedLessonIds]))
+        const startedByCourse = Object.fromEntries(records.filter((record) => record.started).map((record) => [getEnrollmentContentId(record), true]))
+        const timeByCourse = Object.fromEntries(records.filter((record) => record.timeSpentSeconds > 0).map((record) => [getEnrollmentContentId(record), record.timeSpentSeconds]))
+        const resultsByCourse = Object.fromEntries(records.map((record) => [getEnrollmentContentId(record), getLatestQuizResults(record.quizAttempts)]).filter(([, results]) => Object.keys(results).length > 0))
         setCompletedLessons(completedByCourse)
         setStartedCourses(startedByCourse)
         setTimeSpent(timeByCourse)
@@ -1045,7 +1046,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const selectedCourseEnrollment = selectedCourseId === null ? undefined : findCourseEnrollment(enrollments, selectedCourseId)
   const selectedCourse = selectedCourseEnrollment ? getEnrollmentCourse(selectedCourseEnrollment) : undefined
   const selectedCourseProgress = selectedCourse ? getCourseProgress(selectedCourse, completedLessons[selectedCourse.id] ?? []) : 0
-  const enrolledCourseIds = new Set(enrollments.flatMap((enrollment) => enrollment.type === 'course' ? [String(enrollment.item_id)] : enrollment.classRecord?.course ? [String(enrollment.classRecord.course.id)] : []))
+  const enrolledCourseIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'course').map((enrollment) => String(enrollment.item_id)))
   const enrolledClassIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'class').map((enrollment) => enrollment.item_id))
   const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'other-courses' ? 'Other Courses' : activeView === 'other-classes' ? 'Other Classes' : activeView === 'profile' ? 'Profile' : 'Payment History'
 

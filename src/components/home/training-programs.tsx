@@ -282,9 +282,11 @@ const HomeTrainingPrograms: FC<HomeTrainingProgramsProps> = ({ courses }) => {
   }, [liveClasses])
 
   const handleEnroll = (classRecord?: PublicClass, preferInternational = false) => {
-    const course = findCourse(courses, classRecord, preferInternational)
+    const course = classRecord
+      ? { id: classRecord.courseId ?? classRecord.id, title: classRecord.title, price: classRecord.price }
+      : findCourse(courses, undefined, preferInternational)
     if (!course) {
-      toast.add({ title: 'Enrollment is not ready', description: classRecord ? 'This batch needs a linked published course before checkout can begin.' : 'Create a published International Online Interactive course before checkout can begin.', type: 'error' })
+      toast.add({ title: 'Enrollment is not ready', description: 'Create a published International Online Interactive course before checkout can begin.', type: 'error' })
       return
     }
     const isLiveClass = classRecord ? liveClasses.some((liveClass) => liveClass.id === classRecord.id) : false

@@ -191,7 +191,10 @@ const initializeDatabase = async () => {
   await sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS modules JSONB NOT NULL DEFAULT '[]'::jsonb`
   await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
   await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_status TEXT CHECK (class_status IN ('enrolled', 'waitlisted'))`
+  await sql`ALTER TABLE enrollments ALTER COLUMN course_id DROP NOT NULL`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS enrollments_class_payment_idx ON enrollments (student_id, payment_id) WHERE course_id IS NULL`
   await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
+  await sql`ALTER TABLE payments ALTER COLUMN course_id DROP NOT NULL`
 
   await sql`
     CREATE TABLE IF NOT EXISTS course_progress (
@@ -661,13 +664,13 @@ const updatePaymentStatus = async (reference, status, verification = {}) => sql.
     const classStatus = classRecord ? (classRecord.status === 'full' || classRecord.enrolled_count >= classRecord.capacity ? 'waitlisted' : 'enrolled') : null
     await transaction`
       INSERT INTO enrollments ${transaction({ user_id: payment.userId, student_id: savedStudent.id, course_id: payment.courseId, payment_id: payment.id, class_id: classRecord?.id ?? null, class_status: classStatus })}
-      ON CONFLICT (student_id, course_id, payment_id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `
     if (classRecord && classStatus === 'enrolled' && classRecord.enrolled_count + 1 >= classRecord.capacity) {
       await transaction`UPDATE classes SET status = 'full', updated_at = NOW() WHERE id = ${classRecord.id}`
     }
   }
-  await transaction`UPDATE courses SET students = students + ${students.length} WHERE id = ${payment.courseId}`
+  if (payment.courseId !== null) await transaction`UPDATE courses SET students = students + ${students.length} WHERE id = ${payment.courseId}`
   return 'paid'
 })
 
@@ -717,7 +720,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
   await sql`UPDATE classes SET status = 'closed', updated_at = NOW() WHERE (schedule->>'endDate') IS NOT NULL AND (schedule->>'endDate') < CURRENT_DATE::TEXT AND status <> 'closed'`
   const enrollments = await sql`
     SELECT enrollments.id::INTEGER AS id,
-           courses.id::INTEGER AS "courseId",
+           enrollments.course_id::INTEGER AS "courseId",
            courses.title AS "courseTitle",
            courses.cover AS "courseCover",
            courses.category,
@@ -738,7 +741,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            attendance_summary.attendance
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
-    INNER JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN courses ON courses.id = enrollments.course_id
     INNER JOIN students ON students.id = enrollments.student_id
     LEFT JOIN classes ON classes.id = enrollments.class_id
     LEFT JOIN tutors ON tutors.id = classes.tutor_id
@@ -796,7 +799,7 @@ const getOwnedEnrollment = async (transaction, userId, enrollmentId) => {
            CASE WHEN enrollments.class_id IS NULL THEN courses.modules ELSE classes.modules END AS modules
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
-    INNER JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN courses ON courses.id = enrollments.course_id
     LEFT JOIN classes ON classes.id = enrollments.class_id
     WHERE enrollments.id = ${enrollmentId}
       AND enrollments.user_id = ${userId}
@@ -1180,20 +1183,17 @@ app.post('/api/payments/chapa/class', requireAuthenticated, async (request, resp
   const [classRecord] = await sql`
     SELECT classes.id,
            classes.title,
-           classes.course_id AS "courseId",
            classes.price::FLOAT AS price,
-           courses.id AS "paymentCourseId",
            users.name,
            users.email,
            users.phone
     FROM classes
-    INNER JOIN courses ON courses.id = classes.course_id AND courses.status = 'Published'
     INNER JOIN users ON users.id = ${request.userId}
     WHERE classes.id = ${classId}
       AND classes.published = true
       AND classes.status IN ('open', 'full')
   `
-  if (!classRecord) return response.status(404).json({ message: 'This batch is not available for enrollment or has no linked published course.' })
+  if (!classRecord) return response.status(404).json({ message: 'This batch is not available for enrollment.' })
 
   const students = [{
     fullName: classRecord.name.trim() || 'Student',
@@ -1208,7 +1208,7 @@ app.post('/api/payments/chapa/class', requireAuthenticated, async (request, resp
   const currency = process.env.CHAPA_CURRENCY ?? 'ETB'
   const amount = classRecord.price * students.length
   const [payment] = await sql`
-    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: classRecord.paymentCourseId, class_id: classRecord.id, student_data: JSON.stringify(students), amount, currency })}
+    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: null, class_id: classRecord.id, student_data: JSON.stringify(students), amount, currency })}
     RETURNING id
   `
 
@@ -1320,7 +1320,7 @@ app.post('/api/payments/chapa/webhook', async (request, response, next) => {
 app.get('/api/payments', requireAuthenticated, async (request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,
-           COALESCE(classes.title, courses.title) AS "itemName",
+           COALESCE(classes.title, courses.title, 'Class enrollment') AS "itemName",
            CASE WHEN payments.class_id IS NULL THEN 'course' ELSE 'class' END AS type,
            payments.amount::FLOAT AS amount,
            payments.currency,
@@ -1332,7 +1332,7 @@ app.get('/api/payments', requireAuthenticated, async (request, response) => {
            to_char(payments.created_at, 'Mon DD, YYYY') AS date,
            payments.reference AS "txRef"
     FROM payments
-    INNER JOIN courses ON courses.id = payments.course_id
+    LEFT JOIN courses ON courses.id = payments.course_id
     LEFT JOIN classes ON classes.id = payments.class_id
     WHERE payments.user_id = ${request.userId}
     ORDER BY payments.created_at DESC, payments.id DESC
@@ -1348,8 +1348,8 @@ app.get('/api/classes', async (_request, response) => {
            classes.schedule,
            classes.price::FLOAT AS price,
            classes.status,
-           NULL::INTEGER AS "courseId",
-           NULL::TEXT AS "courseTitle",
+           classes.course_id::INTEGER AS "courseId",
+           courses.title AS "courseTitle",
            COALESCE(tutors.name, 'Tutor to be confirmed') AS "tutorName",
            classes.capacity,
            COALESCE(enrollment_counts.enrolled_count, 0)::INTEGER AS "enrolledCount",
@@ -1357,6 +1357,7 @@ app.get('/api/classes', async (_request, response) => {
            jsonb_array_length(CASE WHEN jsonb_typeof(classes.modules) = 'array' THEN classes.modules ELSE '[]'::jsonb END)::INTEGER AS "moduleCount",
            (SELECT COUNT(*)::INTEGER FROM jsonb_array_elements(CASE WHEN jsonb_typeof(classes.modules) = 'array' THEN classes.modules ELSE '[]'::jsonb END) AS module CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(module->'lessons') = 'array' THEN module->'lessons' ELSE '[]'::jsonb END) AS lesson) AS "lessonCount"
     FROM classes
+    LEFT JOIN courses ON courses.id = classes.course_id
     LEFT JOIN tutors ON tutors.id = classes.tutor_id
     LEFT JOIN (
       SELECT class_id, COUNT(*) FILTER (WHERE class_status = 'enrolled') AS enrolled_count
@@ -1375,7 +1376,7 @@ app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,
            COALESCE(NULLIF(payments.student_data->0->>'fullName', ''), NULLIF(users.name, ''), 'Unknown student') AS student,
-           courses.title AS course,
+           COALESCE(classes.title, courses.title, 'Class enrollment') AS course,
            payments.amount::FLOAT AS amount,
            to_char(payments.created_at, 'Mon DD, YYYY') AS date,
            CASE payments.status
@@ -1385,7 +1386,8 @@ app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
            END AS status
     FROM payments
     INNER JOIN users ON users.id = payments.user_id
-    INNER JOIN courses ON courses.id = payments.course_id
+    LEFT JOIN courses ON courses.id = payments.course_id
+    LEFT JOIN classes ON classes.id = payments.class_id
     ORDER BY payments.created_at DESC, payments.id DESC
   `
   return response.json(payments)
@@ -1396,8 +1398,8 @@ app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) =
     SELECT quiz_attempts.id::INTEGER AS id,
            students.full_name AS "studentName",
            users.email AS "studentEmail",
-           courses.title AS "courseTitle",
-           courses.modules,
+           COALESCE(classes.title, courses.title, 'Class enrollment') AS "courseTitle",
+           CASE WHEN enrollments.class_id IS NULL THEN courses.modules ELSE classes.modules END AS modules,
            quiz_attempts.lesson_id::INTEGER AS "lessonId",
            quiz_attempts.violations,
            quiz_attempts.disqualified,
@@ -1422,7 +1424,8 @@ app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) =
     INNER JOIN enrollments ON enrollments.id = quiz_attempts.enrollment_id
     INNER JOIN students ON students.id = enrollments.student_id
     INNER JOIN users ON users.id = students.user_id
-    INNER JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN classes ON classes.id = enrollments.class_id
     WHERE quiz_attempts.disqualified = true OR COALESCE(jsonb_array_length(quiz_attempts.violations), 0) > 0
     ORDER BY quiz_attempts.submitted_at DESC NULLS LAST
   `
