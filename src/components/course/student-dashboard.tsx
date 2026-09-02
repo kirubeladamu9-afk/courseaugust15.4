@@ -68,6 +68,7 @@ import { navigateTo } from '@/lib/navigation'
   score: number
   passed: boolean
   disqualified?: boolean
+  retakeApproved?: boolean
   answerStatuses?: Record<number, QuizAnswerStatus>
   violationCount?: number
   questionResults?: QuizQuestionResult[]
@@ -240,7 +241,7 @@ const getLatestQuizResults = (attempts: MyEnrollment['quizAttempts']): Record<nu
   .filter((attempt) => attempt.score !== null && attempt.passed !== null)
   .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())
   .reduce<Record<number, DashboardQuizResult>>((results, attempt) => {
-    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, disqualified: attempt.disqualified, answerStatuses: Object.fromEntries((attempt.questionResults ?? Object.entries(attempt.answers ?? {}).map(([id, answer]) => ({ questionId: Number(id), status: typeof answer === 'object' && answer !== null && 'status' in answer ? answer.status : typeof answer === 'number' ? 'answered' : 'unanswered' }))).map((item) => [item.questionId, item.status])), violationCount: attempt.violations?.length ?? 0, questionResults: attempt.questionResults }
+    if (results[attempt.lessonId] === undefined) results[attempt.lessonId] = { score: attempt.score!, passed: attempt.passed!, disqualified: attempt.disqualified, retakeApproved: attempt.retakeApproved, answerStatuses: Object.fromEntries((attempt.questionResults ?? Object.entries(attempt.answers ?? {}).map(([id, answer]) => ({ questionId: Number(id), status: typeof answer === 'object' && answer !== null && 'status' in answer ? answer.status : typeof answer === 'number' ? 'answered' : 'unanswered' }))).map((item) => [item.questionId, item.status])), violationCount: attempt.violations?.length ?? 0, questionResults: attempt.questionResults }
     return results
   }, {})
 const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnrollment[] => records.flatMap((record) => {
@@ -445,7 +446,7 @@ const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
       const lessonIndex = lessons.findIndex((item) => item.id === lesson.id)
       return lessonIndex === 0 || completedLessons[course.id]?.includes(lessons[lessonIndex - 1].id) === true
     }
-    return course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => { const result = quizResults[course.id]?.[lesson.id]; const available = isQuizAvailable(lesson); return { enrollmentId: enrollment.id, enrollmentType: enrollment.type, course, lesson, moduleTitle: module.title, source, available, completed: (completedLessons[course.id] ?? []).includes(lesson.id), result, finished: (completedLessons[course.id] ?? []).includes(lesson.id) || Boolean(result), retakeAllowed: Boolean(result && !result.passed && !result.disqualified && !result.violationCount && Object.values(result.answerStatuses ?? {}).includes('expired')) } }))
+    return course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => { const result = quizResults[course.id]?.[lesson.id]; const available = isQuizAvailable(lesson); return { enrollmentId: enrollment.id, enrollmentType: enrollment.type, course, lesson, moduleTitle: module.title, source, available, completed: (completedLessons[course.id] ?? []).includes(lesson.id), result, finished: (completedLessons[course.id] ?? []).includes(lesson.id) || Boolean(result), retakeAllowed: Boolean(result && !result.passed && (result.retakeApproved || (!result.disqualified && !result.violationCount && Object.values(result.answerStatuses ?? {}).includes('expired')))) } }))
   })
 
   const quizPageSize = 6
@@ -766,7 +767,7 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const quizQuestions = selectedLesson.quizQuestions ?? []
   const passingScore = selectedLesson.passThreshold ?? 70
   const hasAnsweredQuiz = quizQuestions.length > 0 && quizQuestions.every((question) => quizAnswers[question.id] !== undefined)
-  const canRetakeQuiz = Boolean(quizResult && !readOnly && !quizResult.passed && !quizResult.disqualified && !quizResult.violationCount && Object.values(quizResult.answerStatuses ?? {}).includes('expired'))
+  const canRetakeQuiz = Boolean(quizResult && !readOnly && !quizResult.passed && (quizResult.retakeApproved || (!quizResult.disqualified && !quizResult.violationCount && Object.values(quizResult.answerStatuses ?? {}).includes('expired'))))
   const isQuizFinished = selectedLesson.type === 'quiz' && (isCompleted || Boolean(quizResult)) && !canRetakeQuiz
   const canCompleteLesson = selectedLesson.type !== 'quiz' || isQuizFinished
   const isLessonLocked = (lessonId: number) => {

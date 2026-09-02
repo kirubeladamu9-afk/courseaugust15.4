@@ -92,6 +92,7 @@ export interface QuizAttempt {
   score: number | null
   passed: boolean | null
   disqualified?: boolean
+  retakeApproved?: boolean
   submittedAt: string | null
 }
 

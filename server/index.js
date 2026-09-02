@@ -755,6 +755,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
                  'score', score,
                  'passed', passed,
                  'disqualified', disqualified,
+                 'retakeApproved', retake_approved,
                  'submittedAt', submitted_at
                )
                ORDER BY started_at DESC
