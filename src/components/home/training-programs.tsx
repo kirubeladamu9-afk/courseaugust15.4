@@ -80,9 +80,11 @@ const formatTime = (time: string) => {
   return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`
 }
 
-const formatSchedule = (schedule: PublicClass['schedule']) => {
+const formatSchedule = (schedule?: Partial<PublicClass['schedule']> | null) => {
+  if (!schedule) return 'Schedule to be confirmed'
   if (schedule.flexible) return 'Flexible schedule'
-  return `${schedule.days.length ? schedule.days.join(', ') : 'Days to be confirmed'} · ${formatTime(schedule.time)}`
+  const days = Array.isArray(schedule.days) ? schedule.days : []
+  return `${days.length ? days.join(', ') : 'Days to be confirmed'} · ${formatTime(schedule.time ?? '')}`
 }
 
 const findCourse = (courses: Course[], classRecord?: PublicClass, preferInternational = false): CheckoutCourse | null => {
