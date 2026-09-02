@@ -103,6 +103,7 @@ export interface MyEnrollment {
   category: string
   level: string
   tutor: string
+  certificate: boolean
   modules: EnrollmentModule[]
   classId: number | null
   classTitle: string | null

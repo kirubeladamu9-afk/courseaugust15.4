@@ -482,17 +482,14 @@ const maxEngagementSeconds = 60
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
-const getEnrollmentProgress = (modules, lessonProgress, quizAttempts = []) => {
+const getEnrollmentProgress = (modules, lessonProgress) => {
   const lessons = getCourseLessons(modules)
   const completedLessonIds = lessons
     .filter((lesson) => lessonProgress?.[lesson.id]?.completedAt)
     .map((lesson) => lesson.id)
-  const completedQuizLessonIds = new Set(quizAttempts
-    .filter((attempt) => attempt?.submittedAt)
-    .map((attempt) => Number(attempt.lessonId)))
   const allCompletedLessonIds = lessons
     .map((lesson) => lesson.id)
-    .filter((lessonId) => completedLessonIds.includes(lessonId) || completedQuizLessonIds.has(lessonId))
+    .filter((lessonId) => completedLessonIds.includes(lessonId))
 
   return {
     completedLessonIds: allCompletedLessonIds,
@@ -541,7 +538,7 @@ const serializeEnrollment = (enrollment) => {
   const rawQuizAttempts = deserializeJson(enrollment.quizAttempts)
   const lessonProgress = isPlainObject(rawLessonProgress) ? rawLessonProgress : {}
   const quizAttempts = Array.isArray(rawQuizAttempts) ? rawQuizAttempts.map((attempt) => ({ ...attempt, questionResults: getQuestionResults(modules, attempt) })) : []
-  const { completedLessonIds, progressPercentage } = getEnrollmentProgress(modules, lessonProgress, quizAttempts)
+  const { completedLessonIds, progressPercentage } = getEnrollmentProgress(modules, lessonProgress)
 
   return {
     ...enrollment,
@@ -711,6 +708,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            courses.category,
            courses.level,
            courses.tutor,
+           courses.certificate,
            courses.modules,
            classes.id::INTEGER AS "classId",
            classes.title AS "classTitle",
