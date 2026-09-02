@@ -461,16 +461,19 @@ const ClassesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
     {classEnrollments.length === 0 ? <EmptyState title="No classes yet" description="Paid class enrollments will appear here once they are assigned." actionLabel="Explore courses" onAction={() => navigateTo('/')} /> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>{classEnrollments.map((enrollment) => {
       const classRecord = enrollment.classRecord!
       const course = classRecord.course!
+      const hasStarted = classHasStarted(classRecord.schedule, now)
+      const classEnded = classHasEnded(classRecord.schedule, now)
+      const canOpenClass = classRecord.status !== 'closed' && classRecord.status !== 'pending_schedule' && hasStarted && !classEnded
       const progress = getCourseProgress(course, completedLessons[course.id] ?? [])
       const nextLiveLesson = getLessons(course).find((lesson) => lesson.type === 'live' && lesson.scheduledAt && new Date(lesson.scheduledAt).getTime() >= now.getTime())
       return <Card key={enrollment.id} elevation={0} sx={{ border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ minHeight: 110, p: 2.5, display: 'flex', alignItems: 'flex-end', background: 'linear-gradient(135deg, rgba(16, 125, 111, 0.16), rgba(16, 125, 111, 0.04))' }}><ClassOutlinedIcon color="primary" sx={{ fontSize: 38 }} /></Box>
         <CardContent sx={{ display: 'flex', flex: 1, flexDirection: 'column' }}>
-          <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}><Chip label={classRecord.status === 'open' ? 'Active class' : classRecord.status === 'pending_schedule' ? 'Pending schedule' : 'Closed'} size="small" color={classRecord.status === 'open' ? 'success' : 'warning'} variant="outlined" /><Typography variant="caption" color="text.secondary">Class</Typography></Stack>
+          <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}><Chip label={classRecord.status === 'pending_schedule' ? 'Pending schedule' : classEnded || classRecord.status === 'closed' ? 'Closed' : !hasStarted ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Active class'} size="small" color={canOpenClass ? 'success' : 'warning'} variant="outlined" /><Typography variant="caption" color="text.secondary">Class</Typography></Stack>
           <Typography variant="h6" sx={{ mb: 1 }}>{classRecord.title}</Typography>
           <Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography>
           <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>{nextLiveLesson?.scheduledAt ? `Next live session: ${new Date(nextLiveLesson.scheduledAt).toLocaleString()}` : classScheduleLabel(classRecord.schedule)}</Typography>
-          <Box sx={{ mt: 'auto' }}><Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}><Typography variant="body2">Progress</Typography><Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>{progress}%</Typography></Stack><LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4, mb: 2 }} /><Button fullWidth variant="contained" onClick={() => onOpenCourse(course.id)}>{progress ? 'Continue class' : 'Open class'}</Button></Box>
+          <Box sx={{ mt: 'auto' }}><Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}><Typography variant="body2">Progress</Typography><Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>{progress}%</Typography></Stack><LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4, mb: 2 }} /><Button fullWidth variant="contained" disabled={!canOpenClass} onClick={() => { if (canOpenClass) onOpenCourse(course.id) }}>{classEnded || classRecord.status === 'closed' ? 'Class ended' : !hasStarted ? 'Available at start time' : progress ? 'Continue class' : 'Open class'}</Button></Box>
         </CardContent>
       </Card>
     })}</Box>}
