@@ -581,6 +581,8 @@ export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemp
 export const signOut = async () => {
   try {
     await requestApi('/api/auth/sign-out', { method: 'POST' })
+  } catch {
+    // Clear the local session even when the API is unavailable.
   } finally {
     clearAuthenticatedUser()
   }
