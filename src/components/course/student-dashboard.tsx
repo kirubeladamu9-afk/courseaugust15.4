@@ -766,7 +766,8 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const quizQuestions = selectedLesson.quizQuestions ?? []
   const passingScore = selectedLesson.passThreshold ?? 70
   const hasAnsweredQuiz = quizQuestions.length > 0 && quizQuestions.every((question) => quizAnswers[question.id] !== undefined)
-  const isQuizFinished = selectedLesson.type === 'quiz' && (isCompleted || Boolean(quizResult))
+  const canRetakeQuiz = Boolean(quizResult && !readOnly && !quizResult.passed && !quizResult.disqualified && !quizResult.violationCount && Object.values(quizResult.answerStatuses ?? {}).includes('expired'))
+  const isQuizFinished = selectedLesson.type === 'quiz' && (isCompleted || Boolean(quizResult)) && !canRetakeQuiz
   const canCompleteLesson = selectedLesson.type !== 'quiz' || isQuizFinished
   const isLessonLocked = (lessonId: number) => {
     const lessonIndex = lessons.findIndex((lesson) => lesson.id === lessonId)
