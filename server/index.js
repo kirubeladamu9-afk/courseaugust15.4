@@ -422,6 +422,13 @@ const requireAdmin = async (request, response, next) => {
   })
 }
 
+const requireAdminOrTutor = async (request, response, next) => {
+  await requireAuthenticated(request, response, () => {
+    if (request.userRole !== 'admin' && request.userRole !== 'tutor') return response.status(403).json({ message: 'Admin or tutor authentication is required.' })
+    return next()
+  })
+}
+
 const requireTutor = async (request, response, next) => {
   await requireAuthenticated(request, response, async () => {
     if (request.userRole !== 'tutor') return response.status(403).json({ message: 'Tutor authentication is required.' })
@@ -1686,7 +1693,7 @@ app.get('/api/admin/overview', requireAdmin, async (_request, response) => {
   response.json({ ...totals, revenueByMonth, enrollmentsByCategory })
 })
 
-app.get('/api/admin/courses', requireAdmin, async (_request, response) => {
+app.get('/api/admin/courses', requireAdminOrTutor, async (_request, response) => {
   const courses = await sql`
     SELECT ${courseColumns}
     FROM courses
@@ -1695,7 +1702,7 @@ app.get('/api/admin/courses', requireAdmin, async (_request, response) => {
   response.json(courses.map(deserializeCourse))
 })
 
-app.get('/api/admin/courses/:id', requireAdmin, async (request, response) => {
+app.get('/api/admin/courses/:id', requireAdminOrTutor, async (request, response) => {
   const id = parseCourseId(request.params.id)
   if (id === null) return response.status(400).json({ message: 'Invalid course id.' })
 
@@ -1859,7 +1866,7 @@ app.post('/api/admin/users/:accountType/:id/reset-password', requireAdmin, async
   return response.json({ temporaryPassword })
 })
 
-app.post('/api/admin/courses', requireAdmin, async (request, response) => {
+app.post('/api/admin/courses', requireAdminOrTutor, async (request, response) => {
   const course = parseCoursePayload(request.body)
   if (!course) return response.status(400).json({ message: 'Enter all required course details.' })
 
@@ -1876,7 +1883,7 @@ app.post('/api/admin/courses', requireAdmin, async (request, response) => {
   }
 })
 
-app.put('/api/admin/courses/:id', requireAdmin, async (request, response) => {
+app.put('/api/admin/courses/:id', requireAdminOrTutor, async (request, response) => {
   const id = parseCourseId(request.params.id)
   if (id === null) return response.status(400).json({ message: 'Invalid course id.' })
 
@@ -1899,7 +1906,7 @@ app.put('/api/admin/courses/:id', requireAdmin, async (request, response) => {
   }
 })
 
-app.delete('/api/admin/courses/:id', requireAdmin, async (request, response) => {
+app.delete('/api/admin/courses/:id', requireAdminOrTutor, async (request, response) => {
   const id = parseCourseId(request.params.id)
   if (id === null) return response.status(400).json({ message: 'Invalid course id.' })
 
@@ -1959,7 +1966,7 @@ const refreshClassStatus = async (id) => {
   return readAdminClass(id)
 }
 
-app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
+app.get('/api/admin/classes', requireAdminOrTutor, async (_request, response) => {
   await sql`UPDATE classes SET status = 'closed', updated_at = NOW() WHERE (schedule->>'endDate') IS NOT NULL AND (schedule->>'endDate') < CURRENT_DATE::TEXT AND status <> 'closed'`
   const [classes, enrollments, pendingStudents, tutors, courses] = await Promise.all([
     sql`SELECT ${classColumns} FROM classes WHERE published = true ORDER BY created_at DESC, id DESC`,
@@ -1970,7 +1977,7 @@ app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
   response.json({ classes: classes.map((classRecord) => ({ ...classRecord, modules: deserializeJson(classRecord.modules) ?? [] })), enrollments, pendingStudents, tutors })
 })
 
-app.post('/api/admin/classes', requireAdmin, async (request, response) => {
+app.post('/api/admin/classes', requireAdminOrTutor, async (request, response) => {
   const classPayload = parseClassPayload(request.body)
   if (!classPayload) return response.status(400).json({ message: 'Enter valid class details.' })
   try {
@@ -1986,7 +1993,7 @@ app.post('/api/admin/classes', requireAdmin, async (request, response) => {
   }
 })
 
-app.put('/api/admin/classes/:id', requireAdmin, async (request, response) => {
+app.put('/api/admin/classes/:id', requireAdminOrTutor, async (request, response) => {
   const id = parseCourseId(request.params.id)
   const classPayload = parseClassPayload(request.body)
   if (id === null || !classPayload) return response.status(400).json({ message: 'Enter valid class details.' })
@@ -1995,7 +2002,7 @@ app.put('/api/admin/classes/:id', requireAdmin, async (request, response) => {
   return response.json(await refreshClassStatus(id))
 })
 
-app.delete('/api/admin/classes/:id', requireAdmin, async (request, response) => {
+app.delete('/api/admin/classes/:id', requireAdminOrTutor, async (request, response) => {
   const id = parseCourseId(request.params.id)
   if (id === null) return response.status(400).json({ message: 'Invalid class id.' })
   const [deleted] = await sql`DELETE FROM classes WHERE id = ${id} RETURNING id`
