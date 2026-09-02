@@ -1770,7 +1770,11 @@ app.post('/api/admin/classes', requireAdmin, async (request, response) => {
   const classPayload = parseClassPayload(request.body)
   if (!classPayload) return response.status(400).json({ message: 'Enter valid class details.' })
   try {
-    const [created] = await sql`INSERT INTO classes ${sql({ ...classPayload, status: classPayload.published ? 'open' : 'closed' })} RETURNING id`
+    const [created] = await sql`
+      INSERT INTO classes (program_id, title, tutor_id, capacity, schedule, modules, price, published, status)
+      VALUES (${classPayload.program_id}, ${classPayload.title}, ${classPayload.tutor_id}, ${classPayload.capacity}, ${JSON.stringify(classPayload.schedule)}::jsonb, ${JSON.stringify(classPayload.modules)}::jsonb, ${classPayload.price}, ${classPayload.published}, ${classPayload.published ? 'open' : 'closed'})
+      RETURNING id
+    `
     return response.status(201).json(await readAdminClass(Number(created.id)))
   } catch (error) {
     if (error.code === '23503') return response.status(400).json({ message: 'Select an existing tutor before creating the class.' })
