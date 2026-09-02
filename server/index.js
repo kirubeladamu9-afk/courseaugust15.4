@@ -508,7 +508,14 @@ const getQuestionResults = (modules, attempt) => {
     const rawRecord = answers[String(question.id)]
     const record = Number.isInteger(rawRecord) ? { status: 'answered', value: rawRecord } : rawRecord
     const selected = selectedOptionFromRecord(record, question)
-    return { questionId: Number(question.id), question: question.question, studentAnswer: record?.status === 'answered' && typeof record?.value === 'string' ? record.value : selected === null ? null : question.options[selected] ?? null, correctAnswer: question.options[question.correctOption] ?? null, status: record?.status === 'expired' ? 'expired' : selected === null ? 'unanswered' : 'answered' }
+    const studentAnswer = typeof record?.value === 'string'
+      ? record.value
+      : Array.isArray(record?.value)
+        ? record.value.join(', ')
+        : selected === null
+          ? null
+          : question.options[selected] ?? null
+    return { questionId: Number(question.id), question: question.question, studentAnswer, correctAnswer: question.options[question.correctOption] ?? null, status: record?.status ?? 'unanswered' }
   })
 }
 
