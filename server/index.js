@@ -1782,6 +1782,14 @@ app.put('/api/admin/classes/:id', requireAdmin, async (request, response) => {
   return response.json(await refreshClassStatus(id))
 })
 
+app.delete('/api/admin/classes/:id', requireAdmin, async (request, response) => {
+  const id = parseCourseId(request.params.id)
+  if (id === null) return response.status(400).json({ message: 'Invalid class id.' })
+  const [deleted] = await sql`DELETE FROM classes WHERE id = ${id} RETURNING id`
+  if (!deleted) return response.status(404).json({ message: 'Class not found.' })
+  return response.status(204).end()
+})
+
 app.post('/api/admin/classes/assign', requireAdmin, async (request, response) => {
   const enrollmentId = parseCourseId(String(request.body?.enrollmentId ?? ''))
   const classPayload = parseClassPayload({ ...request.body, program_id: 'international-online-interactive', title: request.body?.title, price: request.body?.price ?? 0, published: true })

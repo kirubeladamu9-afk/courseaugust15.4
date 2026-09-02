@@ -32,7 +32,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { type FC, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
-import { assignAdminClass, createAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassAttendance, updateAdminClassEnrollment } from '@/services/api'
+import { assignAdminClass, createAdminClass, deleteAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassAttendance, updateAdminClassEnrollment } from '@/services/api'
 import { type AdminCourse, type AdminLesson, type AdminModule, type LessonType } from './admin-data'
 import { CourseEditor } from './admin-dashboard'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
@@ -432,6 +432,17 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
     }
   }
 
+  const handleDeleteClass = async (classRecord: AdminClass) => {
+    if (!window.confirm(`Delete ${classRecord.title}? This cannot be undone.`)) return
+    try {
+      await deleteAdminClass(classRecord.id)
+      await loadWorkspace()
+      toast.add({ title: 'Class deleted', description: `${classRecord.title} was removed.`, type: 'success' })
+    } catch (error) {
+      toast.add({ title: 'Unable to delete class', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+    }
+  }
+
   const handleAttendance = async (enrollmentId: number, lessonId: number, status: 'Present' | 'Absent') => {
     try {
       await updateAdminClassAttendance(enrollmentId, lessonId, status)
@@ -483,7 +494,7 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
   return <>
     <WorkspaceHeading title="Active Classes" description="Published classes across International, Summer Camp, and Ministry Exam Prep." action={<Button variant="contained" startIcon={<AddIcon />} onClick={() => navigateTo('/admin/classes/new')}>New Class</Button>} />
     <Paper elevation={0} sx={{ p: 2.5, mb: 2, border: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.5, backgroundColor: 'background.paper' }}><GroupsOutlinedIcon color="primary" /><Typography color="text.secondary" variant="body2">Summer Camp and Ministry Exam Prep batches are created up front. International Online Interactive classes are created from Pending Scheduling.</Typography></Paper>
-    <AdminDataTable rows={activeClasses} columns={activeColumns} searchPlaceholder="Search active classes" searchKeys={['title', 'program_id']} rowClick={(classRecord) => navigateTo(`/admin/classes/${classRecord.id}`)} actions={(classRecord) => <Button size="small" onClick={() => navigateTo(`/admin/classes/${classRecord.id}`)}>View</Button>} />
+    <AdminDataTable rows={activeClasses} columns={activeColumns} searchPlaceholder="Search active classes" searchKeys={['title', 'program_id']} rowClick={(classRecord) => navigateTo(`/admin/classes/${classRecord.id}`)} actions={(classRecord) => <Stack direction="row" spacing={0.5} justifyContent="flex-end"><Button size="small" onClick={() => navigateTo(`/admin/classes/${classRecord.id}`)}>View</Button><Tooltip title={`Delete ${classRecord.title}`}><IconButton size="small" color="error" onClick={(event) => { event.stopPropagation(); void handleDeleteClass(classRecord) }} aria-label={`Delete ${classRecord.title}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip></Stack>} />
     <ClassEditorDialog classRecord={null} open={view === 'new'} onClose={() => navigateTo('/admin/classes/active')} onSave={handleSaveClass} />
   </>
 }
