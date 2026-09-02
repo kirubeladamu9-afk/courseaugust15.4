@@ -115,6 +115,16 @@ const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 let tutors: TutorOption[] = []
 
+const getTodayInputValue = () => {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+const getDateValidation = (schedule: ClassSchedule) => ({
+  startInPast: Boolean(schedule.startDate && schedule.startDate < getTodayInputValue()),
+  endBeforeStart: Boolean(schedule.startDate && schedule.endDate && schedule.endDate <= schedule.startDate),
+})
+
 const formatTime = (time: string) => {
   if (!time) return 'Time to be confirmed'
   const [hour, minute] = time.split(':').map(Number)
@@ -167,11 +177,12 @@ const WorkspaceHeading: FC<{ title: string; description: string; action?: ReactN
 const ClassStatusChip: FC<{ status: ClassStatus }> = ({ status }) => <Chip label={classStatusLabel(status)} color={classStatusColor(status)} size="small" />
 
 const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSchedule) => void; allowFlexible?: boolean }> = ({ schedule, onChange, allowFlexible = false }) => {
+  const dateValidation = getDateValidation(schedule)
   const toggleDay = (day: string) => onChange({ ...schedule, days: schedule.days.includes(day) ? schedule.days.filter((currentDay) => currentDay !== day) : [...schedule.days, day] })
 
   return (
     <Stack spacing={1}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField required label="Start date" type="date" value={schedule.startDate} onChange={(event) => onChange({ ...schedule, startDate: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class start date' }} /><TextField required label="End date" type="date" value={schedule.endDate} onChange={(event) => onChange({ ...schedule, endDate: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class end date' }} /></Stack>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField required label="Start date" type="date" value={schedule.startDate} onChange={(event) => onChange({ ...schedule, startDate: event.target.value })} error={dateValidation.startInPast} helperText={dateValidation.startInPast ? 'Start date cannot be in the past.' : undefined} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class start date' }} /><TextField required label="End date" type="date" value={schedule.endDate} onChange={(event) => onChange({ ...schedule, endDate: event.target.value })} error={dateValidation.endBeforeStart} helperText={dateValidation.endBeforeStart ? 'End date must be later than the start date.' : undefined} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class end date' }} /></Stack>
       {allowFlexible && <FormControlLabel control={<Switch checked={schedule.flexible} onChange={(event) => onChange({ ...schedule, flexible: event.target.checked })} inputProps={{ 'aria-label': 'Use a flexible schedule' }} />} label="Flexible schedule" />}
       {!schedule.flexible && <>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>Days</Typography>
@@ -191,7 +202,8 @@ const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => 
     if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', duration: 60, flexible: false, startDate: '', endDate: '' }, meeting_link: '' })
   }, [student])
 
-  const canSave = values.capacity >= 1 && Boolean(values.meeting_link.trim()) && Boolean(values.schedule.startDate && values.schedule.endDate && values.schedule.endDate >= values.schedule.startDate) && (values.schedule.flexible || (values.schedule.days.length > 0 && Boolean(values.schedule.time)))
+  const assignmentDateValidation = getDateValidation(values.schedule)
+  const canSave = values.capacity >= 1 && Boolean(values.meeting_link.trim()) && Boolean(values.schedule.startDate && values.schedule.endDate) && !assignmentDateValidation.startInPast && !assignmentDateValidation.endBeforeStart && (values.schedule.flexible || (values.schedule.days.length > 0 && Boolean(values.schedule.time)))
 
   return (
     <Dialog open={Boolean(student)} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="assign-schedule-title">
@@ -280,7 +292,8 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
     setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: normalizeSchedule(classRecord.schedule), meeting_link: classRecord.meeting_link, modules: normalizeModules(classRecord.modules), price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
-  const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.duration >= 1 && values.schedule.startDate && values.schedule.endDate && values.schedule.endDate >= values.schedule.startDate && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
+  const classDateValidation = getDateValidation(values.schedule)
+  const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.duration >= 1 && values.schedule.startDate && values.schedule.endDate && !classDateValidation.startInPast && !classDateValidation.endBeforeStart && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
   const selectablePrograms = classRecord ? Object.keys(programLabels) as ProgramId[] : manageablePrograms
 
   return (
