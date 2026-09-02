@@ -1721,8 +1721,8 @@ const parseClassPayload = (body) => {
   const modules = Array.isArray(body.modules) ? body.modules : []
   const price = Number(body.price)
   const published = body.published
-  const validSchedule = schedule && typeof schedule === 'object' && !Array.isArray(schedule) && Array.isArray(schedule.days) && schedule.days.every((day) => typeof day === 'string' && day.length <= 3) && typeof schedule.time === 'string' && typeof schedule.duration === 'number' && Number.isFinite(schedule.duration) && schedule.duration > 0 && typeof schedule.flexible === 'boolean' && typeof schedule.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.startDate) && typeof schedule.endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.endDate) && schedule.endDate >= schedule.startDate
-  if (!title || title.length > 200 || !classPrograms.includes(programId) || !Number.isInteger(tutorId) || tutorId < 1 || !Number.isInteger(capacity) || capacity < 1 || !validSchedule || meetingLink.length > 2000 || !meetingLink || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean') return null
+  const validSchedule = schedule && typeof schedule === 'object' && !Array.isArray(schedule) && typeof schedule.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.startDate) && typeof schedule.endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.endDate) && schedule.endDate >= schedule.startDate
+  if (!title || title.length > 200 || !classPrograms.includes(programId) || !Number.isInteger(tutorId) || tutorId < 1 || !Number.isInteger(capacity) || capacity < 1 || !validSchedule || meetingLink.length > 2000 || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean') return null
   return { program_id: programId, title, tutor_id: tutorId, capacity, schedule, meeting_link: meetingLink, modules, price, published }
 }
 
