@@ -500,10 +500,26 @@ const getEnrollmentProgress = (modules, lessonProgress, quizAttempts = []) => {
   }
 }
 
+const normalizeQuizAnswers = (answers, questions) => {
+  const parsedAnswers = deserializeJson(answers)
+  if (!isPlainObject(parsedAnswers)) return {}
+  const questionIds = new Set(questions.map((question) => String(question.id)))
+  const hasQuestionId = (value) => questionIds.has(value)
+  const directAnswers = Object.fromEntries(Object.entries(parsedAnswers).filter(([id]) => hasQuestionId(id)))
+  if (Object.keys(directAnswers).length > 0) return directAnswers
+  for (const key of ['answers', 'responses']) {
+    const nestedAnswers = deserializeJson(parsedAnswers[key])
+    if (!isPlainObject(nestedAnswers)) continue
+    const matchingAnswers = Object.fromEntries(Object.entries(nestedAnswers).filter(([id]) => hasQuestionId(id)))
+    if (Object.keys(matchingAnswers).length > 0) return matchingAnswers
+  }
+  return directAnswers
+}
+
 const getQuestionResults = (modules, attempt) => {
   if (!attempt?.submittedAt) return undefined
-  const answers = isPlainObject(attempt.answers) ? attempt.answers : {}
   const questions = getCourseLessons(modules).find((lesson) => lesson?.id === attempt.lessonId)?.quizQuestions ?? []
+  const answers = normalizeQuizAnswers(attempt.answers, questions)
   return questions.map((question) => {
     const rawRecord = answers[String(question.id)]
     const record = Number.isInteger(rawRecord) ? { status: 'answered', value: rawRecord } : rawRecord
