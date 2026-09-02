@@ -45,8 +45,10 @@ type ClassesView = 'pending' | 'active' | 'new' | 'detail'
 interface ClassSchedule {
   days: string[]
   time: string
+  duration: number
   flexible: boolean
   startDate: string
+  endDate: string
 }
 
 interface AdminClass {
@@ -123,13 +125,15 @@ const formatTime = (time: string) => {
 
 const normalizeSchedule = (schedule: unknown): ClassSchedule => {
   const parsed = typeof schedule === 'string' ? (() => { try { return JSON.parse(schedule) } catch { return null } })() : schedule
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { days: [], time: '', flexible: false, startDate: '' }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { days: [], time: '', duration: 60, flexible: false, startDate: '', endDate: '' }
   const candidate = parsed as Partial<ClassSchedule>
   return {
     days: Array.isArray(candidate.days) ? candidate.days.filter((day): day is string => typeof day === 'string') : [],
     time: typeof candidate.time === 'string' ? candidate.time : '',
+    duration: typeof candidate.duration === 'number' && candidate.duration > 0 ? candidate.duration : 60,
     flexible: candidate.flexible === true,
     startDate: typeof candidate.startDate === 'string' ? candidate.startDate : '',
+    endDate: typeof candidate.endDate === 'string' ? candidate.endDate : '',
   }
 }
 
@@ -167,27 +171,27 @@ const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSc
 
   return (
     <Stack spacing={1}>
-      <TextField required label="Start date" type="date" value={schedule.startDate} onChange={(event) => onChange({ ...schedule, startDate: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class start date' }} sx={{ maxWidth: { xs: '100%', sm: 220 } }} />
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField required label="Start date" type="date" value={schedule.startDate} onChange={(event) => onChange({ ...schedule, startDate: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class start date' }} /><TextField required label="End date" type="date" value={schedule.endDate} onChange={(event) => onChange({ ...schedule, endDate: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class end date' }} /></Stack>
       {allowFlexible && <FormControlLabel control={<Switch checked={schedule.flexible} onChange={(event) => onChange({ ...schedule, flexible: event.target.checked })} inputProps={{ 'aria-label': 'Use a flexible schedule' }} />} label="Flexible schedule" />}
       {!schedule.flexible && <>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>Days</Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25 }}>
           {weekdays.map((day) => <FormControlLabel key={day} sx={{ mr: 1 }} control={<Checkbox size="small" checked={schedule.days.includes(day)} onChange={() => toggleDay(day)} />} label={day} />)}
         </Box>
-        <TextField required label="Time" type="time" value={schedule.time} onChange={(event) => onChange({ ...schedule, time: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class time' }} sx={{ maxWidth: { xs: '100%', sm: 220 } }} />
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField required label="Time" type="time" value={schedule.time} onChange={(event) => onChange({ ...schedule, time: event.target.value })} InputLabelProps={{ shrink: true }} inputProps={{ 'aria-label': 'Class time' }} /><TextField required label="Duration (minutes)" type="number" value={schedule.duration} onChange={(event) => onChange({ ...schedule, duration: Math.max(1, Number(event.target.value)) })} inputProps={{ min: 1 }} /></Stack>
       </>}
     </Stack>
   )
 }
 
 const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => void; onSave: (student: PendingStudent, values: PendingAssignmentValue) => void }> = ({ student, onClose, onSave }) => {
-  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false, startDate: '' }, meeting_link: '' })
+  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', duration: 60, flexible: false, startDate: '', endDate: '' }, meeting_link: '' })
 
   useEffect(() => {
-    if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', flexible: false, startDate: '' }, meeting_link: '' })
+    if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { days: ['Mon', 'Wed'], time: '16:00', duration: 60, flexible: false, startDate: '', endDate: '' }, meeting_link: '' })
   }, [student])
 
-  const canSave = values.capacity >= 1 && Boolean(values.meeting_link.trim()) && Boolean(values.schedule.startDate) && (values.schedule.flexible || (values.schedule.days.length > 0 && Boolean(values.schedule.time)))
+  const canSave = values.capacity >= 1 && Boolean(values.meeting_link.trim()) && Boolean(values.schedule.startDate && values.schedule.endDate && values.schedule.endDate >= values.schedule.startDate) && (values.schedule.flexible || (values.schedule.days.length > 0 && Boolean(values.schedule.time)))
 
   return (
     <Dialog open={Boolean(student)} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="assign-schedule-title">
@@ -228,13 +232,20 @@ const getScheduledAt = (schedule: ClassSchedule, liveIndex: number) => {
   return formatScheduledAt(date)
 }
 
+const getScheduledEndAt = (scheduledAt: string | undefined, duration: number) => {
+  if (!scheduledAt) return ''
+  const date = new Date(scheduledAt)
+  date.setMinutes(date.getMinutes() + duration)
+  return formatScheduledAt(date)
+}
+
 const synchronizeLiveLessons = (modules: AdminModule[], schedule: ClassSchedule, meetingUrl: string) => {
   let liveIndex = 0
   return modules.map((module) => ({ ...module, lessons: module.lessons.map((lesson) => {
     if (lesson.type !== 'live') return lesson
     const scheduledAt = lesson.dateOverridden ? lesson.scheduledAt : getScheduledAt(schedule, liveIndex)
     liveIndex += 1
-    return { ...lesson, meetingUrl, scheduledAt }
+    return { ...lesson, meetingUrl, scheduledAt, endsAt: getScheduledEndAt(scheduledAt, schedule.duration) }
   }) }))
 }
 
@@ -248,7 +259,7 @@ const emptyClassForm = (): ClassFormValue => ({
   program_id: 'summer-camp',
   tutor_id: tutors[0]?.id ?? 0,
   capacity: 12,
-  schedule: { days: ['Mon', 'Wed'], time: '10:00', flexible: false, startDate: '' },
+  schedule: { days: ['Mon', 'Wed'], time: '10:00', duration: 60, flexible: false, startDate: '', endDate: '' },
   meeting_link: '',
   modules: [],
   price: 0,
@@ -269,7 +280,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
     setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: normalizeSchedule(classRecord.schedule), meeting_link: classRecord.meeting_link, modules: normalizeModules(classRecord.modules), price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
-  const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.startDate && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
+  const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.duration >= 1 && values.schedule.startDate && values.schedule.endDate && values.schedule.endDate >= values.schedule.startDate && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
   const selectablePrograms = classRecord ? Object.keys(programLabels) as ProgramId[] : manageablePrograms
 
   return (

@@ -49,6 +49,7 @@ interface EnrollmentLesson {
   passThreshold?: number
   meetingUrl?: string
   scheduledAt?: string
+  endsAt?: string
 }
 
 interface EnrollmentModule {
@@ -111,7 +112,7 @@ export interface MyEnrollment {
   classId: number | null
   classTitle: string | null
   classTutor: string | null
-  classSchedule: { days: string[]; time: string; flexible: boolean; startDate: string } | null
+  classSchedule: { days: string[]; time: string; duration: number; flexible: boolean; startDate: string; endDate?: string } | null
   meetingLink: string | null
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
   lessonProgress: Record<number, LessonProgress>
@@ -127,7 +128,7 @@ export interface PublicClass {
   id: number
   title: string
   programId: string
-  schedule: { days: string[]; time: string; flexible: boolean; startDate: string }
+  schedule: { days: string[]; time: string; duration: number; flexible: boolean; startDate: string; endDate: string }
   price: number
   status: 'pending_schedule' | 'open' | 'full' | 'closed'
   courseId: number | null
@@ -322,6 +323,7 @@ export interface AdminClassSchedule {
   time: string
   flexible: boolean
   startDate: string
+  endDate: string
 }
 
 export interface AdminClass {

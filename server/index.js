@@ -703,6 +703,7 @@ app.get('/api/students', requireAuthenticated, async (request, response) => {
 })
 
 app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
+  await sql`UPDATE classes SET status = 'closed', updated_at = NOW() WHERE (schedule->>'endDate') IS NOT NULL AND (schedule->>'endDate') < CURRENT_DATE::TEXT AND status <> 'closed'`
   const enrollments = await sql`
     SELECT enrollments.id::INTEGER AS id,
            courses.id::INTEGER AS "courseId",
@@ -1699,7 +1700,7 @@ const parseClassPayload = (body) => {
   const modules = Array.isArray(body.modules) ? body.modules : []
   const price = Number(body.price)
   const published = body.published
-  const validSchedule = schedule && typeof schedule === 'object' && !Array.isArray(schedule) && Array.isArray(schedule.days) && schedule.days.every((day) => typeof day === 'string' && day.length <= 3) && typeof schedule.time === 'string' && typeof schedule.flexible === 'boolean' && typeof schedule.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.startDate)
+  const validSchedule = schedule && typeof schedule === 'object' && !Array.isArray(schedule) && Array.isArray(schedule.days) && schedule.days.every((day) => typeof day === 'string' && day.length <= 3) && typeof schedule.time === 'string' && typeof schedule.duration === 'number' && Number.isFinite(schedule.duration) && schedule.duration > 0 && typeof schedule.flexible === 'boolean' && typeof schedule.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.startDate) && typeof schedule.endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.endDate) && schedule.endDate >= schedule.startDate
   if (!title || title.length > 200 || !classPrograms.includes(programId) || !Number.isInteger(tutorId) || tutorId < 1 || !Number.isInteger(capacity) || capacity < 1 || !validSchedule || meetingLink.length > 2000 || !meetingLink || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean') return null
   return { program_id: programId, title, tutor_id: tutorId, capacity, schedule: JSON.stringify(schedule), modules: JSON.stringify(modules), price, published }
 }
@@ -1724,8 +1725,12 @@ const readAdminClass = async (id) => {
 }
 
 const refreshClassStatus = async (id) => {
-  const [classRecord] = await sql`SELECT capacity, published, status FROM classes WHERE id = ${id} FOR UPDATE`
+  const [classRecord] = await sql`SELECT capacity, published, status, schedule FROM classes WHERE id = ${id} FOR UPDATE`
   if (!classRecord) return null
+  if (classRecord.schedule?.endDate && classRecord.schedule.endDate < new Date().toISOString().slice(0, 10)) {
+    await sql`UPDATE classes SET status = 'closed', updated_at = NOW() WHERE id = ${id}`
+    return readAdminClass(id)
+  }
   const [counts] = await sql`SELECT COUNT(*) FILTER (WHERE class_status = 'enrolled')::INTEGER AS enrolled FROM enrollments WHERE class_id = ${id}`
   const status = !classRecord.published ? 'closed' : classRecord.status === 'closed' ? 'closed' : counts.enrolled >= classRecord.capacity ? 'full' : 'open'
   await sql`UPDATE classes SET status = ${status}, updated_at = NOW() WHERE id = ${id}`
@@ -1733,6 +1738,7 @@ const refreshClassStatus = async (id) => {
 }
 
 app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
+  await sql`UPDATE classes SET status = 'closed', updated_at = NOW() WHERE (schedule->>'endDate') IS NOT NULL AND (schedule->>'endDate') < CURRENT_DATE::TEXT AND status <> 'closed'`
   const [classes, enrollments, pendingStudents, tutors, courses] = await Promise.all([
     sql`SELECT ${classColumns} FROM classes WHERE published = true ORDER BY created_at DESC, id DESC`,
     sql`SELECT enrollments.id::INTEGER AS id, enrollments.class_id::INTEGER AS class_id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, enrollments.class_status AS status FROM enrollments INNER JOIN students ON students.id = enrollments.student_id WHERE enrollments.class_id IS NOT NULL ORDER BY enrollments.created_at DESC`,

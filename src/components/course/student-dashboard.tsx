@@ -113,6 +113,7 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   passThreshold?: number
   meetingUrl?: string
   scheduledAt?: string
+  endsAt?: string
 }
 
  interface DashboardModule {
@@ -135,8 +136,10 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
  interface DashboardClassSchedule {
   days: string[]
   time: string
+  duration: number
   flexible: boolean
   startDate: string
+  endDate: string
   date: string
   startsAt: string
  }
@@ -209,6 +212,22 @@ const classHasStarted = (schedule: DashboardClassSchedule, now: Date) => {
   const date = classStartDateTime(schedule)
   return date !== null && now.getTime() >= date.getTime()
 }
+const classHasEnded = (schedule: DashboardClassSchedule, now: Date) => {
+  if (!schedule.endDate) return false
+  const endDate = new Date(`${schedule.endDate}T00:00:00`)
+  endDate.setDate(endDate.getDate() + 1)
+  return now.getTime() >= endDate.getTime()
+}
+const getClassSessionState = (classRecord: DashboardClass, now: Date) => {
+  const sessions = classRecord.course?.modules.flatMap((module) => module.lessons).filter((lesson) => lesson.type === 'live' && lesson.scheduledAt).sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!)) ?? []
+  const activeSession = sessions.find((lesson) => {
+    const start = new Date(lesson.scheduledAt!).getTime()
+    const end = lesson.endsAt ? new Date(lesson.endsAt).getTime() : start + (classRecord.schedule.duration || 60) * 60 * 1000
+    return now.getTime() >= start && now.getTime() < end
+  })
+  const latestStarted = [...sessions].reverse().find((lesson) => new Date(lesson.scheduledAt!).getTime() <= now.getTime())
+  return { isActive: Boolean(activeSession), hasEnded: Boolean(latestStarted && !activeSession) }
+}
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
 const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
   id: enrollment.courseId,
@@ -233,6 +252,7 @@ const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
       passThreshold: lesson.passThreshold,
       meetingUrl: lesson.meetingUrl,
       scheduledAt: lesson.scheduledAt,
+      endsAt: lesson.endsAt,
     })),
   })),
   meetingLink: enrollment.classId === null ? undefined : enrollment.meetingLink ?? undefined,
@@ -244,8 +264,10 @@ const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): 
   schedule: {
     days: enrollment.classSchedule?.days ?? [],
     time: enrollment.classSchedule?.time ?? '',
+    duration: enrollment.classSchedule?.duration ?? 60,
     flexible: enrollment.classSchedule?.flexible ?? false,
     startDate: enrollment.classSchedule?.startDate ?? '',
+    endDate: enrollment.classSchedule?.endDate ?? '',
     date: '',
     startsAt: '',
   },
@@ -438,15 +460,18 @@ const ClassesView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onOpenCou
 
 const ClassCard: FC<{ classRecord: DashboardClass; timeSpentSeconds: number; now: Date; onOpenCourse: (courseId: number) => void }> = ({ classRecord, timeSpentSeconds, now, onOpenCourse }) => {
   const hasStarted = classHasStarted(classRecord.schedule, now)
-  const isJoinable = classRecord.status === 'open' && hasStarted && Boolean(classRecord.meeting_link)
-  const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? hasStarted ? 'Scheduled' : classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set' : classRecord.status === 'full' ? 'Full' : 'Closed'
+  const classEnded = classHasEnded(classRecord.schedule, now)
+  const sessionState = getClassSessionState(classRecord, now)
+  const hasLiveLessons = classRecord.course?.modules.some((module) => module.lessons.some((lesson) => lesson.type === 'live')) === true
+  const isJoinable = classRecord.status === 'open' && !classEnded && (sessionState.isActive || (!hasLiveLessons && hasStarted)) && Boolean(classRecord.meeting_link)
+  const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classEnded || classRecord.status === 'closed' ? 'Closed' : classRecord.status === 'open' ? hasStarted ? 'Scheduled' : classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set' : classRecord.status === 'full' ? 'Full' : 'Closed'
   const statusColor = classRecord.status === 'pending_schedule' || classRecord.status === 'full' || (classRecord.status === 'open' && !hasStarted) ? 'warning' : classRecord.status === 'open' ? 'success' : 'error'
   const linkedCourse = classRecord.course
   return <Card elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
     <CardContent>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
         <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}><Box sx={{ display: 'flex', alignSelf: 'flex-start', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Box><Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap"><Typography variant="h6">{classRecord.title}</Typography><Chip label={statusLabel} size="small" color={statusColor} /></Stack>{classRecord.status === 'pending_schedule' ? <Typography color="text.secondary" sx={{ mt: 0.75 }}>Pending — we&apos;ll contact you to schedule your class.</Typography> : <><Typography color="text.secondary" variant="body2" sx={{ mt: 0.75 }}>{classScheduleLabel(classRecord.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography><Typography color="text.secondary" variant="body2">Time spent learning: {formatTimeSpent(timeSpentSeconds)}</Typography>{classRecord.status === 'open' && <Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Start date not set'}</Typography>}</>}</Box></Box>
-        {classRecord.status === 'open' && <Button variant="contained" component="a" href={isJoinable ? classRecord.meeting_link : undefined} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : 'Available at scheduled time'}</Button>}
+        {classRecord.status === 'open' && !classEnded && <Button variant="contained" component="a" href={isJoinable ? classRecord.meeting_link : undefined} disabled={!isJoinable} aria-disabled={!isJoinable} onClick={(event) => { if (!isJoinable) event.preventDefault() }} startIcon={<VideoCallOutlinedIcon />} sx={{ flexShrink: 0 }}>{isJoinable ? 'Join Class' : sessionState.hasEnded ? 'Session Ended' : 'Available at scheduled time'}</Button>}
       </Stack>
       {linkedCourse && <><Divider sx={{ my: 2 }} /><Button variant="text" size="small" startIcon={<MenuBookOutlinedIcon />} onClick={() => onOpenCourse(linkedCourse.id)}>View {linkedCourse.title} curriculum summary</Button></>}
     </CardContent>
