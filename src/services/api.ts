@@ -316,6 +316,7 @@ export interface AdminClassSchedule {
   days: string[]
   time: string
   flexible: boolean
+  startDate: string
 }
 
 export interface AdminClass {
@@ -326,7 +327,7 @@ export interface AdminClass {
   capacity: number
   schedule: AdminClassSchedule
   meeting_link: string
-  course_id: number | null
+  modules: Array<{ id: number; title: string; lessons: Array<{ id: number; title: string; type: 'video' | 'article' | 'quiz' | 'live'; duration: number | null; resources: Array<{ id: number; name: string; url?: string }> }> }>
   price: number
   status: AdminClassStatus
   published: boolean
@@ -352,7 +353,6 @@ export interface AdminClassesWorkspace {
   enrollments: AdminClassEnrollment[]
   pendingStudents: PendingClassStudent[]
   tutors: Array<{ id: number; name: string }>
-  courses: Array<{ id: number; title: string }>
 }
 
 const requestClasses = async (url: string, init?: RequestInit): Promise<AdminClass> => {
@@ -379,7 +379,7 @@ export const updateAdminClass = (classRecord: Omit<AdminClass, 'status'>) => req
   body: JSON.stringify(classRecord),
 })
 
-export const assignAdminClass = (enrollmentId: number, values: Omit<AdminClass, 'id' | 'status' | 'program_id' | 'course_id' | 'published'>) => requestClasses('/api/admin/classes/assign', {
+export const assignAdminClass = (enrollmentId: number, values: Omit<AdminClass, 'id' | 'status' | 'program_id' | 'modules' | 'published'>) => requestClasses('/api/admin/classes/assign', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ enrollmentId, ...values }),

@@ -33,6 +33,7 @@ import { type FC, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
 import { assignAdminClass, createAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment } from '@/services/api'
+import { type AdminModule, type LessonType } from './admin-data'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 
 type ProgramId = 'international-online-interactive' | 'summer-camp' | 'ministry-exam-prep'
@@ -55,7 +56,7 @@ interface AdminClass {
   capacity: number
   schedule: ClassSchedule
   meeting_link: string
-  course_id: number | null
+  modules: AdminModule[]
   price: number
   status: ClassStatus
   published: boolean
@@ -81,11 +82,6 @@ interface TutorOption {
   name: string
 }
 
-interface CourseOption {
-  id: number
-  title: string
-}
-
 interface ClassFormValue {
   title: string
   program_id: ProgramId
@@ -93,7 +89,7 @@ interface ClassFormValue {
   capacity: number
   schedule: ClassSchedule
   meeting_link: string
-  course_id: number | null
+  modules: AdminModule[]
   price: number
   published: boolean
 }
@@ -115,7 +111,6 @@ const manageablePrograms: ProgramId[] = ['summer-camp', 'ministry-exam-prep']
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 let tutors: TutorOption[] = []
-let linkedCourses: CourseOption[] = []
 
 const formatTime = (time: string) => {
   if (!time) return 'Time to be confirmed'
@@ -143,7 +138,6 @@ const formatSchedule = (schedule: ClassSchedule) => {
   return `${days} · ${formatTime(normalizedSchedule.time)}`
 }
 const tutorName = (tutorId: number) => tutors.find((tutor) => tutor.id === tutorId)?.name ?? 'Unassigned tutor'
-const courseName = (courseId: number | null) => linkedCourses.find((course) => course.id === courseId)?.title ?? 'No linked course'
 
 const classStatusColor = (status: ClassStatus): 'success' | 'warning' | 'error' | 'default' => {
   if (status === 'open') return 'success'
@@ -217,17 +211,23 @@ const emptyClassForm = (): ClassFormValue => ({
   capacity: 12,
   schedule: { days: ['Mon', 'Wed'], time: '10:00', flexible: false, startDate: '' },
   meeting_link: '',
-  course_id: null,
+  modules: [],
   price: 0,
   published: true,
 })
+
+const ClassCurriculumEditor: FC<{ modules: AdminModule[]; onChange: (modules: AdminModule[]) => void }> = ({ modules, onChange }) => {
+  const addModule = () => onChange([...modules, { id: Math.max(0, ...modules.map((module) => module.id)) + 1, title: `Module ${modules.length + 1}`, lessons: [] }])
+  const addLesson = (moduleId: number, type: LessonType) => onChange(modules.map((module) => module.id === moduleId ? { ...module, lessons: [...module.lessons, { id: Math.max(0, ...modules.flatMap((item) => item.lessons.map((lesson) => lesson.id))) + 1, title: `New ${type} lesson`, type, duration: null, resources: [] }] } : module))
+  return <Stack spacing={1.5}><Typography variant="body2" color="text.secondary">Build curriculum private to this class. It is not connected to the public Courses catalog.</Typography>{modules.map((module) => <Paper key={module.id} variant="outlined" sx={{ p: 1.5 }}><TextField fullWidth size="small" label="Module title" value={module.title} onChange={(event) => onChange(modules.map((item) => item.id === module.id ? { ...item, title: event.target.value } : item))} /><Stack spacing={0.5} sx={{ mt: 1 }}>{module.lessons.map((lesson) => <Typography key={lesson.id} variant="body2">{lesson.title} · {lesson.type}</Typography>)}<Stack direction="row" spacing={0.5} flexWrap="wrap">{(['video', 'article', 'quiz', 'live'] as LessonType[]).map((type) => <Button key={type} size="small" onClick={() => addLesson(module.id, type)}>Add {type}</Button>)}</Stack></Stack></Paper>)}<Button startIcon={<AddIcon />} onClick={addModule} sx={{ alignSelf: 'flex-start' }}>Add module</Button></Stack>
+}
 
 const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onClose: () => void; onSave: (values: ClassFormValue) => void }> = ({ classRecord, open, onClose, onSave }) => {
   const [values, setValues] = useState<ClassFormValue>(emptyClassForm)
 
   useEffect(() => {
     if (!open) return
-    setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: { ...classRecord.schedule, days: [...classRecord.schedule.days] }, meeting_link: classRecord.meeting_link, course_id: classRecord.course_id, price: classRecord.price, published: classRecord.published } : emptyClassForm())
+    setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: { ...classRecord.schedule, days: [...classRecord.schedule.days] }, meeting_link: classRecord.meeting_link, modules: classRecord.modules ?? [], price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
   const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.startDate && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
@@ -249,8 +249,8 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
           </Stack>
           <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Schedule</Typography><ScheduleFields schedule={values.schedule} onChange={(schedule) => setValues({ ...values, schedule })} allowFlexible /></Box>
           <TextField required fullWidth label="Meeting Link" type="url" placeholder="https://" value={values.meeting_link} onChange={(event) => setValues({ ...values, meeting_link: event.target.value })} />
-          <FormControl fullWidth><InputLabel>Linked Course</InputLabel><Select label="Linked Course" value={values.course_id ?? ''} onChange={(event) => setValues({ ...values, course_id: event.target.value === '' ? null : Number(event.target.value) })}><MenuItem value="">No linked course</MenuItem>{linkedCourses.map((course) => <MenuItem key={course.id} value={course.id}>{course.title}</MenuItem>)}</Select><Typography color="text.secondary" variant="caption">Optionally link a course for the Ministry Exam Prep curriculum.</Typography></FormControl>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, p: 2, border: 1, borderColor: 'divider', borderRadius: 1, backgroundColor: 'background.default' }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{values.published ? 'Published class' : 'Unpublished class'}</Typography><Typography color="text.secondary" variant="caption">Only published classes appear in Active Classes.</Typography></Box><Switch checked={values.published} onChange={(event) => setValues({ ...values, published: event.target.checked })} inputProps={{ 'aria-label': 'Publish class' }} /></Box>
+          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class curriculum</Typography><ClassCurriculumEditor modules={values.modules} onChange={(modules) => setValues({ ...values, modules })} /></Box>
+          <Box sx={{ display: 'flex\',, alignItems: \'center\', justifyContent: \'space-between\', gap: 2, p: 2, border: 1, borderColor: \'divider\', borderRadius: 1, backgroundColor: \'background.default' }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{values.published ? 'Published class' : 'Unpublished class'}</Typography><Typography color="text.secondary" variant="caption">Only published classes appear in Active Classes.</Typography></Box><Switch checked={values.published} onChange={(event) => setValues({ ...values, published: event.target.checked })} inputProps={{ 'aria-label': 'Publish class' }} /></Box>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: 2 }}><Button onClick={onClose}>Cancel</Button><Button variant="contained" onClick={() => onSave(values)} disabled={!canSave}>{classRecord ? 'Save changes' : 'Create class'}</Button></DialogActions>
@@ -315,7 +315,6 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
     try {
       const workspace = await getAdminClassesWorkspace()
       tutors = workspace.tutors
-      linkedCourses = workspace.courses
       setClasses(workspace.classes.map((classRecord) => ({ ...classRecord, schedule: normalizeSchedule(classRecord.schedule) })))
       setClassEnrollments(workspace.enrollments)
       setPendingStudents(workspace.pendingStudents)

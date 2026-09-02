@@ -613,14 +613,6 @@ const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
 
     if (mode === 'new') return () => { isCurrent = false }
 
-    getAdminClassesWorkspace()
-      .then((workspace) => {
-        if (isCurrent) setIsClassLinked(workspace.classes.some((classRecord) => classRecord.course_id === courseId))
-      })
-      .catch(() => {
-        if (isCurrent) setIsClassLinked(false)
-      })
-
     getAdminCourse(courseId)
       .then((loadedCourse) => {
         if (isCurrent) setCourse(loadedCourse)

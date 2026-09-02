@@ -183,10 +183,12 @@ const initializeDatabase = async () => {
       price NUMERIC(10, 2) NOT NULL DEFAULT 0 CHECK (price >= 0),
       status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('pending_schedule', 'open', 'full', 'closed')),
       published BOOLEAN NOT NULL DEFAULT true,
+      modules JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  await sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS modules JSONB NOT NULL DEFAULT '[]'::jsonb`
   await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
   await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_status TEXT CHECK (class_status IN ('enrolled', 'waitlisted'))`
   await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
@@ -1327,20 +1329,15 @@ app.get('/api/classes', async (_request, response) => {
            classes.schedule,
            classes.price::FLOAT AS price,
            classes.status,
-           classes.course_id::INTEGER AS "courseId",
-           courses.title AS "courseTitle",
+           NULL::INTEGER AS "courseId",
+           NULL::TEXT AS "courseTitle",
            COALESCE(tutors.name, 'Tutor to be confirmed') AS "tutorName",
            classes.capacity,
            COALESCE(enrollment_counts.enrolled_count, 0)::INTEGER AS "enrolledCount",
            classes.published,
-           CASE WHEN courses.id IS NULL THEN NULL ELSE jsonb_array_length(CASE WHEN jsonb_typeof(courses.modules) = 'array' THEN courses.modules ELSE '[]'::jsonb END) END::INTEGER AS "moduleCount",
-           CASE WHEN courses.id IS NULL THEN NULL ELSE (
-             SELECT COUNT(*)::INTEGER
-             FROM jsonb_array_elements(CASE WHEN jsonb_typeof(courses.modules) = 'array' THEN courses.modules ELSE '[]'::jsonb END) AS module
-             CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(module->'lessons') = 'array' THEN module->'lessons' ELSE '[]'::jsonb END) AS lesson
-           ) END AS "lessonCount"
+           jsonb_array_length(CASE WHEN jsonb_typeof(classes.modules) = 'array' THEN classes.modules ELSE '[]'::jsonb END)::INTEGER AS "moduleCount",
+           (SELECT COUNT(*)::INTEGER FROM jsonb_array_elements(CASE WHEN jsonb_typeof(classes.modules) = 'array' THEN classes.modules ELSE '[]'::jsonb END) AS module CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(module->'lessons') = 'array' THEN module->'lessons' ELSE '[]'::jsonb END) AS lesson) AS "lessonCount"
     FROM classes
-    LEFT JOIN courses ON courses.id = classes.course_id
     LEFT JOIN tutors ON tutors.id = classes.tutor_id
     LEFT JOIN (
       SELECT class_id, COUNT(*) FILTER (WHERE class_status = 'enrolled') AS enrolled_count
@@ -1686,12 +1683,12 @@ const parseClassPayload = (body) => {
   const capacity = Number(body.capacity)
   const schedule = body.schedule
   const meetingLink = typeof body.meeting_link === 'string' ? body.meeting_link.trim() : ''
-  const courseId = body.course_id === null ? null : Number(body.course_id)
+  const modules = Array.isArray(body.modules) ? body.modules : []
   const price = Number(body.price)
   const published = body.published
   const validSchedule = schedule && typeof schedule === 'object' && !Array.isArray(schedule) && Array.isArray(schedule.days) && schedule.days.every((day) => typeof day === 'string' && day.length <= 3) && typeof schedule.time === 'string' && typeof schedule.flexible === 'boolean' && typeof schedule.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.startDate)
-  if (!title || title.length > 200 || !classPrograms.includes(programId) || !Number.isInteger(tutorId) || tutorId < 1 || !Number.isInteger(capacity) || capacity < 1 || !validSchedule || meetingLink.length > 2000 || !meetingLink || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean' || (courseId !== null && (!Number.isInteger(courseId) || courseId < 1))) return null
-  return { program_id: programId, title, tutor_id: tutorId, capacity, schedule: JSON.stringify(schedule), meeting_link: meetingLink, course_id: courseId, price, published }
+  if (!title || title.length > 200 || !classPrograms.includes(programId) || !Number.isInteger(tutorId) || tutorId < 1 || !Number.isInteger(capacity) || capacity < 1 || !validSchedule || meetingLink.length > 2000 || !meetingLink || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean') return null
+  return { program_id: programId, title, tutor_id: tutorId, capacity, schedule: JSON.stringify(schedule), modules: JSON.stringify(modules), price, published }
 }
 
 const classColumns = sql.unsafe(`
@@ -1702,7 +1699,7 @@ const classColumns = sql.unsafe(`
   classes.capacity,
   classes.schedule,
   classes.meeting_link,
-  classes.course_id::INTEGER AS course_id,
+  classes.modules,
   classes.price::FLOAT AS price,
   classes.status,
   classes.published
@@ -1728,9 +1725,8 @@ app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
     sql`SELECT enrollments.id::INTEGER AS id, enrollments.class_id::INTEGER AS class_id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, enrollments.class_status AS status FROM enrollments INNER JOIN students ON students.id = enrollments.student_id WHERE enrollments.class_id IS NOT NULL ORDER BY enrollments.created_at DESC`,
     sql`SELECT enrollments.id::INTEGER AS id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, NULLIF(regexp_replace(students.age_or_grade, '\\D', '', 'g'), '')::INTEGER AS age FROM enrollments INNER JOIN students ON students.id = enrollments.student_id INNER JOIN payments ON payments.id = enrollments.payment_id INNER JOIN courses ON courses.id = enrollments.course_id WHERE payments.status = 'paid' AND enrollments.class_id IS NULL AND LOWER(courses.category) = 'international online interactive' ORDER BY enrollments.created_at DESC`,
     sql`SELECT id::INTEGER AS id, name FROM tutors WHERE status = 'Active' ORDER BY name`,
-    sql`SELECT id::INTEGER AS id, title FROM courses ORDER BY title`,
   ])
-  response.json({ classes, enrollments, pendingStudents, tutors, courses })
+  response.json({ classes, enrollments, pendingStudents, tutors })
 })
 
 app.post('/api/admin/classes', requireAdmin, async (request, response) => {
@@ -1751,7 +1747,7 @@ app.put('/api/admin/classes/:id', requireAdmin, async (request, response) => {
 
 app.post('/api/admin/classes/assign', requireAdmin, async (request, response) => {
   const enrollmentId = parseCourseId(String(request.body?.enrollmentId ?? ''))
-  const classPayload = parseClassPayload({ ...request.body, program_id: 'international-online-interactive', title: request.body?.title, price: request.body?.price ?? 0, published: true, course_id: null })
+  const classPayload = parseClassPayload({ ...request.body, program_id: 'international-online-interactive', title: request.body?.title, price: request.body?.price ?? 0, published: true })
   if (enrollmentId === null || !classPayload) return response.status(400).json({ message: 'Enter valid class assignment details.' })
   const created = await sql.begin(async (transaction) => {
     const [enrollment] = await transaction`SELECT id FROM enrollments WHERE id = ${enrollmentId} AND class_id IS NULL FOR UPDATE`
