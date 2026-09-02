@@ -222,6 +222,16 @@ const initializeDatabase = async () => {
   `
 
   await sql`
+    CREATE TABLE IF NOT EXISTS class_attendance (
+      enrollment_id BIGINT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      lesson_id BIGINT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('Present', 'Absent')),
+      marked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (enrollment_id, lesson_id)
+    )
+  `
+
+  await sql`
     CREATE TABLE IF NOT EXISTS quiz_attempts (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       enrollment_id BIGINT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
@@ -552,6 +562,7 @@ const serializeEnrollment = (enrollment) => {
     completedLessonIds,
     started: Object.keys(lessonProgress).length > 0,
     timeSpentSeconds: Number(enrollment.timeSpentSeconds) || 0,
+    attendance: deserializeJson(enrollment.attendance) ?? {},
     progressPercentage,
   }
 }
@@ -723,7 +734,8 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            lesson_summary."lessonProgress",
            lesson_summary."timeSpentSeconds",
            lesson_summary."lastActivityAt",
-           quiz_summary."quizAttempts"
+           quiz_summary."quizAttempts",
+           attendance_summary.attendance
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
@@ -766,6 +778,11 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
       FROM quiz_attempts
       WHERE enrollment_id = enrollments.id
     ) AS quiz_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, status), '{}'::jsonb) AS attendance
+      FROM class_attendance
+      WHERE enrollment_id = enrollments.id
+    ) AS attendance_summary ON true
     WHERE enrollments.user_id = ${request.userId}
     ORDER BY lesson_summary."lastActivityAt" DESC NULLS LAST, enrollments.created_at DESC
   `
@@ -776,10 +793,11 @@ const getOwnedEnrollment = async (transaction, userId, enrollmentId) => {
   const [enrollment] = await transaction`
     SELECT enrollments.id,
            enrollments.course_id AS "courseId",
-           courses.modules
+           CASE WHEN enrollments.class_id IS NULL THEN courses.modules ELSE classes.modules END AS modules
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     INNER JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN classes ON classes.id = enrollments.class_id
     WHERE enrollments.id = ${enrollmentId}
       AND enrollments.user_id = ${userId}
     FOR UPDATE OF enrollments
@@ -1796,6 +1814,39 @@ app.delete('/api/admin/classes/enrollments/:id', requireAdmin, async (request, r
   const [enrollment] = await sql`UPDATE enrollments SET class_id = NULL, class_status = NULL WHERE id = ${id} AND class_id IS NOT NULL RETURNING class_id`
   if (!enrollment) return response.status(404).json({ message: 'Class enrollment not found.' })
   await refreshClassStatus(Number(enrollment.class_id))
+  return response.status(204).end()
+})
+
+app.patch('/api/admin/classes/enrollments/:id/attendance', requireAdmin, async (request, response) => {
+  const id = parseCourseId(request.params.id)
+  const lessonId = parseEnrollmentId(String(request.body?.lessonId ?? ''))
+  const status = request.body?.status
+  if (id === null || lessonId === null || !['Present', 'Absent'].includes(status)) return response.status(400).json({ message: 'Enter a valid live lesson attendance status.' })
+  const result = await sql.begin(async (transaction) => {
+    const [enrollment] = await transaction`
+      SELECT enrollments.id, classes.modules
+      FROM enrollments
+      INNER JOIN classes ON classes.id = enrollments.class_id
+      WHERE enrollments.id = ${id} AND enrollments.class_status = 'enrolled'
+      FOR UPDATE OF enrollments
+    `
+    if (!enrollment) return null
+    const lesson = getCourseLessons(deserializeJson(enrollment.modules)).find((item) => item?.id === lessonId)
+    if (!lesson || lesson.type !== 'live') return { error: 'Live lesson not found.' }
+    await transaction`
+      INSERT INTO class_attendance (enrollment_id, lesson_id, status)
+      VALUES (${id}, ${lessonId}, ${status})
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE SET status = EXCLUDED.status, marked_at = NOW()
+    `
+    await transaction`
+      INSERT INTO student_lesson_progress (enrollment_id, lesson_id, completed_at)
+      VALUES (${id}, ${lessonId}, ${status === 'Present' ? sql`NOW()` : sql`NULL`})
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE SET completed_at = ${status === 'Present' ? sql`COALESCE(student_lesson_progress.completed_at, NOW())` : sql`NULL`}, last_accessed_at = NOW()
+    `
+    return { status }
+  })
+  if (!result) return response.status(404).json({ message: 'Class enrollment not found.' })
+  if (result.error) return response.status(404).json({ message: result.error })
   return response.status(204).end()
 })
 

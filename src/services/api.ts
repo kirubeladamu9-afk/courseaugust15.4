@@ -115,6 +115,7 @@ export interface MyEnrollment {
   classSchedule: { days: string[]; time: string; duration: number; flexible: boolean; startDate: string; endDate?: string } | null
   meetingLink: string | null
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
+  attendance: Record<number, 'Present' | 'Absent'>
   lessonProgress: Record<number, LessonProgress>
   quizAttempts: QuizAttempt[]
   completedLessonIds: number[]
@@ -405,6 +406,11 @@ export const assignAdminClass = (enrollmentId: number, values: Omit<AdminClass, 
 
 export const updateAdminClassEnrollment = async (id: number, status: AdminClassEnrollment['status']) => {
   const response = await requestApi(`/api/admin/classes/enrollments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+}
+
+export const updateAdminClassAttendance = async (enrollmentId: number, lessonId: number, status: 'Present' | 'Absent') => {
+  const response = await requestApi(`/api/admin/classes/enrollments/${enrollmentId}/attendance`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId, status }) })
   if (!response.ok) throw new Error(await getErrorMessage(response))
 }
 
