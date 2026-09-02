@@ -196,6 +196,9 @@ export interface AdminQuizViolation {
   score: number | null
   passed: boolean | null
   retakeApproved: boolean
+  retakeStatus: 'not_retaken' | 'passed' | 'failed'
+  retakeScore: number | null
+  retakeSubmittedAt: string | null
   submittedAt: string | null
 }
 

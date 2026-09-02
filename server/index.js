@@ -1385,8 +1385,21 @@ app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) =
            quiz_attempts.score,
            quiz_attempts.passed,
            quiz_attempts.retake_approved AS "retakeApproved",
-           quiz_attempts.submitted_at AS "submittedAt"
+           quiz_attempts.submitted_at AS "submittedAt",
+           CASE WHEN retake.id IS NULL THEN 'not_retaken' WHEN retake.passed = true THEN 'passed' ELSE 'failed' END AS "retakeStatus",
+           retake.score AS "retakeScore",
+           retake.submitted_at AS "retakeSubmittedAt"
     FROM quiz_attempts
+    LEFT JOIN LATERAL (
+      SELECT follow_up.id, follow_up.passed, follow_up.score, follow_up.submitted_at
+      FROM quiz_attempts AS follow_up
+      WHERE follow_up.enrollment_id = quiz_attempts.enrollment_id
+        AND follow_up.lesson_id = quiz_attempts.lesson_id
+        AND follow_up.submitted_at IS NOT NULL
+        AND follow_up.submitted_at > quiz_attempts.submitted_at
+      ORDER BY follow_up.submitted_at ASC, follow_up.id ASC
+      LIMIT 1
+    ) AS retake ON true
     INNER JOIN enrollments ON enrollments.id = quiz_attempts.enrollment_id
     INNER JOIN students ON students.id = enrollments.student_id
     INNER JOIN users ON users.id = students.user_id
