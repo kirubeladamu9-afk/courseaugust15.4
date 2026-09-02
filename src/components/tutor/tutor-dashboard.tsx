@@ -21,6 +21,7 @@ import ClassOutlinedIcon from '@mui/icons-material/ClassOutlined'
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import { useEffect, useMemo, useState } from 'react'
+import { CourseEditor } from '@/components/admin/admin-dashboard'
 import { createAdminClass, createAdminCourse, deleteAdminClass, deleteAdminCourse, getAuthenticatedUser, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorOverview, updateAdminClass, updateAdminCourse, updateTutorClassAttendance, updateTutorProfile, type AdminClass, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
 import { type AdminCourse } from '@/components/admin/admin-data'
 import { navigateTo } from '@/lib/navigation'
@@ -46,6 +47,8 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [courseDraft, setCourseDraft] = useState<AdminCourse | null>(null)
+  const [classDraft, setClassDraft] = useState<{ record?: TutorClass; course: AdminCourse; schedule: { startDate: string; endDate: string } } | null>(null)
   const user = getAuthenticatedUser()
 
   const load = async () => {
@@ -85,15 +88,18 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     } finally { setSaving(false) }
   }
 
-  const manageCourse = async (course?: AdminCourse) => {
-    const title = window.prompt(course ? 'Course title' : 'New course title', course?.title ?? '')?.trim()
-    if (!title) return
+  const manageCourse = (course?: AdminCourse) => {
+    setCourseDraft(course ?? { id: 0, title: 'New course', category: 'Development', level: 'Beginner', tutor: overview?.tutor.name ?? '', status: 'Draft', students: 0, price: 0, cover: '/images/courses/christopher-gower-m_HRfLhgABo-unsplash.jpg', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: [] })
+  }
+
+  const saveCourseDraft = async () => {
+    if (!courseDraft) return
+    setSaving(true)
     try {
-      const saved = course
-        ? await updateAdminCourse({ ...course, title })
-        : await createAdminCourse({ id: 0, title, category: 'Development', level: 'Beginner', tutor: overview?.tutor.name ?? '', status: 'Draft', students: 0, price: 0, cover: '/images/courses/christopher-gower-m_HRfLhgABo-unsplash.jpg', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: [] })
-      setCourses((current) => course ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved])
-    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Unable to save course.') }
+      const saved = courseDraft.id ? await updateAdminCourse(courseDraft) : await createAdminCourse(courseDraft)
+      setCourses((current) => courseDraft.id ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved])
+      setCourseDraft(null)
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Unable to save course.') } finally { setSaving(false) }
   }
 
   const removeCourse = async (course: AdminCourse) => {
@@ -101,19 +107,24 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     try { await deleteAdminCourse(course.id); setCourses((current) => current.filter((item) => item.id !== course.id)) } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : 'Unable to delete course.') }
   }
 
-  const manageClass = async (classRecord?: TutorClass) => {
-    const title = window.prompt(classRecord ? 'Class title' : 'New class title', classRecord?.title ?? '')?.trim()
-    if (!title || !overview) return
+  const manageClass = (classRecord?: TutorClass) => {
+    if (!overview) return
     const startDate = classRecord?.schedule.startDate ?? window.prompt('Class start date (YYYY-MM-DD)', new Date().toISOString().slice(0, 10))?.trim() ?? ''
     const endDate = classRecord?.schedule.endDate ?? window.prompt('Class end date (YYYY-MM-DD)', new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10))?.trim() ?? ''
     if (!startDate || !endDate) return
-    const payload = classRecord
-      ? { ...(classRecord as unknown as AdminClass), title, tutor_id: overview.tutor.id, meeting_link: classRecord.meetingLink }
-      : { title, program_id: 'summer-camp' as const, tutor_id: overview.tutor.id, capacity: 12, schedule: { startDate, endDate }, meeting_link: '', modules: [], price: 0, published: false }
+    setClassDraft({ record: classRecord, schedule: { startDate, endDate }, course: { id: classRecord?.id ?? 0, title: classRecord?.title ?? 'New class', category: 'Class', level: '', tutor: overview.tutor.name, status: 'Draft', students: classRecord?.enrolledCount ?? 0, price: classRecord?.price ?? 0, cover: '/images/courses/christopher-gower-m_HRfLhgABo-unsplash.jpg', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: classRecord?.modules ?? [] } })
+  }
+
+  const saveClassDraft = async () => {
+    if (!classDraft || !overview) return
+    setSaving(true)
+    const record = classDraft.record
+    const payload = record ? { ...(record as unknown as AdminClass), title: classDraft.course.title, tutor_id: overview.tutor.id, meeting_link: record.meetingLink, schedule: classDraft.schedule, modules: classDraft.course.modules } : { title: classDraft.course.title, program_id: 'summer-camp' as const, tutor_id: overview.tutor.id, capacity: 12, schedule: classDraft.schedule, meeting_link: '', modules: classDraft.course.modules, price: 0, published: false }
     try {
-      const saved = classRecord ? await updateAdminClass(payload as Omit<AdminClass, 'status'>) : await createAdminClass(payload as Omit<AdminClass, 'id' | 'status'>)
-      setClasses((current) => classRecord ? current.map((item) => item.id === saved.id ? { ...item, title: saved.title } : item) : [{ ...saved, programId: saved.program_id, meetingLink: saved.meeting_link, courseId: null, courseTitle: null, enrolledCount: 0, modules: saved.modules }, ...current])
-    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Unable to save class.') }
+      const saved = record ? await updateAdminClass(payload as Omit<AdminClass, 'status'>) : await createAdminClass(payload as Omit<AdminClass, 'id' | 'status'>)
+      setClasses((current) => record ? current.map((item) => item.id === saved.id ? { ...item, title: saved.title, modules: saved.modules } : item) : [{ ...saved, programId: saved.program_id, meetingLink: saved.meeting_link, courseId: null, courseTitle: null, enrolledCount: 0, modules: saved.modules }, ...current])
+      setClassDraft(null)
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Unable to save class.') } finally { setSaving(false) }
   }
 
   const removeClass = async (classRecord: TutorClass) => {
@@ -138,6 +149,8 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
       </Stack>
     </Box>
     <Box sx={{ maxWidth: 1440, mx: 'auto', p: { xs: 2, md: 4 } }}>
+      {courseDraft && <Paper elevation={0} sx={{ mb: 3, p: 2.5, border: 1, borderColor: 'primary.main' }}><Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Typography variant="h5">Edit course content</Typography><Stack direction="row" spacing={1}><Button onClick={() => setCourseDraft(null)}>Cancel</Button><Button variant="contained" onClick={() => void saveCourseDraft()} disabled={saving}>Save course</Button></Stack></Stack><CourseEditor course={courseDraft} onChange={setCourseDraft} /></Paper>}
+      {classDraft && <Paper elevation={0} sx={{ mb: 3, p: 2.5, border: 1, borderColor: 'primary.main' }}><Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Typography variant="h5">Edit class curriculum</Typography><Stack direction="row" spacing={1}><Button onClick={() => setClassDraft(null)}>Cancel</Button><Button variant="contained" onClick={() => void saveClassDraft()} disabled={saving}>Save class</Button></Stack></Stack><Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}><TextField fullWidth label="Class title" value={classDraft.course.title} onChange={(event) => setClassDraft((current) => current ? { ...current, course: { ...current.course, title: event.target.value } } : current)} /><TextField fullWidth label="Start date" type="date" value={classDraft.schedule.startDate} onChange={(event) => setClassDraft((current) => current ? { ...current, schedule: { ...current.schedule, startDate: event.target.value } } : current)} InputLabelProps={{ shrink: true }} /><TextField fullWidth label="End date" type="date" value={classDraft.schedule.endDate} onChange={(event) => setClassDraft((current) => current ? { ...current, schedule: { ...current.schedule, endDate: event.target.value } } : current)} InputLabelProps={{ shrink: true }} /></Stack><CourseEditor curriculumOnly course={classDraft.course} onChange={(course) => setClassDraft((current) => current ? { ...current, course } : current)} /></Paper>}
       <Tabs value={view} onChange={(_, next) => setView(next)} variant="fullWidth" aria-label="Tutor portal sections" sx={{ mb: 3 }}>
         <Tab value="overview" label="Overview" /><Tab value="courses" label="My Courses" /><Tab value="classes" label="My Classes" /><Tab value="students" label="Students & Attendance" /><Tab value="profile" label="Profile" />
       </Tabs>
