@@ -188,7 +188,7 @@ const lessonTypeOptions: Array<{ type: LessonType; label: string; detail: string
 
 type LessonPanelState = { moduleId: number; lesson: AdminLesson; isNew: boolean }
 
-const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) => void; isClassLinked: boolean }> = ({ course, onChange, isClassLinked }) => {
+export const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) => void; isClassLinked?: boolean; curriculumOnly?: boolean }> = ({ course, onChange, isClassLinked = false, curriculumOnly = false }) => {
   const [draggedModule, setDraggedModule] = useState<number | null>(null)
   const [draggedLesson, setDraggedLesson] = useState<{ moduleId: number; index: number } | null>(null)
   const [expandedModuleIds, setExpandedModuleIds] = useState<number[]>(() => course.modules.map((module) => module.id))
@@ -353,7 +353,7 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
 
   return (
     <Paper id="course-curriculum-editor" elevation={0} sx={{ mt: 3, p: 2.5, border: 1, borderColor: 'divider', scrollMarginTop: 24 }}>
-      <CourseEditorSection expanded={expandedSections.includes('details')} onToggle={() => toggleSection('details')} title="Course details" description="Edit the information learners see before they enroll.">
+      {!curriculumOnly && <CourseEditorSection expanded={expandedSections.includes('details')} onToggle={() => toggleSection('details')} title="Course details" description="Edit the information learners see before they enroll.">
           <Stack spacing={2}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
           <TextField required fullWidth label="Course title" value={course.title} onChange={(event) => onChange({ ...course, title: event.target.value })} />
@@ -376,13 +376,13 @@ const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCourse) =>
         <TextField fullWidth multiline minRows={4} label="Long description" value={course.longDescription} onChange={(event) => onChange({ ...course, longDescription: event.target.value })} />
       </Stack>
           <RepeatableBulletList title="What you'll learn" values={course.learningOutcomes} onChange={(learningOutcomes) => onChange({ ...course, learningOutcomes })} />
-      </CourseEditorSection>
-      <CourseEditorSection expanded={expandedSections.includes('status')} onToggle={() => toggleSection('status')} title="Course status" description="Control whether learners can see this course." withTopMargin>
+      </CourseEditorSection>}
+      {!curriculumOnly && <CourseEditorSection expanded={expandedSections.includes('status')} onToggle={() => toggleSection('status')} title="Course status" description="Control whether learners can see this course." withTopMargin>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{course.status === 'Published' ? 'Published' : 'Draft course'}</Typography><Typography variant="caption" color="text.secondary">Draft courses remain editable and hidden from learners.</Typography></Box><Stack direction="row" alignItems="center" spacing={1}><StatusChip status={course.status} /><Switch checked={course.status === 'Published'} onChange={() => onChange({ ...course, status: course.status === 'Published' ? 'Draft' : 'Published' })} inputProps={{ 'aria-label': `Publish ${course.title || 'course'}` }} /></Stack></Box>
-      </CourseEditorSection>
-      <CourseEditorSection expanded={expandedSections.includes('requirements')} onToggle={() => toggleSection('requirements')} title="Requirements" withTopMargin>
+      </CourseEditorSection>}
+      {!curriculumOnly && <CourseEditorSection expanded={expandedSections.includes('requirements')} onToggle={() => toggleSection('requirements')} title="Requirements" withTopMargin>
         <RepeatableBulletList title="Requirements" values={course.requirements} onChange={(requirements) => onChange({ ...course, requirements })} />
-      </CourseEditorSection>
+      </CourseEditorSection>}
       <Divider sx={{ my: 3 }} />
       <CourseEditorSection expanded={expandedSections.includes('curriculum')} onToggle={() => toggleSection('curriculum')} title="Course curriculum" description={`${course.modules.length} ${course.modules.length === 1 ? 'section' : 'sections'} · ${course.title || 'Untitled course'}`}>
           <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Drag modules to reorder. Lessons can be reordered within their module.</Typography>
