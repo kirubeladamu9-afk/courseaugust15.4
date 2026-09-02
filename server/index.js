@@ -426,7 +426,13 @@ const requireTutor = async (request, response, next) => {
   await requireAuthenticated(request, response, async () => {
     if (request.userRole !== 'tutor') return response.status(403).json({ message: 'Tutor authentication is required.' })
     const [tutor] = await sql`
-      SELECT ${tutorColumns}
+      SELECT tutors.id::INTEGER AS id,
+             tutors.name,
+             tutors.email,
+             tutors.phone,
+             tutors.bio,
+             tutors.status,
+             to_char(tutors.created_at, 'FMMonth DD, YYYY') AS "createdAt"
       FROM tutors
       INNER JOIN users ON LOWER(TRIM(users.email)) = LOWER(TRIM(tutors.email))
       WHERE users.id = ${request.userId}
