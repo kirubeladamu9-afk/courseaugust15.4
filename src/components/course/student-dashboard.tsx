@@ -54,6 +54,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { type Course } from '@/interfaces/course'
 import { Logo } from '@/components/logo'
+import EnrollmentModal from './enrollment-modal'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
 import { toast } from '@/components/toast'
 import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType } from '@/services/api'
@@ -546,7 +547,7 @@ const OtherCoursesView: FC<{ courses: Course[]; enrolledCourseIds: Set<string>; 
   </>
 }
 
-const OtherClassesView: FC<{ classes: PublicClass[]; enrolledClassIds: Set<number>; isLoading: boolean; error: string | null }> = ({ classes, enrolledClassIds, isLoading, error }) => {
+const OtherClassesView: FC<{ classes: PublicClass[]; enrolledClassIds: Set<number>; isLoading: boolean; error: string | null; onEnroll: (classRecord: PublicClass) => void }> = ({ classes, enrolledClassIds, isLoading, error, onEnroll }) => {
   const [page, setPage] = useState(1)
   const availableClasses = classes.filter((classRecord) => !enrolledClassIds.has(classRecord.id))
   const pageCount = Math.ceil(availableClasses.length / catalogPageSize)
@@ -557,7 +558,7 @@ const OtherClassesView: FC<{ classes: PublicClass[]; enrolledClassIds: Set<numbe
   return <>
     <ViewHeading title="Other Classes" description="Find live classes available outside your current schedule." />
     {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading other classes" /></Box> : error ? <EmptyState title="Classes unavailable" description={error} /> : availableClasses.length === 0 ? <EmptyState title="No other classes yet" description="There are no additional published classes available right now." /> : <>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>{visibleClasses.map((classRecord) => { const schedule = { ...classRecord.schedule, date: '', startsAt: '' }; const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? 'Available' : classRecord.status === 'full' ? 'Full' : 'Closed'; const statusColor = classRecord.status === 'open' ? 'success' : classRecord.status === 'closed' ? 'error' : 'warning'; return <Card key={classRecord.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} sx={{ mb: 2 }}><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Chip label={statusLabel} size="small" color={statusColor} /></Stack><Typography variant="h6" sx={{ mb: 1 }}>{classRecord.title}</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 0.5 }}>Tutor: {classRecord.tutorName}</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>{classScheduleLabel(schedule)}</Typography><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography color="primary.main" sx={{ fontWeight: 700 }}>${classRecord.price}</Typography>{classRecord.courseTitle && <Typography variant="caption" color="text.secondary" noWrap>{classRecord.courseTitle}</Typography>}</Stack></CardContent></Card> })}</Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>{visibleClasses.map((classRecord) => { const schedule = { ...classRecord.schedule, date: '', startsAt: '' }; const statusLabel = classRecord.status === 'pending_schedule' ? 'Pending schedule' : classRecord.status === 'open' ? 'Available' : classRecord.status === 'full' ? 'Full' : 'Closed'; const statusColor = classRecord.status === 'open' ? 'success' : classRecord.status === 'closed' ? 'error' : 'warning'; return <Card key={classRecord.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} sx={{ mb: 2 }}><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><ClassOutlinedIcon /></Box><Chip label={statusLabel} size="small" color={statusColor} /></Stack><Typography variant="h6" sx={{ mb: 1 }}>{classRecord.title}</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 0.5 }}>Tutor: {classRecord.tutorName}</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>{classScheduleLabel(schedule)}</Typography><Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}><Typography color="primary.main" sx={{ fontWeight: 700 }}>${classRecord.price}</Typography><Button variant="contained" size="small" onClick={() => onEnroll(classRecord)} disabled={classRecord.status !== 'open' && classRecord.status !== 'full'}>{classRecord.status === 'full' ? 'Join waitlist' : 'Enroll'}</Button>{classRecord.courseTitle && <Typography variant="caption" color="text.secondary" noWrap>{classRecord.courseTitle}</Typography>}</Stack></CardContent></Card> })}</Box>
       {pageCount > 1 && <Stack alignItems="center" sx={{ mt: 3 }}><Pagination count={pageCount} page={page} onChange={(_, nextPage) => setPage(nextPage)} color="primary" aria-label="Other classes pages" /></Stack>}
     </>}
   </>
@@ -896,6 +897,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [isLoadingOtherCourses, setIsLoadingOtherCourses] = useState(true)
   const [otherCoursesError, setOtherCoursesError] = useState<string | null>(null)
   const [otherClasses, setOtherClasses] = useState<PublicClass[]>([])
+  const [classToEnroll, setClassToEnroll] = useState<PublicClass | null>(null)
   const [isLoadingOtherClasses, setIsLoadingOtherClasses] = useState(true)
   const [otherClassesError, setOtherClassesError] = useState<string | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
@@ -1134,6 +1136,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to submit quiz.'); return null }
   }
   const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
+  const classCheckoutCourse = classToEnroll ? { id: classToEnroll.courseId ?? classToEnroll.id, title: classToEnroll.title, price: classToEnroll.price } : null
 
   const sidebar = <DashboardSidebar activeView={activeView} onSelectView={selectView} />
   const isLessonPlayer = activeView === 'course-view'
@@ -1153,13 +1156,14 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} completedLessons={completedLessons} quizResults={quizResults} onOpenCourse={openCourse} />}
           {activeView === 'purchases' && <PurchasesView />}
           {activeView === 'other-courses' && <OtherCoursesView courses={otherCourses} enrolledCourseIds={enrolledCourseIds} isLoading={isLoadingOtherCourses} error={otherCoursesError} />}
-          {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} />}
+          {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} onEnroll={setClassToEnroll} />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
           {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizStart={startQuizAttempt} onQuizAnswer={saveQuizAnswerForAttempt} onQuizSubmit={submitQuiz} onQuizViolation={saveQuizViolationForAttempt} onQuizActiveChange={setQuizActive} attendance={selectedCourseEnrollment.attendance} isClass={selectedCourseEnrollment.type === 'class'} readOnly={readOnlyQuizResult} />}
         </>}
       </Box>
     </Box>
+    {classCheckoutCourse && classToEnroll && <EnrollmentModal course={classCheckoutCourse} classId={classToEnroll.id} open={true} onClose={() => setClassToEnroll(null)} />}
   </Box>
 }
 
