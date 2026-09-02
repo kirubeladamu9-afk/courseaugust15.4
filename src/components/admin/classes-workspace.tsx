@@ -211,7 +211,7 @@ const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => 
       <DialogContent dividers sx={{ p: { xs: 2.5, sm: 3 } }}>
         <Stack spacing={2.5}>
           <Typography color="text.secondary" variant="body2">Create a class for this paid International Online Interactive enrollee. Use a capacity of 1 for a private class.</Typography>
-          <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={values.tutor_id} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
+          <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={tutors.some((tutor) => tutor.id === values.tutor_id) ? values.tutor_id : ''} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
           <TextField required fullWidth label="Capacity" type="number" value={values.capacity} onChange={(event) => setValues({ ...values, capacity: Math.max(1, Number(event.target.value)) })} inputProps={{ min: 1 }} helperText="Set to 1 for a private class." />
           <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Schedule</Typography><ScheduleFields schedule={values.schedule} onChange={(schedule) => setValues({ ...values, schedule })} allowFlexible /></Box>
           <TextField required fullWidth label="Meeting Link" type="url" placeholder="https://" value={values.meeting_link} onChange={(event) => setValues({ ...values, meeting_link: event.target.value })} />
@@ -317,7 +317,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
           </Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField required fullWidth label="Capacity" type="number" value={values.capacity} onChange={(event) => setValues({ ...values, capacity: Math.max(1, Number(event.target.value)) })} inputProps={{ min: 1 }} />
-            <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={values.tutor_id} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
+            <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={tutors.some((tutor) => tutor.id === values.tutor_id) ? values.tutor_id : ''} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
             <TextField required fullWidth label="Price" type="number" value={values.price} onChange={(event) => setValues({ ...values, price: Math.max(0, Number(event.target.value)) })} inputProps={{ min: 0, step: 0.01 }} />
           </Stack>
           <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Schedule</Typography><ScheduleFields schedule={values.schedule} onChange={(schedule) => setValues({ ...values, schedule, modules: synchronizeLiveLessons(values.modules, schedule, values.meeting_link) })} allowFlexible /></Box>
