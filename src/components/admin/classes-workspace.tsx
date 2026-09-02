@@ -122,8 +122,9 @@ const formatTime = (time: string) => {
 }
 
 const normalizeSchedule = (schedule: unknown): ClassSchedule => {
-  if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule)) return { days: [], time: '', flexible: false, startDate: '' }
-  const candidate = schedule as Partial<ClassSchedule>
+  const parsed = typeof schedule === 'string' ? (() => { try { return JSON.parse(schedule) } catch { return null } })() : schedule
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { days: [], time: '', flexible: false, startDate: '' }
+  const candidate = parsed as Partial<ClassSchedule>
   return {
     days: Array.isArray(candidate.days) ? candidate.days.filter((day): day is string => typeof day === 'string') : [],
     time: typeof candidate.time === 'string' ? candidate.time : '',
@@ -228,7 +229,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
 
   useEffect(() => {
     if (!open) return
-    setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: { ...classRecord.schedule, days: [...classRecord.schedule.days] }, meeting_link: classRecord.meeting_link, modules: classRecord.modules ?? [], price: classRecord.price, published: classRecord.published } : emptyClassForm())
+    setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: normalizeSchedule(classRecord.schedule), meeting_link: classRecord.meeting_link, modules: classRecord.modules ?? [], price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
   const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.startDate && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
