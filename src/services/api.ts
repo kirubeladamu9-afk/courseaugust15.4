@@ -149,8 +149,19 @@ const getErrorMessage = async (response: Response) => {
   return body?.message ?? 'Unable to complete your request.'
 }
 
+const fetchApi = async (url: string, init?: RequestInit) => {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fetch(url, init)
+    } catch (error) {
+      if (attempt >= 2 || !(error instanceof TypeError)) throw error
+      await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)))
+    }
+  }
+}
+
 export const getCourses = async (): Promise<Array<Course>> => {
-  const response = await fetch('/api/courses')
+  const response = await fetchApi('/api/courses')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
@@ -159,7 +170,7 @@ const requestApi = (url: string, init?: RequestInit) => {
   const headers = new Headers(init?.headers)
   const sessionToken = sessionStorage.getItem(authSessionTokenKey)
   if (sessionToken) headers.set('Authorization', `Bearer ${sessionToken}`)
-  return fetch(url, { ...init, headers })
+  return fetchApi(url, { ...init, headers })
 }
 
 const requestCourse = async (url: string, init?: RequestInit): Promise<AdminCourse> => {
