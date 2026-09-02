@@ -25,6 +25,9 @@ export interface AdminLesson {
   quizQuestions?: QuizQuestion[]
   passThreshold?: number
   meetingUrl?: string
+  recurringDays?: string[]
+  sessionTime?: string
+  sessionDuration?: number
   scheduledAt?: string
   endsAt?: string
   dateOverridden?: boolean

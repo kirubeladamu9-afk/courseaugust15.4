@@ -331,9 +331,6 @@ export type AdminClassProgram = 'international-online-interactive' | 'summer-cam
 export type AdminClassStatus = 'pending_schedule' | 'open' | 'full' | 'closed'
 
 export interface AdminClassSchedule {
-  days: string[]
-  time: string
-  flexible: boolean
   startDate: string
   endDate: string
 }
