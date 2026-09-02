@@ -292,8 +292,12 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
     setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: normalizeSchedule(classRecord.schedule), meeting_link: classRecord.meeting_link, modules: normalizeModules(classRecord.modules), price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
+  useEffect(() => {
+    if (open && !classRecord && values.tutor_id < 1 && tutors[0]) setValues((current) => ({ ...current, tutor_id: tutors[0].id }))
+  }, [classRecord, open, values.tutor_id, tutors.length])
+
   const classDateValidation = getDateValidation(values.schedule)
-  const canSave = Boolean(values.title.trim() && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.duration >= 1 && values.schedule.startDate && values.schedule.endDate && !classDateValidation.startInPast && !classDateValidation.endBeforeStart && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
+  const canSave = Boolean(values.title.trim() && values.tutor_id >= 1 && values.meeting_link.trim() && values.capacity >= 1 && values.schedule.duration >= 1 && values.schedule.startDate && values.schedule.endDate && !classDateValidation.startInPast && !classDateValidation.endBeforeStart && (values.schedule.flexible || (values.schedule.days.length > 0 && values.schedule.time)))
   const selectablePrograms = classRecord ? Object.keys(programLabels) as ProgramId[] : manageablePrograms
 
   return (

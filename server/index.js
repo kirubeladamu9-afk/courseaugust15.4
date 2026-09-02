@@ -1769,8 +1769,13 @@ app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
 app.post('/api/admin/classes', requireAdmin, async (request, response) => {
   const classPayload = parseClassPayload(request.body)
   if (!classPayload) return response.status(400).json({ message: 'Enter valid class details.' })
-  const [created] = await sql`INSERT INTO classes ${sql({ ...classPayload, status: classPayload.published ? 'open' : 'closed' })} RETURNING id`
-  return response.status(201).json(await readAdminClass(Number(created.id)))
+  try {
+    const [created] = await sql`INSERT INTO classes ${sql({ ...classPayload, status: classPayload.published ? 'open' : 'closed' })} RETURNING id`
+    return response.status(201).json(await readAdminClass(Number(created.id)))
+  } catch (error) {
+    if (error.code === '23503') return response.status(400).json({ message: 'Select an existing tutor before creating the class.' })
+    throw error
+  }
 })
 
 app.put('/api/admin/classes/:id', requireAdmin, async (request, response) => {
