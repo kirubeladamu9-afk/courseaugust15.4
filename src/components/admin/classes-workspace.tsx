@@ -29,7 +29,7 @@ import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlin
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
-import { type FC, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type FC, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
 import { assignAdminClass, createAdminClass, deleteAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassAttendance, updateAdminClassEnrollment } from '@/services/api'
@@ -286,9 +286,15 @@ const ClassCurriculumEditor: FC<{ modules: AdminModule[]; onChange: (modules: Ad
 
 const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onClose: () => void; onSave: (values: ClassFormValue) => void }> = ({ classRecord, open, onClose, onSave }) => {
   const [values, setValues] = useState<ClassFormValue>(emptyClassForm)
+  const initializedRef = useRef(false)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedRef.current = false
+      return
+    }
+    if (initializedRef.current) return
+    initializedRef.current = true
     setValues(classRecord ? { title: classRecord.title, program_id: classRecord.program_id, tutor_id: classRecord.tutor_id, capacity: classRecord.capacity, schedule: normalizeSchedule(classRecord.schedule), meeting_link: classRecord.meeting_link, modules: normalizeModules(classRecord.modules), price: classRecord.price, published: classRecord.published } : emptyClassForm())
   }, [classRecord, open])
 
