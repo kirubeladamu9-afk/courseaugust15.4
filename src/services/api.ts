@@ -47,6 +47,8 @@ interface EnrollmentLesson {
   resources?: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   passThreshold?: number
+  meetingUrl?: string
+  scheduledAt?: string
 }
 
 interface EnrollmentModule {

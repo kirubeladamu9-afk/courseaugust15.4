@@ -111,6 +111,8 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   resources: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: QuizQuestion[]
   passThreshold?: number
+  meetingUrl?: string
+  scheduledAt?: string
 }
 
  interface DashboardModule {
@@ -127,7 +129,8 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   tutor: string
   certificate: boolean
   modules: DashboardModule[]
- }
+  meetingLink?: string
+}
 
  interface DashboardClassSchedule {
   days: string[]
@@ -209,7 +212,7 @@ const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
     lessons: module.lessons.map((lesson) => ({
       id: lesson.id,
       title: lesson.title,
-      type: lesson.type === 'live' ? 'video' : lesson.type,
+      type: lesson.type,
       duration: lesson.duration ? formatDuration(lesson.duration) : lesson.type === 'article' ? 'Article' : lesson.type === 'quiz' ? 'Quiz' : 'Video',
       description: lesson.articleBody || 'Work through this lesson at your own pace.',
       videoUrl: lesson.videoUrl,
@@ -217,8 +220,11 @@ const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
       resources: lesson.resources ?? [],
       quizQuestions: lesson.quizQuestions,
       passThreshold: lesson.passThreshold,
+      meetingUrl: lesson.meetingUrl,
+      scheduledAt: lesson.scheduledAt,
     })),
   })),
+  meetingLink: enrollment.classId === null ? undefined : enrollment.meetingLink ?? undefined,
 })
 const mapEnrollmentClass = (enrollment: MyEnrollment, course: DashboardCourse): DashboardClass | null => enrollment.classId === null ? null : {
   id: enrollment.classId,
@@ -785,6 +791,13 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
     {!quizAttempt && <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>}
     {readOnly || isQuizFinished ? <QuizResultReview lesson={selectedLesson} result={quizResult} passingScore={passingScore} /> : <QuizLessonView lesson={selectedLesson} attempt={quizAttempt} onBegin={async () => { const next = await onQuizStart(selectedLesson.id); setQuizAttempt(next); return next }} onSave={(questionId, answer) => quizAttempt ? onQuizAnswer(selectedLesson.id, quizAttempt.id, questionId, answer) : Promise.resolve()} onSubmit={async (answers, disqualified) => { if (!quizAttempt) return null; const submitted = await onQuizSubmit(selectedLesson.id, quizAttempt.id, answers, disqualified); if (submitted) { setQuizAttempt(null); onQuizActiveChange(false); if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen().catch(() => undefined) }; return submitted }} onViolation={(violation) => quizAttempt ? onQuizViolation(selectedLesson.id, quizAttempt.id, violation) : Promise.resolve()} onActiveChange={onQuizActiveChange} result={quizResult} passingScore={passingScore} strikeThreshold={3} />}
   </>
+
+  if (selectedLesson.type === 'live') {
+    const scheduledAt = selectedLesson.scheduledAt ? new Date(selectedLesson.scheduledAt) : null
+    const isScheduled = scheduledAt !== null && !Number.isNaN(scheduledAt.getTime())
+    const joinable = isScheduled && Date.now() >= scheduledAt.getTime() - 15 * 60 * 1000 && Date.now() <= scheduledAt.getTime() + 2 * 60 * 60 * 1000
+    return <><Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Classes</Box><Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Typography variant="h4">{selectedLesson.title}</Typography><Typography color="text.secondary">Live lesson · {isScheduled ? scheduledAt.toLocaleString() : 'Schedule pending'}</Typography><Button variant="contained" component="a" href={joinable ? course.meetingLink : undefined} disabled={!joinable} aria-disabled={!joinable} startIcon={<VideoCallOutlinedIcon />}>{joinable ? 'Join Class' : 'Join available near the scheduled time'}</Button></Stack></Paper></>
+  }
 
   return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Courses</Box>
