@@ -189,6 +189,7 @@ export interface AdminQuizViolation {
   studentName: string
   studentEmail: string
   courseTitle: string
+  lessonTitle: string
   lessonId: number
   violations: Array<{ type: 'visibility' | 'fullscreen'; occurredAt: string }>
   disqualified: boolean

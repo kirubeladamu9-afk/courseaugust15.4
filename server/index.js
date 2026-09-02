@@ -1381,6 +1381,7 @@ app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) =
            students.full_name AS "studentName",
            users.email AS "studentEmail",
            courses.title AS "courseTitle",
+           courses.modules,
            quiz_attempts.lesson_id::INTEGER AS "lessonId",
            quiz_attempts.violations,
            quiz_attempts.disqualified,
@@ -1396,13 +1397,17 @@ app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) =
     WHERE quiz_attempts.disqualified = true OR COALESCE(jsonb_array_length(quiz_attempts.violations), 0) > 0
     ORDER BY quiz_attempts.submitted_at DESC NULLS LAST
   `
-  return response.json(violations.map((violation) => ({
-    ...violation,
+  return response.json(violations.map((violation) => {
+    const { modules, ...serializedViolation } = violation
+    return {
+    ...serializedViolation,
+    lessonTitle: findCourseLesson(modules, violation.lessonId)?.title ?? 'Quiz lesson',
     violations: (deserializeJson(violation.violations) ?? []).flatMap((item) => {
       const parsed = deserializeJson(item)
       return isPlainObject(parsed) ? [parsed] : []
     }),
-  })))
+    }
+  }))
 })
 
 app.get('/api/admin/overview', requireAdmin, async (_request, response) => {
