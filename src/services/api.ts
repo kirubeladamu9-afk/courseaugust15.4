@@ -1,4 +1,4 @@
-import { type AdminCourse, type AdminTutor, type AdminUser } from '@/components/admin/admin-data'
+import { type AdminCourse, type AdminModule, type AdminTutor, type AdminUser } from '@/components/admin/admin-data'
 import { type Course } from '@/interfaces/course'
 
 export interface AuthUser {
@@ -142,6 +142,42 @@ export interface PublicClass {
   lessonCount: number | null
 }
 
+export interface TutorOverview {
+  tutor: AdminTutor
+  totalCourses: number
+  totalClasses: number
+  totalStudents: number
+  totalRevenue: number
+  upcomingClasses: number
+}
+
+export interface TutorClass {
+  id: number
+  title: string
+  programId: string
+  schedule: AdminClassSchedule
+  meetingLink: string
+  price: number
+  status: AdminClassStatus
+  courseId: number | null
+  courseTitle: string | null
+  capacity: number
+  enrolledCount: number
+  published: boolean
+  modules: AdminModule[]
+}
+
+export interface TutorClassStudent {
+  id: number
+  studentId: number
+  studentName: string
+  ageOrGrade: string
+  studentEmail: string
+  status: 'enrolled' | 'waitlisted'
+  enrolledDate: string
+  attendance: Record<number, 'Present' | 'Absent'>
+}
+
 const authStorageKey = 'coursespace-auth-user'
 const authSessionTokenKey = 'coursespace-auth-session-token'
 
@@ -239,6 +275,49 @@ export interface MyPayment {
 
 export const getPublicClasses = async (): Promise<PublicClass[]> => {
   const response = await requestApi('/api/classes')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getTutorOverview = async (): Promise<TutorOverview> => {
+  const response = await requestApi('/api/tutor/overview')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getTutorCourses = async (): Promise<AdminCourse[]> => {
+  const response = await requestApi('/api/tutor/courses')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getTutorClasses = async (): Promise<TutorClass[]> => {
+  const response = await requestApi('/api/tutor/classes')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getTutorClassStudents = async (classId: number): Promise<TutorClassStudent[]> => {
+  const response = await requestApi(`/api/tutor/classes/${classId}/students`)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const updateTutorClassAttendance = async (enrollmentId: number, lessonId: number, status: 'Present' | 'Absent'): Promise<void> => {
+  const response = await requestApi(`/api/tutor/classes/enrollments/${enrollmentId}/attendance`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lessonId, status }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+}
+
+export const updateTutorProfile = async (profile: Partial<Pick<AdminTutor, 'name' | 'phone' | 'bio'>>): Promise<AdminTutor> => {
+  const response = await requestApi('/api/tutor/profile', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile),
+  })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

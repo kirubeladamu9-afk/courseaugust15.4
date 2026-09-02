@@ -422,6 +422,41 @@ const requireAdmin = async (request, response, next) => {
   })
 }
 
+const requireTutor = async (request, response, next) => {
+  await requireAuthenticated(request, response, async () => {
+    if (request.userRole !== 'tutor') return response.status(403).json({ message: 'Tutor authentication is required.' })
+    const [tutor] = await sql`
+      SELECT ${tutorColumns}
+      FROM tutors
+      INNER JOIN users ON LOWER(TRIM(users.email)) = LOWER(TRIM(tutors.email))
+      WHERE users.id = ${request.userId}
+        AND users.role = 'tutor'
+    `
+    if (!tutor) return response.status(403).json({ message: 'Tutor profile not found.' })
+    request.tutor = await addAssignedCourses(tutor)
+    request.tutorId = Number(tutor.id)
+    return next()
+  })
+}
+
+const isValidTutorProfile = (body) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+  const profile = {}
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 120) return null
+    profile.name = body.name.trim()
+  }
+  if (body.phone !== undefined) {
+    if (typeof body.phone !== 'string' || body.phone.trim().length > 40) return null
+    profile.phone = body.phone.trim()
+  }
+  if (body.bio !== undefined) {
+    if (typeof body.bio !== 'string' || body.bio.trim().length > 2000) return null
+    profile.bio = body.bio.trim()
+  }
+  return Object.keys(profile).length ? profile : null
+}
+
 const isValidCourseCover = (cover) => cover.length <= 10 * 1024 * 1024 && (cover.startsWith('/') || /^https?:\/\//i.test(cover) || /^data:image\/(?:avif|gif|jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(cover))
 
 const parseCoursePayload = (body) => {
@@ -1370,6 +1405,166 @@ app.get('/api/classes', async (_request, response) => {
     ORDER BY classes.created_at DESC, classes.id DESC
   `
   return response.json(classes.map((classRecord) => ({ ...classRecord, schedule: deserializeJson(classRecord.schedule) })))
+})
+
+app.get('/api/tutor/overview', requireTutor, async (request, response) => {
+  const [overview] = await sql`
+    SELECT
+      (SELECT COUNT(*) FROM courses WHERE tutor_id = ${request.tutorId})::INTEGER AS "totalCourses",
+      (SELECT COUNT(*) FROM classes WHERE tutor_id = ${request.tutorId})::INTEGER AS "totalClasses",
+      (SELECT COUNT(DISTINCT enrollments.student_id)
+       FROM enrollments
+       LEFT JOIN courses ON courses.id = enrollments.course_id
+       LEFT JOIN classes ON classes.id = enrollments.class_id
+       WHERE enrollments.class_status IS DISTINCT FROM 'waitlisted'
+         AND (courses.tutor_id = ${request.tutorId} OR classes.tutor_id = ${request.tutorId}))::INTEGER AS "totalStudents",
+      (SELECT COALESCE(SUM(payments.amount), 0)
+       FROM payments
+       LEFT JOIN courses ON courses.id = payments.course_id
+       LEFT JOIN classes ON classes.id = payments.class_id
+       WHERE payments.status = 'paid'
+         AND (courses.tutor_id = ${request.tutorId} OR classes.tutor_id = ${request.tutorId}))::FLOAT AS "totalRevenue"
+  `
+  const [upcoming] = await sql`
+    SELECT COUNT(*)::INTEGER AS count
+    FROM classes
+    WHERE tutor_id = ${request.tutorId}
+      AND published = true
+      AND status <> 'closed'
+      AND COALESCE(schedule->>'endDate', '9999-12-31') >= CURRENT_DATE::TEXT
+  `
+  return response.json({
+    tutor: request.tutor,
+    ...overview,
+    upcomingClasses: upcoming.count,
+  })
+})
+
+app.get('/api/tutor/courses', requireTutor, async (request, response) => {
+  const courses = await sql`
+    SELECT ${courseColumns}
+    FROM courses
+    WHERE tutor_id = ${request.tutorId}
+    ORDER BY id
+  `
+  return response.json(courses.map(deserializeCourse))
+})
+
+app.get('/api/tutor/classes', requireTutor, async (request, response) => {
+  const classes = await sql`
+    SELECT classes.id::INTEGER AS id,
+           classes.title,
+           classes.program_id AS "programId",
+           classes.schedule,
+           classes.meeting_link AS "meetingLink",
+           classes.price::FLOAT AS price,
+           classes.status,
+           classes.course_id::INTEGER AS "courseId",
+           courses.title AS "courseTitle",
+           classes.capacity,
+           COALESCE(enrollment_counts.enrolled_count, 0)::INTEGER AS "enrolledCount",
+           classes.published,
+           classes.modules
+    FROM classes
+    LEFT JOIN courses ON courses.id = classes.course_id
+    LEFT JOIN (
+      SELECT class_id, COUNT(*) FILTER (WHERE class_status = 'enrolled') AS enrolled_count
+      FROM enrollments
+      WHERE class_id IS NOT NULL
+      GROUP BY class_id
+    ) AS enrollment_counts ON enrollment_counts.class_id = classes.id
+    WHERE classes.tutor_id = ${request.tutorId}
+    ORDER BY classes.created_at DESC, classes.id DESC
+  `
+  return response.json(classes.map((classRecord) => ({
+    ...classRecord,
+    schedule: deserializeJson(classRecord.schedule),
+    modules: deserializeJson(classRecord.modules) ?? [],
+  })))
+})
+
+app.get('/api/tutor/classes/:id/students', requireTutor, async (request, response) => {
+  const classId = parseCourseId(request.params.id)
+  if (classId === null) return response.status(400).json({ message: 'Invalid class id.' })
+  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} AND tutor_id = ${request.tutorId}`
+  if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
+  const students = await sql`
+    SELECT enrollments.id::INTEGER AS id,
+           students.id::INTEGER AS "studentId",
+           students.full_name AS "studentName",
+           students.age_or_grade AS "ageOrGrade",
+           users.email AS "studentEmail",
+           enrollments.class_status AS status,
+           to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS "enrolledDate",
+           COALESCE(attendance.attendance, '{}'::jsonb) AS attendance
+    FROM enrollments
+    INNER JOIN students ON students.id = enrollments.student_id
+    INNER JOIN users ON users.id = students.user_id
+    LEFT JOIN LATERAL (
+      SELECT jsonb_object_agg(lesson_id::TEXT, status) AS attendance
+      FROM class_attendance
+      WHERE enrollment_id = enrollments.id
+    ) AS attendance ON true
+    WHERE enrollments.class_id = ${classId}
+      AND enrollments.class_status = 'enrolled'
+    ORDER BY enrollments.created_at DESC, enrollments.id DESC
+  `
+  return response.json(students)
+})
+
+app.patch('/api/tutor/classes/enrollments/:id/attendance', requireTutor, async (request, response) => {
+  const enrollmentId = parseCourseId(request.params.id)
+  const lessonId = parseEnrollmentId(String(request.body?.lessonId ?? ''))
+  const status = request.body?.status
+  if (enrollmentId === null || lessonId === null || !['Present', 'Absent'].includes(status)) {
+    return response.status(400).json({ message: 'Enter a valid live lesson attendance status.' })
+  }
+  const result = await sql.begin(async (transaction) => {
+    const [enrollment] = await transaction`
+      SELECT enrollments.id, classes.modules
+      FROM enrollments
+      INNER JOIN classes ON classes.id = enrollments.class_id
+      WHERE enrollments.id = ${enrollmentId}
+        AND enrollments.class_status = 'enrolled'
+        AND classes.tutor_id = ${request.tutorId}
+      FOR UPDATE OF enrollments
+    `
+    if (!enrollment) return null
+    const lesson = getCourseLessons(deserializeJson(enrollment.modules)).find((item) => item?.id === lessonId)
+    if (!lesson || lesson.type !== 'live') return { error: 'Live lesson not found.' }
+    await transaction`
+      INSERT INTO class_attendance (enrollment_id, lesson_id, status)
+      VALUES (${enrollmentId}, ${lessonId}, ${status})
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE SET status = EXCLUDED.status, marked_at = NOW()
+    `
+    await transaction`
+      INSERT INTO student_lesson_progress (enrollment_id, lesson_id, completed_at)
+      VALUES (${enrollmentId}, ${lessonId}, ${status === 'Present' ? sql`NOW()` : sql`NULL`})
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE SET completed_at = ${status === 'Present' ? sql`COALESCE(student_lesson_progress.completed_at, NOW())` : sql`NULL`}, last_accessed_at = NOW()
+    `
+    return { status }
+  })
+  if (!result) return response.status(404).json({ message: 'Class enrollment not found.' })
+  if (result.error) return response.status(404).json({ message: result.error })
+  return response.status(204).end()
+})
+
+app.patch('/api/tutor/profile', requireTutor, async (request, response) => {
+  const profile = isValidTutorProfile(request.body)
+  if (!profile) return response.status(400).json({ message: 'Enter valid tutor profile details.' })
+  try {
+    const [updated] = await sql`
+      UPDATE tutors
+      SET ${sql(profile)}
+      WHERE id = ${request.tutorId}
+      RETURNING id
+    `
+    if (!updated) return response.status(404).json({ message: 'Tutor profile not found.' })
+    return response.json(await readTutor(request.tutorId))
+  } catch (error) {
+    if (error.code === '23505') return response.status(409).json({ message: 'A tutor with this email already exists.' })
+    throw error
+  }
 })
 
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {

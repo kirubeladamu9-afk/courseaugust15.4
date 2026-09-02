@@ -27,7 +27,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
       if (!isSignUp) {
         saveAuthenticatedUser(user)
         setIsRedirecting(true)
-        window.setTimeout(() => navigateTo(user.role === 'admin' ? '/admin' : '/dashboard'), 400)
+        window.setTimeout(() => navigateTo(user.role === 'admin' ? '/admin' : user.role === 'tutor' ? '/tutor' : '/dashboard'), 400)
         return
       }
       toast.add({

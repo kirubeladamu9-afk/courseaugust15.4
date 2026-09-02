@@ -8,6 +8,7 @@ import SignInPage from '@/components/auth/sign-in-page'
 import AdminDashboard from '@/components/admin/admin-dashboard'
 import CourseDetailPage from '@/components/course/course-detail-page'
 import StudentDashboard from '@/components/course/student-dashboard'
+import TutorDashboard from '@/components/tutor/tutor-dashboard'
 import { navigateTo } from '@/lib/navigation'
 import { type Course } from '@/interfaces/course'
 import { getAuthenticatedUser, getCourses } from '@/services/api'
@@ -51,10 +52,12 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const [homeCourses, setHomeCourses] = useState<Course[] | null>(null)
   const isAdminPath = /^\/admin(?:\/|$)/.test(currentPath)
   const isDashboardPath = /^\/dashboard\/?$/.test(currentPath)
+  const isTutorPath = /^\/tutor(?:\/|$)/.test(currentPath)
   const courseMatch = currentPath.match(/^\/courses\/([^/]+)\/?$/)
   const currentUser = getAuthenticatedUser()
   const isAuthenticated = currentUser !== null
   const canAccessAdmin = currentUser?.role === 'admin'
+  const canAccessTutor = currentUser?.role === 'tutor'
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname)
@@ -64,12 +67,13 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
 
   useEffect(() => {
     if (isAdminPath && !canAccessAdmin) navigateTo('/', true)
-    if (isDashboardPath && !isAuthenticated) navigateTo('/', true)
-    if (!isAdminPath && !isDashboardPath) setAuthMode(null)
-  }, [canAccessAdmin, isAdminPath, isAuthenticated, isDashboardPath])
+    if (isTutorPath && !canAccessTutor) navigateTo('/', true)
+    if (isDashboardPath && (!isAuthenticated || currentUser?.role === 'admin' || currentUser?.role === 'tutor')) navigateTo(currentUser?.role === 'admin' ? '/admin' : currentUser?.role === 'tutor' ? '/tutor' : '/', true)
+    if (!isAdminPath && !isDashboardPath && !isTutorPath) setAuthMode(null)
+  }, [canAccessAdmin, canAccessTutor, currentUser?.role, isAdminPath, isAuthenticated, isDashboardPath, isTutorPath])
 
   useEffect(() => {
-    if (isAdminPath || isDashboardPath || courseMatch) {
+    if (isAdminPath || isDashboardPath || isTutorPath || courseMatch) {
       setHomeCourses(null)
       return
     }
@@ -87,10 +91,11 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
     return () => {
       isCurrent = false
     }
-  }, [currentPath, isAdminPath, isDashboardPath])
+  }, [currentPath, isAdminPath, isDashboardPath, isTutorPath])
 
-  if ((isAdminPath && !canAccessAdmin) || (isDashboardPath && !isAuthenticated)) return <RouteLoadingState message="Returning to Coursespace..." />
+  if ((isAdminPath && !canAccessAdmin) || (isTutorPath && !canAccessTutor) || (isDashboardPath && (!isAuthenticated || currentUser?.role === 'admin' || currentUser?.role === 'tutor'))) return <RouteLoadingState message="Returning to Coursespace..." />
   if (isAdminPath) return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
+  if (isTutorPath) return <TutorDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (isDashboardPath) return <StudentDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (!courseMatch && homeCourses === null) return <div className="page-loading-state"><SpinnerCustom /></div>
 
