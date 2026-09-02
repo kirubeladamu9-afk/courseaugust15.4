@@ -254,7 +254,7 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnr
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
 const getEnrollmentCourse = (enrollment: DashboardEnrollment) => enrollment.course ?? enrollment.classRecord?.course
-const findCourseEnrollment = (records: DashboardEnrollment[], courseId: number) => records.find((enrollment) => getEnrollmentCourse(enrollment)?.id === courseId)
+const findCourseEnrollment = (records: DashboardEnrollment[], courseId: number) => records.find((enrollment) => enrollment.type === 'class' && getEnrollmentCourse(enrollment)?.id === courseId) ?? records.find((enrollment) => getEnrollmentCourse(enrollment)?.id === courseId)
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
