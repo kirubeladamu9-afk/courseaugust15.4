@@ -712,7 +712,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            courses.level,
            courses.tutor,
            courses.certificate,
-           courses.modules,
+           CASE WHEN classes.id IS NULL THEN courses.modules ELSE classes.modules END AS modules,
            classes.id::INTEGER AS "classId",
            classes.title AS "classTitle",
            tutors.name AS "classTutor",

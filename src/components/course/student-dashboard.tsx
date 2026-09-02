@@ -198,8 +198,8 @@ const classHasStarted = (schedule: DashboardClassSchedule, now: Date) => {
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
 const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
   id: enrollment.courseId,
-  title: enrollment.courseTitle,
-  category: enrollment.category,
+  title: enrollment.classTitle || enrollment.courseTitle,
+  category: enrollment.classId === null ? enrollment.category : 'Class',
   level: enrollment.level,
   tutor: enrollment.tutor || 'Tutor to be confirmed',
   certificate: enrollment.certificate,
