@@ -1720,7 +1720,7 @@ const parseClassPayload = (body) => {
   const published = body.published
   const validSchedule = schedule && typeof schedule === 'object' && !Array.isArray(schedule) && Array.isArray(schedule.days) && schedule.days.every((day) => typeof day === 'string' && day.length <= 3) && typeof schedule.time === 'string' && typeof schedule.duration === 'number' && Number.isFinite(schedule.duration) && schedule.duration > 0 && typeof schedule.flexible === 'boolean' && typeof schedule.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.startDate) && typeof schedule.endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(schedule.endDate) && schedule.endDate >= schedule.startDate
   if (!title || title.length > 200 || !classPrograms.includes(programId) || !Number.isInteger(tutorId) || tutorId < 1 || !Number.isInteger(capacity) || capacity < 1 || !validSchedule || meetingLink.length > 2000 || !meetingLink || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean') return null
-  return { program_id: programId, title, tutor_id: tutorId, capacity, schedule, modules, price, published }
+  return { program_id: programId, title, tutor_id: tutorId, capacity, schedule, meeting_link: meetingLink, modules, price, published }
 }
 
 const classColumns = sql.unsafe(`
@@ -1771,8 +1771,8 @@ app.post('/api/admin/classes', requireAdmin, async (request, response) => {
   if (!classPayload) return response.status(400).json({ message: 'Enter valid class details.' })
   try {
     const [created] = await sql`
-      INSERT INTO classes (program_id, title, tutor_id, capacity, schedule, modules, price, published, status)
-      VALUES (${classPayload.program_id}, ${classPayload.title}, ${classPayload.tutor_id}, ${classPayload.capacity}, ${JSON.stringify(classPayload.schedule)}::jsonb, ${JSON.stringify(classPayload.modules)}::jsonb, ${classPayload.price}, ${classPayload.published}, ${classPayload.published ? 'open' : 'closed'})
+      INSERT INTO classes (program_id, title, tutor_id, capacity, schedule, meeting_link, modules, price, published, status)
+      VALUES (${classPayload.program_id}, ${classPayload.title}, ${classPayload.tutor_id}, ${classPayload.capacity}, ${JSON.stringify(classPayload.schedule)}::jsonb, ${classPayload.meeting_link}, ${JSON.stringify(classPayload.modules)}::jsonb, ${classPayload.price}, ${classPayload.published}, ${classPayload.published ? 'open' : 'closed'})
       RETURNING id
     `
     return response.status(201).json(await readAdminClass(Number(created.id)))
