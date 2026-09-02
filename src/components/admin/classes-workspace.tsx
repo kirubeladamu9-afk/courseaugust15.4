@@ -33,7 +33,7 @@ import { type FC, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
 import { assignAdminClass, createAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment } from '@/services/api'
-import { type AdminCourse, type AdminModule, type LessonType } from './admin-data'
+import { type AdminCourse, type AdminLesson, type AdminModule, type LessonType } from './admin-data'
 import { CourseEditor } from './admin-dashboard'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 
@@ -211,21 +211,36 @@ const normalizeModules = (modules: unknown): AdminModule[] => {
   return Array.isArray(parsed) ? parsed : []
 }
 
-const assignLiveLessonDates = (modules: AdminModule[], schedule: ClassSchedule) => {
-  if (!schedule.startDate || !schedule.days.length || !schedule.time) return modules
-  const dayIndexes = new Set(schedule.days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(day)))
+const formatScheduledAt = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+
+const getScheduledAt = (schedule: ClassSchedule, liveIndex: number) => {
+  if (!schedule.startDate || !schedule.days.length || !schedule.time) return ''
+  const dayIndexes = new Set(schedule.days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(day)).filter((day) => day >= 0))
+  if (!dayIndexes.size) return ''
+  const date = new Date(`${schedule.startDate}T00:00:00`)
+  let matches = 0
+  while (!dayIndexes.has(date.getDay()) || matches < liveIndex) {
+    if (dayIndexes.has(date.getDay())) matches += 1
+    date.setDate(date.getDate() + 1)
+  }
+  const [hours, minutes] = schedule.time.split(':').map(Number)
+  date.setHours(hours, minutes, 0, 0)
+  return formatScheduledAt(date)
+}
+
+const synchronizeLiveLessons = (modules: AdminModule[], schedule: ClassSchedule, meetingUrl: string) => {
   let liveIndex = 0
   return modules.map((module) => ({ ...module, lessons: module.lessons.map((lesson) => {
     if (lesson.type !== 'live') return lesson
-    if (lesson.scheduledAt) { liveIndex += 1; return lesson }
-    const date = new Date(`${schedule.startDate}T00:00:00`)
-    let matches = 0
-    while (matches <= liveIndex) { date.setDate(date.getDate() + 1); if (dayIndexes.has(date.getDay())) matches += 1 }
-    const [hours, minutes] = schedule.time.split(':').map(Number)
-    date.setHours(hours, minutes, 0, 0)
+    const scheduledAt = lesson.dateOverridden ? lesson.scheduledAt : getScheduledAt(schedule, liveIndex)
     liveIndex += 1
-    return { ...lesson, scheduledAt: date.toISOString().slice(0, 16) }
+    return { ...lesson, meetingUrl, scheduledAt }
   }) }))
+}
+
+const getLiveLessonIndex = (modules: AdminModule[], lesson: AdminLesson, isNew: boolean) => {
+  const liveLessons = modules.flatMap((module) => module.lessons).filter((currentLesson) => currentLesson.type === 'live')
+  return isNew ? liveLessons.length : Math.max(0, liveLessons.findIndex((currentLesson) => currentLesson.id === lesson.id))
 }
 
 const emptyClassForm = (): ClassFormValue => ({
@@ -271,9 +286,9 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
             <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={values.tutor_id} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
             <TextField required fullWidth label="Price" type="number" value={values.price} onChange={(event) => setValues({ ...values, price: Math.max(0, Number(event.target.value)) })} inputProps={{ min: 0, step: 0.01 }} />
           </Stack>
-          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Schedule</Typography><ScheduleFields schedule={values.schedule} onChange={(schedule) => setValues({ ...values, schedule })} allowFlexible /></Box>
-          <TextField required fullWidth label="Meeting Link" type="url" placeholder="https://" value={values.meeting_link} onChange={(event) => setValues({ ...values, meeting_link: event.target.value })} />
-          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class curriculum</Typography><CourseEditor curriculumOnly course={{ id: classRecord?.id ?? 0, title: values.title, category: 'Class', level: '', tutor: '', status: 'Draft', students: 0, price: values.price, cover: '', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: normalizeModules(values.modules) }} onChange={(course) => setValues({ ...values, modules: assignLiveLessonDates(course.modules, values.schedule) })} /></Box>
+          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Schedule</Typography><ScheduleFields schedule={values.schedule} onChange={(schedule) => setValues({ ...values, schedule, modules: synchronizeLiveLessons(values.modules, schedule, values.meeting_link) })} allowFlexible /></Box>
+          <TextField required fullWidth label="Meeting Link" type="url" placeholder="https://" value={values.meeting_link} onChange={(event) => setValues({ ...values, meeting_link: event.target.value, modules: synchronizeLiveLessons(values.modules, values.schedule, event.target.value) })} />
+          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class curriculum</Typography><CourseEditor curriculumOnly liveLessonSettings={{ meetingUrl: values.meeting_link, getScheduledAt: (lesson, isNew) => getScheduledAt(values.schedule, getLiveLessonIndex(values.modules, lesson, isNew)) }} course={{ id: classRecord?.id ?? 0, title: values.title, category: 'Class', level: '', tutor: '', status: 'Draft', students: 0, price: values.price, cover: '', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: normalizeModules(values.modules) }} onChange={(course) => setValues({ ...values, modules: synchronizeLiveLessons(course.modules, values.schedule, values.meeting_link) })} /></Box>
           <Box sx={{ display: 'flex\',, alignItems: \'center\', justifyContent: \'space-between\', gap: 2, p: 2, border: 1, borderColor: \'divider\', borderRadius: 1, backgroundColor: \'background.default' }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{values.published ? 'Published class' : 'Unpublished class'}</Typography><Typography color="text.secondary" variant="caption">Only published classes appear in Active Classes.</Typography></Box><Switch checked={values.published} onChange={(event) => setValues({ ...values, published: event.target.checked })} inputProps={{ 'aria-label': 'Publish class' }} /></Box>
         </Stack>
       </DialogContent>
@@ -369,8 +384,8 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
     const editingClass = classes.find((classRecord) => classRecord.id === editingClassId)
     try {
       const classRecord = editingClass
-        ? await updateAdminClass({ ...editingClass, ...values, title: values.title.trim(), meeting_link: values.meeting_link.trim() })
-        : await createAdminClass({ ...values, title: values.title.trim(), meeting_link: values.meeting_link.trim() })
+        ? await updateAdminClass({ ...editingClass, ...values, title: values.title.trim(), meeting_link: values.meeting_link.trim(), modules: synchronizeLiveLessons(values.modules, values.schedule, values.meeting_link.trim()) })
+        : await createAdminClass({ ...values, title: values.title.trim(), meeting_link: values.meeting_link.trim(), modules: synchronizeLiveLessons(values.modules, values.schedule, values.meeting_link.trim()) })
       setEditingClassId(null)
       await loadWorkspace()
       toast.add({ title: editingClass ? 'Class saved' : 'Class created', description: `${classRecord.title} is ready to manage.`, type: 'success' })

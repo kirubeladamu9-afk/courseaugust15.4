@@ -26,6 +26,7 @@ export interface AdminLesson {
   passThreshold?: number
   meetingUrl?: string
   scheduledAt?: string
+  dateOverridden?: boolean
   estimatedDuration?: number
 }
 
