@@ -1739,7 +1739,7 @@ const classColumns = sql.unsafe(`
 
 const readAdminClass = async (id) => {
   const [classRecord] = await sql`SELECT ${classColumns} FROM classes WHERE classes.id = ${id}`
-  return classRecord ?? null
+  return classRecord ? { ...classRecord, modules: deserializeJson(classRecord.modules) ?? [] } : null
 }
 
 const refreshClassStatus = async (id) => {
@@ -1763,7 +1763,7 @@ app.get('/api/admin/classes', requireAdmin, async (_request, response) => {
     sql`SELECT enrollments.id::INTEGER AS id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, NULLIF(regexp_replace(students.age_or_grade, '\\D', '', 'g'), '')::INTEGER AS age FROM enrollments INNER JOIN students ON students.id = enrollments.student_id INNER JOIN payments ON payments.id = enrollments.payment_id INNER JOIN courses ON courses.id = enrollments.course_id WHERE payments.status = 'paid' AND enrollments.class_id IS NULL AND LOWER(courses.category) = 'international online interactive' ORDER BY enrollments.created_at DESC`,
     sql`SELECT id::INTEGER AS id, name FROM tutors WHERE status = 'Active' ORDER BY name`,
   ])
-  response.json({ classes, enrollments, pendingStudents, tutors })
+  response.json({ classes: classes.map((classRecord) => ({ ...classRecord, modules: deserializeJson(classRecord.modules) ?? [] })), enrollments, pendingStudents, tutors })
 })
 
 app.post('/api/admin/classes', requireAdmin, async (request, response) => {

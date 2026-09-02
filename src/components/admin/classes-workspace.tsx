@@ -330,7 +330,7 @@ const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassE
   const enrolled = enrollments.filter((enrollment) => enrollment.status === 'enrolled')
   const waitlisted = enrollments.filter((enrollment) => enrollment.status === 'waitlisted')
   const isAtCapacity = enrolled.length >= classRecord.capacity
-  const liveLessons = classRecord.modules.flatMap((module) => module.lessons).filter((lesson) => lesson.type === 'live')
+  const liveLessons = (Array.isArray(classRecord.modules) ? classRecord.modules : []).flatMap((module) => module.lessons).filter((lesson) => lesson.type === 'live')
   const rosterColumns: DataColumn<ClassEnrollment>[] = [
     { key: 'student_name', label: 'Student Name' },
     { key: 'enrolled_date', label: 'Enrolled Date' },
