@@ -101,7 +101,7 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
       </Stack>
     </Box>
     <Box sx={{ maxWidth: 1440, mx: 'auto', p: { xs: 2, md: 4 } }}>
-      <Tabs value={view} onChange={(_, next) => setView(next)} variant="scrollable" scrollButtons="auto" aria-label="Tutor portal sections" sx={{ mb: 3 }}>
+      <Tabs value={view} onChange={(_, next) => setView(next)} variant="fullWidth" aria-label="Tutor portal sections" sx={{ mb: 3 }}>
         <Tab value="overview" label="Overview" /><Tab value="courses" label="My Courses" /><Tab value="classes" label="My Classes" /><Tab value="students" label="Students & Attendance" /><Tab value="profile" label="Profile" />
       </Tabs>
       {error && <Paper sx={{ p: 2, mb: 2, border: 1, borderColor: 'error.main' }}><Typography color="error">{error}</Typography></Paper>}
