@@ -236,6 +236,7 @@ const initializeDatabase = async () => {
   `
   await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS violations JSONB NOT NULL DEFAULT '[]'::jsonb`
   await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS disqualified BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS retake_approved BOOLEAN NOT NULL DEFAULT false`
   await sql`CREATE INDEX IF NOT EXISTS student_lesson_progress_enrollment_idx ON student_lesson_progress(enrollment_id, last_accessed_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS quiz_attempts_enrollment_lesson_idx ON quiz_attempts(enrollment_id, lesson_id, submitted_at DESC)`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_one_open_attempt_idx ON quiz_attempts(enrollment_id, lesson_id) WHERE submitted_at IS NULL`
@@ -911,15 +912,25 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
     const lesson = findCourseLesson(enrollment.modules, lessonId)
     if (!lesson || lesson.type !== 'quiz') return { error: 'Quiz lesson not found.' }
 
-    const [completedAttempt] = await transaction`
-      SELECT id
+    const completedAttempts = await transaction`
+      SELECT id, answers, violations, disqualified, passed, retake_approved AS "retakeApproved"
       FROM quiz_attempts
       WHERE enrollment_id = ${enrollmentId}
         AND lesson_id = ${lessonId}
         AND submitted_at IS NOT NULL
-      LIMIT 1
+      ORDER BY submitted_at DESC
     `
-    if (completedAttempt) return { error: 'This quiz has already been completed and cannot be retaken.' }
+    if (completedAttempts.length > 0) {
+      const latestAttempt = completedAttempts[0]
+      const violations = deserializeJson(latestAttempt.violations)
+      const answers = deserializeJson(latestAttempt.answers)
+      const hasExpiredAnswer = isPlainObject(answers) && Object.values(answers).some((answer) => deserializeJson(answer)?.status === 'expired')
+      const requiresApproval = latestAttempt.disqualified || (Array.isArray(violations) && violations.length > 0)
+      if (completedAttempts.length >= 2) return { error: 'Only one quiz retake is allowed.' }
+      if (latestAttempt.passed) return { error: 'Passed quizzes cannot be retaken.' }
+      if (requiresApproval && !latestAttempt.retakeApproved) return { error: 'An administrator must approve a retake after a quiz violation.' }
+      if (!requiresApproval && !hasExpiredAnswer && !latestAttempt.retakeApproved) return { error: 'Only a timer-expired quiz can be retaken.' }
+    }
 
     const [attempt] = await transaction`
       INSERT INTO quiz_attempts (enrollment_id, lesson_id)
@@ -1054,6 +1065,19 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
   if (!result) return response.status(404).json({ message: 'Course enrollment not found.' })
   if (result.error) return response.status(400).json({ message: result.error })
   return response.json(result.attempt)
+})
+
+app.post('/api/admin/quiz-attempts/:attemptId/retake-approval', requireAdmin, async (request, response) => {
+  const attemptId = parseEnrollmentId(request.params.attemptId)
+  if (attemptId === null) return response.status(400).json({ message: 'Invalid quiz attempt.' })
+  const [attempt] = await sql`
+    UPDATE quiz_attempts
+    SET retake_approved = true, updated_at = NOW()
+    WHERE id = ${attemptId} AND submitted_at IS NOT NULL
+    RETURNING id::INTEGER AS id, retake_approved AS "retakeApproved"
+  `
+  if (!attempt) return response.status(404).json({ message: 'Quiz attempt not found.' })
+  return response.json(attempt)
 })
 
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
