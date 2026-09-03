@@ -859,6 +859,7 @@ const getOwnedEnrollment = async (transaction, userId, enrollmentId) => {
   const [enrollment] = await transaction`
     SELECT enrollments.id,
            enrollments.course_id AS "courseId",
+           enrollments.class_id AS "classId",
            CASE WHEN enrollments.class_id IS NULL THEN courses.modules ELSE classes.modules END AS modules
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
@@ -997,6 +998,7 @@ app.post('/api/enrollments/:enrollmentId/live-sessions/:lessonId/join', requireA
   const joinLog = await sql.begin(async (transaction) => {
     const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
     if (!enrollment) return null
+    if (enrollment.classId === null) return { error: 'Live session not found.' }
     const lesson = findCourseLesson(enrollment.modules, lessonId)
     if (!lesson || lesson.type !== 'live') return { error: 'Live session not found.' }
     const [saved] = await transaction`
