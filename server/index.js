@@ -1537,6 +1537,40 @@ app.get('/api/tutor/classes', requireTutor, async (request, response) => {
   })))
 })
 
+app.put('/api/tutor/courses/:id/curriculum', requireTutor, async (request, response) => {
+  const courseId = parseCourseId(request.params.id)
+  const modules = request.body?.modules
+  const lessons = getCourseLessons(modules)
+  if (courseId === null || !Array.isArray(modules) || lessons.some((lesson) => !['video', 'article', 'quiz'].includes(lesson?.type))) {
+    return response.status(400).json({ message: 'Enter valid course curriculum lessons.' })
+  }
+  const [updated] = await sql`
+    UPDATE courses
+    SET modules = ${JSON.stringify(modules)}::jsonb, updated_at = NOW()
+    WHERE id = ${courseId} AND tutor_id = ${request.tutorId}
+    RETURNING modules
+  `
+  if (!updated) return response.status(404).json({ message: 'Course not found.' })
+  return response.json({ modules: deserializeJson(updated.modules) ?? [] })
+})
+
+app.put('/api/tutor/classes/:id/curriculum', requireTutor, async (request, response) => {
+  const classId = parseCourseId(request.params.id)
+  const modules = request.body?.modules
+  const lessons = getCourseLessons(modules)
+  if (classId === null || !Array.isArray(modules) || lessons.some((lesson) => !['video', 'article', 'quiz', 'live'].includes(lesson?.type))) {
+    return response.status(400).json({ message: 'Enter valid class curriculum lessons.' })
+  }
+  const [updated] = await sql`
+    UPDATE classes
+    SET modules = ${JSON.stringify(modules)}::jsonb, updated_at = NOW()
+    WHERE id = ${classId} AND tutor_id = ${request.tutorId}
+    RETURNING modules
+  `
+  if (!updated) return response.status(404).json({ message: 'Class not found.' })
+  return response.json({ modules: deserializeJson(updated.modules) ?? [] })
+})
+
 app.get('/api/tutor/classes/:id/students', requireTutor, async (request, response) => {
   const classId = parseCourseId(request.params.id)
   if (classId === null) return response.status(400).json({ message: 'Invalid class id.' })

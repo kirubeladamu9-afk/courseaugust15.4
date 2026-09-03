@@ -299,6 +299,21 @@ export const getTutorClasses = async (): Promise<TutorClass[]> => {
   return response.json()
 }
 
+const updateTutorCurriculum = async (url: string, modules: AdminModule[]): Promise<AdminModule[]> => {
+  const response = await requestApi(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ modules }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  const result = await response.json() as { modules: AdminModule[] }
+  return result.modules
+}
+
+export const updateTutorCourseCurriculum = (courseId: number, modules: AdminModule[]) => updateTutorCurriculum(`/api/tutor/courses/${courseId}/curriculum`, modules)
+
+export const updateTutorClassCurriculum = (classId: number, modules: AdminModule[]) => updateTutorCurriculum(`/api/tutor/classes/${classId}/curriculum`, modules)
+
 export const getTutorClassStudents = async (classId: number): Promise<TutorClassStudent[]> => {
   const response = await requestApi(`/api/tutor/classes/${classId}/students`)
   if (!response.ok) throw new Error(await getErrorMessage(response))
