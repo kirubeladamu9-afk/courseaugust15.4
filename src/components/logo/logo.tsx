@@ -12,8 +12,12 @@ const Logo: FC<Props> = ({ onClick, variant = 'primary' }) => {
       component="a"
       href="/"
       aria-label="CourseSpace home"
-      onClick={onClick}
-      sx={{ display: 'inline-block', color: 'inherit', textDecoration: 'none' }}
+      onClick={(event) => {
+        if (!onClick) return
+        event.preventDefault()
+        onClick()
+      }}
+      sx={{ display: 'inline-block', color: 'text.primary', textDecoration: 'none' }}
     >
       <Typography
         variant="h4"
