@@ -26,6 +26,7 @@ import { CourseEditor } from '@/components/admin/admin-dashboard'
 import { getAuthenticatedUser, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorCourseStudents, getTutorOverview, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
 import { type AdminCourse, type AdminModule } from '@/components/admin/admin-data'
 import { navigateTo } from '@/lib/navigation'
+import { toast } from '@/components/toast'
 import { signOut } from '@/services/api'
 
 type View = 'overview' | 'courses' | 'classes' | 'students' | 'profile'
@@ -142,7 +143,9 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
       setProfile({ name: nextOverview.tutor.name, phone: nextOverview.tutor.phone, bio: nextOverview.tutor.bio })
       if (nextClasses[0]) setSelectedClassId(nextClasses[0].id)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load tutor portal.')
+      const message = loadError instanceof Error ? loadError.message : 'Unable to load tutor portal.'
+      setError(message)
+      toast.add({ type: 'error', title: 'Tutor portal unavailable', description: message })
     } finally {
       setLoading(false)
     }
@@ -158,7 +161,11 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     if (!request) return
     setStudentsLoading(true)
     setStudents([])
-    void request.then(setStudents).catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Unable to load students.')).finally(() => setStudentsLoading(false))
+    void request.then(setStudents).catch((loadError) => {
+      const message = loadError instanceof Error ? loadError.message : 'Unable to load students.'
+      setError(message)
+      toast.add({ type: 'error', title: 'Unable to load students', description: message })
+    }).finally(() => setStudentsLoading(false))
   }, [view, selectedClassId, progressTarget])
 
   const selectedClass = classes.find((classRecord) => classRecord.id === selectedClassId)
@@ -174,8 +181,11 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
       setOverview((current) => current ? { ...current, tutor: updated } : current)
       setProfile({ name: updated.name, phone: updated.phone, bio: updated.bio })
       setProfileSaved(true)
+      toast.add({ type: 'success', title: 'Profile saved', description: 'Your tutor profile was updated.' })
     } catch (saveError) {
-      setProfileError(saveError instanceof Error ? saveError.message : 'Unable to save profile.')
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save profile.'
+      setProfileError(message)
+      toast.add({ type: 'error', title: 'Profile update failed', description: message })
     } finally { setSaving(false) }
   }
 
@@ -188,7 +198,12 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
       const modules = await updateTutorCourseCurriculum(courseDraft.id, courseDraft.modules)
       setCourses((current) => current.map((course) => course.id === courseDraft.id ? { ...course, modules } : course))
       setCourseDraft(null)
-    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Unable to save course curriculum.') } finally { setSaving(false) }
+      toast.add({ type: 'success', title: 'Course curriculum saved', description: 'The course curriculum was updated.' })
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save course curriculum.'
+      setError(message)
+      toast.add({ type: 'error', title: 'Course update failed', description: message })
+    } finally { setSaving(false) }
   }
 
   const manageClass = (classRecord: TutorClass) => {
@@ -202,14 +217,32 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
       const modules = await updateTutorClassCurriculum(classDraft.record.id, classDraft.course.modules)
       setClasses((current) => current.map((classRecord) => classRecord.id === classDraft.record.id ? { ...classRecord, modules } : classRecord))
       setClassDraft(null)
-    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Unable to save class curriculum.') } finally { setSaving(false) }
+      toast.add({ type: 'success', title: 'Class curriculum saved', description: 'The class curriculum was updated.' })
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save class curriculum.'
+      setError(message)
+      toast.add({ type: 'error', title: 'Class update failed', description: message })
+    } finally { setSaving(false) }
   }
 
   const markAttendance = async (student: TutorClassStudent, lessonId: number, status: 'Present' | 'Absent') => {
     try {
       await updateTutorClassAttendance(student.id, lessonId, status)
       setStudents((current) => current.map((item) => item.id === student.id ? { ...item, attendance: { ...item.attendance, [lessonId]: status } } : item))
-    } catch (attendanceError) { setError(attendanceError instanceof Error ? attendanceError.message : 'Unable to save attendance.') }
+      toast.add({ type: 'success', title: 'Attendance saved', description: `${student.studentName} marked ${status}.` })
+    } catch (attendanceError) {
+      const message = attendanceError instanceof Error ? attendanceError.message : 'Unable to save attendance.'
+      setError(message)
+      toast.add({ type: 'error', title: 'Attendance update failed', description: message })
+    }
+  }
+
+  const handleSignOut = () => {
+    void toast.promise(signOut().then(() => navigateTo('/', true)), {
+      loading: 'Signing out...',
+      success: 'Signed out successfully.',
+      error: (signOutError) => signOutError instanceof Error ? signOutError.message : 'Unable to sign out.',
+    })
   }
 
   if (loading) return <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CircularProgress aria-label="Loading tutor portal" /></Box>
@@ -218,7 +251,7 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     <Box sx={{ px: { xs: 2, md: 5 }, py: 2, backgroundColor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={1.5}>
         <Box><Typography variant="h5" sx={{ fontWeight: 700 }}>Tutor Portal</Typography><Typography variant="body2" color="text.secondary">Welcome, {user?.name || overview?.tutor.name || 'Tutor'}</Typography></Box>
-        <Stack direction="row" spacing={1}><Button size="small" onClick={onToggleDarkMode}>{darkMode ? 'Light mode' : 'Dark mode'}</Button><Button size="small" onClick={() => { void signOut().then(() => navigateTo('/', true)) }}>Sign out</Button></Stack>
+        <Stack direction="row" spacing={1}><Button size="small" onClick={onToggleDarkMode}>{darkMode ? 'Light mode' : 'Dark mode'}</Button><Button size="small" onClick={handleSignOut}>Sign out</Button></Stack>
       </Stack>
     </Box>
     <Box sx={{ maxWidth: 1440, mx: 'auto', p: { xs: 2, md: 4 } }}>
