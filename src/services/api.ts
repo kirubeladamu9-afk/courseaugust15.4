@@ -281,7 +281,18 @@ export interface MyPayment {
 export const getPublicClasses = async (): Promise<PublicClass[]> => {
   const response = await requestApi('/api/classes')
   if (!response.ok) throw new Error(await getErrorMessage(response))
-  return response.json()
+  const records = await response.json() as Array<Omit<PublicClass, 'schedule'> & { schedule?: Partial<PublicClass['schedule']> | null }>
+  return records.map((record) => ({
+    ...record,
+    schedule: {
+      days: record.schedule?.days ?? [],
+      time: record.schedule?.time ?? '',
+      duration: record.schedule?.duration ?? 0,
+      flexible: record.schedule?.flexible ?? false,
+      startDate: record.schedule?.startDate ?? '',
+      endDate: record.schedule?.endDate ?? '',
+    },
+  }))
 }
 
 export const getTutorOverview = async (): Promise<TutorOverview> => {
