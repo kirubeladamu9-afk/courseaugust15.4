@@ -116,6 +116,7 @@ export interface MyEnrollment {
   meetingLink: string | null
   classStatus: 'pending_schedule' | 'open' | 'full' | 'closed' | null
   attendance: Record<number, 'Present' | 'Absent'>
+  sessionJoinClicks: Record<number, string>
   lessonProgress: Record<number, LessonProgress>
   quizAttempts: QuizAttempt[]
   completedLessonIds: number[]
@@ -176,6 +177,7 @@ export interface TutorClassStudent {
   status: 'enrolled' | 'waitlisted'
   enrolledDate: string
   attendance: Record<number, 'Present' | 'Absent'>
+  sessionJoinClicks: Record<number, string>
 }
 
 const authStorageKey = 'coursespace-auth-user'
@@ -299,6 +301,12 @@ export const getTutorClasses = async (): Promise<TutorClass[]> => {
 
 export const getTutorClassStudents = async (classId: number): Promise<TutorClassStudent[]> => {
   const response = await requestApi(`/api/tutor/classes/${classId}/students`)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const logLiveSessionJoin = async (enrollmentId: number, lessonId: number): Promise<{ clickedAt: string }> => {
+  const response = await requestApi(`/api/enrollments/${enrollmentId}/live-sessions/${lessonId}/join`, { method: 'POST' })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

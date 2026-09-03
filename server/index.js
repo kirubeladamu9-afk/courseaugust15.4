@@ -235,6 +235,15 @@ const initializeDatabase = async () => {
   `
 
   await sql`
+    CREATE TABLE IF NOT EXISTS class_session_join_logs (
+      enrollment_id BIGINT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+      lesson_id BIGINT NOT NULL,
+      clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (enrollment_id, lesson_id)
+    )
+  `
+
+  await sql`
     CREATE TABLE IF NOT EXISTS quiz_attempts (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       enrollment_id BIGINT NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
@@ -786,7 +795,8 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            lesson_summary."timeSpentSeconds",
            lesson_summary."lastActivityAt",
            quiz_summary."quizAttempts",
-           attendance_summary.attendance
+           attendance_summary.attendance,
+           session_join_summary."sessionJoinClicks"
     FROM enrollments
     INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
     LEFT JOIN courses ON courses.id = enrollments.course_id
@@ -834,6 +844,11 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
       FROM class_attendance
       WHERE enrollment_id = enrollments.id
     ) AS attendance_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, clicked_at), '{}'::jsonb) AS "sessionJoinClicks"
+      FROM class_session_join_logs
+      WHERE enrollment_id = enrollments.id
+    ) AS session_join_summary ON true
     WHERE enrollments.user_id = ${request.userId}
     ORDER BY lesson_summary."lastActivityAt" DESC NULLS LAST, enrollments.created_at DESC
   `
@@ -972,6 +987,30 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/complete', requireAut
   if (!completion) return response.status(404).json({ message: 'Course enrollment not found.' })
   if (completion.error) return response.status(400).json({ message: completion.error })
   return response.json(completion.lessonProgress)
+})
+
+app.post('/api/enrollments/:enrollmentId/live-sessions/:lessonId/join', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  if (enrollmentId === null || lessonId === null) return response.status(400).json({ message: 'Invalid live session.' })
+
+  const joinLog = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    const lesson = findCourseLesson(enrollment.modules, lessonId)
+    if (!lesson || lesson.type !== 'live') return { error: 'Live session not found.' }
+    const [saved] = await transaction`
+      INSERT INTO class_session_join_logs (enrollment_id, lesson_id)
+      VALUES (${enrollmentId}, ${lessonId})
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE SET clicked_at = NOW()
+      RETURNING clicked_at AS "clickedAt"
+    `
+    return { clickedAt: saved.clickedAt }
+  })
+
+  if (!joinLog) return response.status(404).json({ message: 'Class enrollment not found.' })
+  if (joinLog.error) return response.status(404).json({ message: joinLog.error })
+  return response.status(201).json(joinLog)
 })
 
 app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requireAuthenticated, async (request, response) => {
@@ -1509,7 +1548,8 @@ app.get('/api/tutor/classes/:id/students', requireTutor, async (request, respons
            users.email AS "studentEmail",
            enrollments.class_status AS status,
            to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS "enrolledDate",
-           COALESCE(attendance.attendance, '{}'::jsonb) AS attendance
+           COALESCE(attendance.attendance, '{}'::jsonb) AS attendance,
+           COALESCE(session_join_clicks."sessionJoinClicks", '{}'::jsonb) AS "sessionJoinClicks"
     FROM enrollments
     INNER JOIN students ON students.id = enrollments.student_id
     INNER JOIN users ON users.id = students.user_id
@@ -1518,6 +1558,11 @@ app.get('/api/tutor/classes/:id/students', requireTutor, async (request, respons
       FROM class_attendance
       WHERE enrollment_id = enrollments.id
     ) AS attendance ON true
+    LEFT JOIN LATERAL (
+      SELECT jsonb_object_agg(lesson_id::TEXT, clicked_at) AS "sessionJoinClicks"
+      FROM class_session_join_logs
+      WHERE enrollment_id = enrollments.id
+    ) AS session_join_clicks ON true
     WHERE enrollments.class_id = ${classId}
       AND enrollments.class_status = 'enrolled'
     ORDER BY enrollments.created_at DESC, enrollments.id DESC
