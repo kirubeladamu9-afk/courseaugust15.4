@@ -22,6 +22,7 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
   const currentUser = getAuthenticatedUser()
   const isAdmin = currentUser?.role === 'admin'
   const isTutor = currentUser?.role === 'tutor'
+  const isStudent = currentUser?.role === 'student'
   const { breakpoints } = useTheme()
   const matchMobileView = useMediaQuery(breakpoints.down('md'))
 
@@ -67,7 +68,7 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
                   {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}
                 </IconButton>
               </Tooltip>
-              <AuthNavigation isAdmin={isAdmin} isTutor={isTutor} darkMode={darkMode} onSignIn={onSignIn} onAdminDashboard={() => navigateTo('/admin')} onTutorDashboard={() => navigateTo('/tutor')} onSignOut={() => { void signOut().then(() => navigateTo('/', true)) }} />
+              <AuthNavigation isAdmin={isAdmin} isTutor={isTutor} isStudent={isStudent} darkMode={darkMode} onSignIn={onSignIn} onAdminDashboard={() => navigateTo('/admin')} onTutorDashboard={() => navigateTo('/tutor')} onStudentDashboard={() => navigateTo('/dashboard')} onSignOut={() => { void signOut().then(() => navigateTo('/', true)) }} />
             </Box>
             {visibleMenu && matchMobileView && (
               <IconButton
