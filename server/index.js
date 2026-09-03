@@ -1571,11 +1571,10 @@ app.put('/api/tutor/classes/:id/curriculum', requireTutor, async (request, respo
   return response.json({ modules: deserializeJson(updated.modules) ?? [] })
 })
 
-app.get('/api/tutor/classes/:id/students', requireTutor, async (request, response) => {
-  const classId = parseCourseId(request.params.id)
-  if (classId === null) return response.status(400).json({ message: 'Invalid class id.' })
-  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} AND tutor_id = ${request.tutorId}`
-  if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
+const getTutorStudentProgress = async (contentType, contentId) => {
+  const contentCondition = contentType === 'class'
+    ? sql`enrollments.class_id = ${contentId} AND enrollments.class_status = 'enrolled'`
+    : sql`enrollments.course_id = ${contentId} AND enrollments.class_id IS NULL`
   const students = await sql`
     SELECT enrollments.id::INTEGER AS id,
            students.id::INTEGER AS "studentId",
@@ -1584,26 +1583,69 @@ app.get('/api/tutor/classes/:id/students', requireTutor, async (request, respons
            users.email AS "studentEmail",
            enrollments.class_status AS status,
            to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS "enrolledDate",
-           COALESCE(attendance.attendance, '{}'::jsonb) AS attendance,
-           COALESCE(session_join_clicks."sessionJoinClicks", '{}'::jsonb) AS "sessionJoinClicks"
+           CASE WHEN classes.id IS NULL THEN courses.modules ELSE classes.modules END AS modules,
+           lesson_summary."lessonProgress",
+           lesson_summary."timeSpentSeconds",
+           quiz_summary."quizAttempts",
+           attendance_summary.attendance,
+           session_join_summary."sessionJoinClicks"
     FROM enrollments
     INNER JOIN students ON students.id = enrollments.student_id
     INNER JOIN users ON users.id = students.user_id
+    LEFT JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN classes ON classes.id = enrollments.class_id
     LEFT JOIN LATERAL (
-      SELECT jsonb_object_agg(lesson_id::TEXT, status) AS attendance
+      SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, jsonb_build_object('completedAt', completed_at)), '{}'::jsonb) AS "lessonProgress",
+             COALESCE(SUM(active_seconds), 0)::INTEGER AS "timeSpentSeconds"
+      FROM student_lesson_progress
+      WHERE enrollment_id = enrollments.id
+    ) AS lesson_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object('id', id, 'lessonId', lesson_id, 'startedAt', started_at, 'activeSeconds', active_seconds, 'score', score, 'passed', passed, 'disqualified', disqualified, 'retakeApproved', retake_approved, 'submittedAt', submitted_at) ORDER BY started_at DESC), '[]'::jsonb) AS "quizAttempts"
+      FROM quiz_attempts
+      WHERE enrollment_id = enrollments.id
+    ) AS quiz_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, status), '{}'::jsonb) AS attendance
       FROM class_attendance
       WHERE enrollment_id = enrollments.id
-    ) AS attendance ON true
+    ) AS attendance_summary ON true
     LEFT JOIN LATERAL (
-      SELECT jsonb_object_agg(lesson_id::TEXT, clicked_at) AS "sessionJoinClicks"
+      SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, clicked_at), '{}'::jsonb) AS "sessionJoinClicks"
       FROM class_session_join_logs
       WHERE enrollment_id = enrollments.id
-    ) AS session_join_clicks ON true
-    WHERE enrollments.class_id = ${classId}
-      AND enrollments.class_status = 'enrolled'
+    ) AS session_join_summary ON true
+    WHERE ${contentCondition}
     ORDER BY enrollments.created_at DESC, enrollments.id DESC
   `
-  return response.json(students)
+  return students.map((student) => {
+    const lessonProgress = deserializeJson(student.lessonProgress) ?? {}
+    const modules = deserializeJson(student.modules) ?? []
+    return {
+      ...student,
+      attendance: deserializeJson(student.attendance) ?? {},
+      sessionJoinClicks: deserializeJson(student.sessionJoinClicks) ?? {},
+      quizAttempts: deserializeJson(student.quizAttempts) ?? [],
+      timeSpentSeconds: Number(student.timeSpentSeconds) || 0,
+      progressPercentage: getEnrollmentProgress(modules, lessonProgress).progressPercentage,
+    }
+  })
+}
+
+app.get('/api/tutor/courses/:id/students', requireTutor, async (request, response) => {
+  const courseId = parseCourseId(request.params.id)
+  if (courseId === null) return response.status(400).json({ message: 'Invalid course id.' })
+  const [course] = await sql`SELECT id FROM courses WHERE id = ${courseId} AND tutor_id = ${request.tutorId}`
+  if (!course) return response.status(404).json({ message: 'Course not found.' })
+  return response.json(await getTutorStudentProgress('course', courseId))
+})
+
+app.get('/api/tutor/classes/:id/students', requireTutor, async (request, response) => {
+  const classId = parseCourseId(request.params.id)
+  if (classId === null) return response.status(400).json({ message: 'Invalid class id.' })
+  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} AND tutor_id = ${request.tutorId}`
+  if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
+  return response.json(await getTutorStudentProgress('class', classId))
 })
 
 app.patch('/api/tutor/classes/enrollments/:id/attendance', requireTutor, async (request, response) => {

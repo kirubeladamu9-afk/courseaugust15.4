@@ -178,6 +178,9 @@ export interface TutorClassStudent {
   enrolledDate: string
   attendance: Record<number, 'Present' | 'Absent'>
   sessionJoinClicks: Record<number, string>
+  progressPercentage: number
+  timeSpentSeconds: number
+  quizAttempts: QuizAttempt[]
 }
 
 const authStorageKey = 'coursespace-auth-user'
@@ -313,6 +316,12 @@ const updateTutorCurriculum = async (url: string, modules: AdminModule[]): Promi
 export const updateTutorCourseCurriculum = (courseId: number, modules: AdminModule[]) => updateTutorCurriculum(`/api/tutor/courses/${courseId}/curriculum`, modules)
 
 export const updateTutorClassCurriculum = (classId: number, modules: AdminModule[]) => updateTutorCurriculum(`/api/tutor/classes/${classId}/curriculum`, modules)
+
+export const getTutorCourseStudents = async (courseId: number): Promise<TutorClassStudent[]> => {
+  const response = await requestApi(`/api/tutor/courses/${courseId}/students`)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
 
 export const getTutorClassStudents = async (classId: number): Promise<TutorClassStudent[]> => {
   const response = await requestApi(`/api/tutor/classes/${classId}/students`)

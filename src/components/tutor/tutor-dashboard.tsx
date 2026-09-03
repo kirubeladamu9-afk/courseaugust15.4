@@ -23,12 +23,13 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import { useEffect, useMemo, useState } from 'react'
 import { CourseEditor } from '@/components/admin/admin-dashboard'
-import { getAuthenticatedUser, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorOverview, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
+import { getAuthenticatedUser, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorCourseStudents, getTutorOverview, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
 import { type AdminCourse, type AdminModule } from '@/components/admin/admin-data'
 import { navigateTo } from '@/lib/navigation'
 import { signOut } from '@/services/api'
 
 type View = 'overview' | 'courses' | 'classes' | 'students' | 'profile'
+type ProgressTarget = { type: 'course' | 'class'; id: number; title: string; modules: AdminModule[] }
 
 const statItems = (overview: TutorOverview) => [
   { label: 'Assigned courses', value: overview.totalCourses, icon: <SchoolOutlinedIcon color="primary" /> },
@@ -71,6 +72,42 @@ const StudentsAttendanceView = ({ selectedClass, students, liveLessons, onMarkAt
   </>
 }
 
+const formatLearningTime = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`
+}
+
+const StudentProgressView = ({ target, students, onBack }: { target: ProgressTarget; students: TutorClassStudent[]; onBack: () => void }) => {
+  const lessons = target.modules.flatMap((module) => module.lessons)
+  const quizzes = lessons.filter((lesson) => lesson.type === 'quiz')
+  const liveLessons = lessons.filter((lesson) => lesson.type === 'live')
+  const latestAttempt = (student: TutorClassStudent, lessonId: number) => student.quizAttempts
+    .filter((attempt) => attempt.lessonId === lessonId && attempt.score !== null && attempt.passed !== null)
+    .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())[0]
+
+  return <>
+    <Button onClick={onBack} sx={{ mb: 2 }}>Back to My {target.type === 'course' ? 'Courses' : 'Classes'}</Button>
+    <Typography variant="h4" sx={{ mb: 0.5 }}>{target.title}</Typography>
+    <Typography color="text.secondary" sx={{ mb: 3 }}>Student progress</Typography>
+    <Stack spacing={2}>
+      {students.length === 0 && <Typography color="text.secondary">No enrolled students yet.</Typography>}
+      {students.map((student) => <Paper key={student.id} elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: 'divider' }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} sx={{ mb: quizzes.length || target.type === 'class' ? 2 : 0 }}>
+          <Box><Typography variant="h6">{student.studentName}</Typography><Typography variant="body2" color="text.secondary">{student.studentEmail}</Typography></Box>
+          <Stack direction="row" spacing={3}><Box><Typography variant="body2" color="text.secondary">Completion</Typography><Typography sx={{ fontWeight: 700 }}>{student.progressPercentage}%</Typography></Box><Box><Typography variant="body2" color="text.secondary">Time learning</Typography><Typography sx={{ fontWeight: 700 }}>{formatLearningTime(student.timeSpentSeconds)}</Typography></Box></Stack>
+        </Stack>
+        {target.type === 'class' && <Typography variant="body2" sx={{ mb: quizzes.length ? 2 : 0, fontWeight: 600 }}>{liveLessons.filter((lesson) => student.attendance[lesson.id] === 'Present').length}/{liveLessons.length} sessions attended</Typography>}
+        {quizzes.length > 0 && <><Divider sx={{ mb: 1.5 }} /><Typography variant="subtitle2" sx={{ mb: 1 }}>Quiz results</Typography><Stack spacing={1}>{quizzes.map((quiz) => {
+          const attempts = student.quizAttempts.filter((attempt) => attempt.lessonId === quiz.id)
+          const result = latestAttempt(student, quiz.id)
+          return <Stack key={quiz.id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={0.5}><Typography variant="body2">{quiz.title}</Typography><Stack direction="row" spacing={1} alignItems="center"><Typography variant="body2" color="text.secondary">{result ? `${result.score}%` : 'Not attempted'} · {attempts.length} attempt{attempts.length === 1 ? '' : 's'}</Typography>{result && <Chip size="small" label={result.passed ? 'Passed' : 'Failed'} color={result.passed ? 'success' : 'error'} />}</Stack></Stack>
+        })}</Stack></>}
+      </Paper>)}
+    </Stack>
+  </>
+}
+
 const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onToggleDarkMode: () => void }) => {
   const [view, setView] = useState<View>('overview')
   const [overview, setOverview] = useState<TutorOverview | null>(null)
@@ -78,6 +115,7 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
   const [classes, setClasses] = useState<TutorClass[]>([])
   const [students, setStudents] = useState<TutorClassStudent[]>([])
   const [selectedClassId, setSelectedClassId] = useState<number | ''>('')
+  const [progressTarget, setProgressTarget] = useState<ProgressTarget | null>(null)
   const [profile, setProfile] = useState({ name: '', phone: '', bio: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -107,9 +145,15 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
 
   useEffect(() => { void load() }, [])
   useEffect(() => {
-    if (view !== 'students' || selectedClassId === '') return
-    void getTutorClassStudents(selectedClassId).then(setStudents).catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Unable to load students.'))
-  }, [view, selectedClassId])
+    const request = view === 'students' && selectedClassId !== ''
+      ? getTutorClassStudents(selectedClassId)
+      : progressTarget
+        ? progressTarget.type === 'course' ? getTutorCourseStudents(progressTarget.id) : getTutorClassStudents(progressTarget.id)
+        : null
+    if (!request) return
+    setStudents([])
+    void request.then(setStudents).catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Unable to load students.'))
+  }, [view, selectedClassId, progressTarget])
 
   const selectedClass = classes.find((classRecord) => classRecord.id === selectedClassId)
   const liveLessons = useMemo(() => selectedClass?.modules.flatMap((module) => module.lessons).filter((lesson) => lesson.type === 'live') ?? [], [selectedClass])
@@ -174,15 +218,16 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     <Box sx={{ maxWidth: 1440, mx: 'auto', p: { xs: 2, md: 4 } }}>
       {courseDraft && <Paper elevation={0} sx={{ mb: 3, p: 2.5, border: 1, borderColor: 'primary.main' }}><Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Typography variant="h5">Edit course curriculum</Typography><Stack direction="row" spacing={1}><Button onClick={() => setCourseDraft(null)}>Cancel</Button><Button variant="contained" onClick={() => void saveCourseDraft()} disabled={saving}>Save curriculum</Button></Stack></Stack><CourseEditor curriculumOnly allowedLessonTypes={['video', 'article', 'quiz']} course={courseDraft} onChange={setCourseDraft} /></Paper>}
       {classDraft && <Paper elevation={0} sx={{ mb: 3, p: 2.5, border: 1, borderColor: 'primary.main' }}><Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Typography variant="h5">Edit class curriculum</Typography><Stack direction="row" spacing={1}><Button onClick={() => setClassDraft(null)}>Cancel</Button><Button variant="contained" onClick={() => void saveClassDraft()} disabled={saving}>Save curriculum</Button></Stack></Stack><CourseEditor curriculumOnly course={classDraft.course} onChange={(course) => setClassDraft((current) => current ? { ...current, course } : current)} /></Paper>}
-      <Tabs value={view} onChange={(_, next) => { setView(next); setError(''); if (next !== 'profile') setProfileError('') }} variant="fullWidth" aria-label="Tutor portal sections" sx={{ mb: 3 }}>
+      <Tabs value={view} onChange={(_, next) => { setView(next); setProgressTarget(null); setError(''); if (next !== 'profile') setProfileError('') }} variant="fullWidth" aria-label="Tutor portal sections" sx={{ mb: 3 }}>
         <Tab value="overview" label="Overview" /><Tab value="courses" label="My Courses" /><Tab value="classes" label="My Classes" /><Tab value="students" label="Students & Attendance" /><Tab value="profile" label="Profile" />
       </Tabs>
       {error && view !== 'profile' && <Paper sx={{ p: 2, mb: 2, border: 1, borderColor: 'error.main' }}><Typography color="error">{error}</Typography></Paper>}
       {profileError && view === 'profile' && <Paper sx={{ p: 2, mb: 2, border: 1, borderColor: 'error.main' }}><Typography color="error">{profileError}</Typography></Paper>}
       {view === 'overview' && overview && <><Typography variant="h4" sx={{ mb: 3 }}>Teaching overview</Typography><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>{statItems(overview).map((item) => <Card key={item.label} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography color="text.secondary" variant="body2">{item.label}</Typography>{item.icon}</Stack><Typography variant="h4" sx={{ mt: 1 }}>{item.value}</Typography></CardContent></Card>)}</Box><Paper elevation={0} sx={{ mt: 3, p: 3, border: 1, borderColor: 'divider' }}><Typography variant="h6" sx={{ mb: 1 }}>Your teaching assignments</Typography><Typography color="text.secondary">Manage class rosters, attendance, and your profile from the sections above.</Typography></Paper></>}
-      {view === 'courses' && <><Box sx={{ mb: 3 }}><Typography variant="h4">My courses</Typography><Typography color="text.secondary">Curriculum for your assigned courses</Typography></Box><Stack spacing={2}>{courses.length ? courses.map((course) => <Paper key={course.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h6">{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.students} students</Typography></Box><Button size="small" variant="outlined" onClick={() => manageCourse(course)}>Edit curriculum</Button></Stack></Paper>) : <Typography color="text.secondary">No courses assigned yet.</Typography>}</Stack></>}
-      {view === 'classes' && <><Box sx={{ mb: 3 }}><Typography variant="h4">My classes</Typography><Typography color="text.secondary">Rosters, attendance, and curriculum for your assigned classes</Typography></Box><Stack spacing={2}>{classes.length ? classes.map((classRecord) => <Paper key={classRecord.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h6">{classRecord.title}</Typography><Typography color="text.secondary">{classRecord.enrolledCount} enrolled students · {classRecord.status}</Typography><Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate || 'Start date pending'} – {classRecord.schedule.endDate || 'End date pending'}</Typography></Box><Stack direction="row" spacing={1}><Button size="small" variant="outlined" onClick={() => { setSelectedClassId(classRecord.id); setView('students') }}>Students & attendance</Button><Button size="small" variant="outlined" onClick={() => manageClass(classRecord)}>Edit curriculum</Button></Stack></Stack></Paper>) : <Typography color="text.secondary">No classes assigned yet.</Typography>}</Stack></>}
-      {view === 'students' && selectedClass && <StudentsAttendanceView selectedClass={selectedClass} students={students} liveLessons={liveLessons} onMarkAttendance={markAttendance} onBack={() => setView('classes')} />}
+      {view === 'courses' && !progressTarget && <><Box sx={{ mb: 3 }}><Typography variant="h4">My courses</Typography><Typography color="text.secondary">Curriculum and student progress for your assigned courses</Typography></Box><Stack spacing={2}>{courses.length ? courses.map((course) => <Paper key={course.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h6">{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.students} students</Typography></Box><Stack direction="row" spacing={1}><Button size="small" variant="outlined" onClick={() => setProgressTarget({ type: 'course', id: course.id, title: course.title, modules: course.modules })}>Student Progress</Button><Button size="small" variant="outlined" onClick={() => manageCourse(course)}>Edit curriculum</Button></Stack></Stack></Paper>) : <Typography color="text.secondary">No courses assigned yet.</Typography>}</Stack></>}
+      {view === 'classes' && !progressTarget && <><Box sx={{ mb: 3 }}><Typography variant="h4">My classes</Typography><Typography color="text.secondary">Rosters, attendance, curriculum, and student progress for your assigned classes</Typography></Box><Stack spacing={2}>{classes.length ? classes.map((classRecord) => <Paper key={classRecord.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h6">{classRecord.title}</Typography><Typography color="text.secondary">{classRecord.enrolledCount} enrolled students · {classRecord.status}</Typography><Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate || 'Start date pending'} – {classRecord.schedule.endDate || 'End date pending'}</Typography></Box><Stack direction="row" spacing={1}><Button size="small" variant="outlined" onClick={() => { setProgressTarget({ type: 'class', id: classRecord.id, title: classRecord.title, modules: classRecord.modules }); setView('classes') }}>Student Progress</Button><Button size="small" variant="outlined" onClick={() => { setSelectedClassId(classRecord.id); setProgressTarget(null); setView('students') }}>Students & attendance</Button><Button size="small" variant="outlined" onClick={() => manageClass(classRecord)}>Edit curriculum</Button></Stack></Stack></Paper>) : <Typography color="text.secondary">No classes assigned yet.</Typography>}</Stack></>}
+      {progressTarget && <StudentProgressView target={progressTarget} students={students} onBack={() => setProgressTarget(null)} />}
+      {view === 'students' && selectedClass && !progressTarget && <StudentsAttendanceView selectedClass={selectedClass} students={students} liveLessons={liveLessons} onMarkAttendance={markAttendance} onBack={() => setView('classes')} />}
       {view === 'students' && !selectedClass && <><Typography variant="h4" sx={{ mb: 3 }}>Students & attendance</Typography><FormControl sx={{ minWidth: { xs: '100%', sm: 360 }, mb: 2 }}><InputLabel>Class</InputLabel><Select label="Class" value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value as number)}>{classes.map((classRecord) => <MenuItem key={classRecord.id} value={classRecord.id}>{classRecord.title}</MenuItem>)}</Select></FormControl>{selectedClass && <Paper elevation={0} sx={{ p: 2, mb: 2, border: 1, borderColor: 'divider' }}><Typography variant="subtitle2">Join-click reference</Typography><Typography variant="caption" color="text.secondary">A Join Class click is a reference only; select Present or Absent to record attendance.</Typography><Stack spacing={0.5} sx={{ mt: 1 }}>{students.flatMap((student) => liveLessons.filter((lesson) => student.sessionJoinClicks[lesson.id]).map((lesson) => <Typography key={`${student.id}-${lesson.id}`} variant="caption">{student.studentName} · {lesson.title}: {new Date(student.sessionJoinClicks[lesson.id]).toLocaleString()}</Typography>))}</Stack></Paper>}{selectedClass && <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'auto' }}><Box sx={{ minWidth: 700 }}><Stack direction="row" sx={{ p: 2, backgroundColor: 'background.default', fontWeight: 700 }}><Typography sx={{ flex: 1 }}>Student</Typography>{liveLessons.map((lesson) => <Typography key={lesson.id} sx={{ width: 150 }}>{lesson.title}</Typography>)}</Stack><Divider />{students.length ? students.map((student) => <Stack key={student.id} direction="row" alignItems="center" sx={{ p: 2 }}><Box sx={{ flex: 1 }}><Typography>{student.studentName}</Typography><Typography variant="caption" color="text.secondary">{student.studentEmail}</Typography></Box>{liveLessons.map((lesson) => <FormControl key={lesson.id} size="small" sx={{ width: 140 }}><Select value={student.attendance[lesson.id] ?? ''} displayEmpty inputProps={{ 'aria-label': `${student.studentName} attendance for ${lesson.title}` }} onChange={(event) => void markAttendance(student, lesson.id, event.target.value as 'Present' | 'Absent')}><MenuItem value="">Not marked</MenuItem><MenuItem value="Present">Present</MenuItem><MenuItem value="Absent">Absent</MenuItem></Select></FormControl>)}</Stack>) : <Typography color="text.secondary" sx={{ p: 3 }}>No students enrolled in this class.</Typography>}</Box></Paper>}</>}
       {view === 'profile' && <><Typography variant="h4" sx={{ mb: 0.5 }}>Tutor profile</Typography><Typography color="text.secondary" sx={{ mb: 3 }}>Keep your contact details and teaching bio up to date for students and administrators.</Typography><Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch"><Paper elevation={0} sx={{ p: 3, width: { xs: '100%', md: 240 }, border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}><Avatar sx={{ width: 88, height: 88, mb: 2, fontSize: 30, fontWeight: 700, backgroundColor: 'primary.main' }}>{profile.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '?'}</Avatar><Typography variant="h6">{profile.name || 'Tutor'}</Typography><Typography variant="body2" color="text.secondary">Tutor account</Typography></Paper><Paper component="form" onSubmit={saveProfile} elevation={0} sx={{ p: { xs: 2, md: 3 }, flex: 1, border: 1, borderColor: 'divider' }}><Stack spacing={2}><TextField label="Full name" value={profile.name} onChange={(event) => { setProfile({ ...profile, name: event.target.value }); setProfileSaved(false) }} required fullWidth /><TextField label="Phone number" placeholder="Add a phone number" value={profile.phone} onChange={(event) => { setProfile({ ...profile, phone: event.target.value }); setProfileSaved(false) }} fullWidth /><TextField label="Teaching bio" placeholder="Tell students about your teaching experience" value={profile.bio} onChange={(event) => { setProfile({ ...profile, bio: event.target.value }); setProfileSaved(false) }} multiline minRows={5} fullWidth /><Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}><Typography variant="caption" color="text.secondary">Your profile is visible in the tutor portal.</Typography><Button type="submit" variant="contained" disabled={saving} startIcon={<PersonOutlineIcon />}>{saving ? 'Saving...' : 'Save profile'}</Button></Stack>{profileSaved && <Typography color="success.main" role="status">Profile updated successfully.</Typography>}</Stack></Paper></Stack></>}
     </Box>
