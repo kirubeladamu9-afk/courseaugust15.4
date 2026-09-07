@@ -75,11 +75,12 @@ import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
 import PaymentsPage from './payments-page'
 import ReportsPage from './reports-page'
+import PracticeExamManagement from './practice-exam-management'
 import { registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
 
-type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'payments' | 'reports' | 'violations' | 'users'
+type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'practice-exams' | 'payments' | 'reports' | 'violations' | 'users'
 
 type AdminNavigationItem = {
   key: Section
@@ -94,6 +95,7 @@ const navigation: AdminNavigationItem[] = [
   { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, subviews: [{ label: 'Pending Scheduling', path: '/admin/classes/pending' }, { label: 'Active Classes', path: '/admin/classes/active' }] },
   { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon /> },
   { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon /> },
+  { key: 'practice-exams', label: 'Practice Exams', icon: <QuizOutlinedIcon /> },
   { key: 'payments', label: 'Payments', icon: <PaymentsOutlinedIcon /> },
   { key: 'reports', label: 'Reports', icon: <AssessmentOutlinedIcon /> },
   { key: 'violations', label: 'Violations', icon: <BlockIcon /> },
@@ -432,6 +434,7 @@ const LessonDetailsPanel: FC<{ lessonPanel: LessonPanelState; updateLessonDraft:
     if (lesson.type === 'article' && articleBodyRef.current) articleBodyRef.current.innerText = lesson.articleBody ?? ''
   }, [lesson.id, lesson.type])
   const isVideoProcessing = lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100
+  const liveLessonSettings = { meetingUrl: '', getScheduledAt: (_lesson: AdminLesson, _isNew: boolean) => '' }
   return <Paper elevation={0} sx={{ mt: 2, p: 2.5, border: 1, borderColor: 'primary.main', backgroundColor: 'background.paper' }}>
     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 2 }}><Box><Typography variant="h6">{lessonPanel.isNew ? lesson.type === 'live' ? 'Add Live Lesson' : 'Add lesson' : lesson.type === 'live' ? 'Live lesson details' : 'Lesson details'}</Typography><Typography color="text.secondary" variant="body2">{lessonTypeOptions.find((option) => option.type === lesson.type)?.label} lesson</Typography></Box><IconButton onClick={onClose} aria-label="Close lesson details"><CloseIcon /></IconButton></Box>
     <Stack spacing={2}><TextField label="Title" fullWidth required value={lesson.title} onChange={(event) => updateLessonDraft({ ...lesson, title: event.target.value })} />
@@ -1212,6 +1215,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
         return <TutorsPage />
       }
       case 'blog': return <SimplePage title="Bookstore & Blog" description="Manage books, articles, and publishing content." icon={<BookOutlinedIcon fontSize="large" />} />
+      case 'practice-exams': return <PracticeExamManagement />
       case 'payments': return <PaymentsPage />
       case 'reports': return <ReportsPage />
       case 'violations': return <ViolationsPage />

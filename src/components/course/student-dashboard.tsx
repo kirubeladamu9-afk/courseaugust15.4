@@ -165,12 +165,13 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   item_name: string
   type: 'Book' | 'Exam'
   download_url: string
+  exam_id?: number
 }
 
 const drawerWidth = 272
 const purchases: DashboardPurchase[] = [
   { id: 1, item_name: 'The Practical React Workbook', type: 'Book', download_url: '#react-workbook' },
-  { id: 2, item_name: 'Frontend Developer Practice Exam', type: 'Exam', download_url: '#frontend-exam' },
+  { id: 2, item_name: 'Grade 8 Mathematics Foundations', type: 'Exam', download_url: '/practice-exams/1', exam_id: 1 },
 ]
 
 const formatDuration = (seconds: number) => {
@@ -533,7 +534,7 @@ const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
 
 const PurchasesView: FC = () => <>
   <ViewHeading title="My Purchases" description="Access your bookstore items and standalone exam purchases." />
-  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>{purchases.map((purchase) => <Card key={purchase.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}>{purchase.type === 'Book' ? <MenuBookOutlinedIcon /> : <SchoolOutlinedIcon />}</Box><Box sx={{ flex: 1 }}><Chip label={purchase.type} size="small" variant="outlined" sx={{ mb: 1 }} /><Typography variant="h6" sx={{ mb: 2 }}>{purchase.item_name}</Typography><Button variant="outlined" size="small" component="a" href={purchase.download_url} startIcon={<DownloadOutlinedIcon />}>{purchase.type === 'Book' ? 'Download item' : 'Access exam'}</Button></Box></Stack></CardContent></Card>)}</Box>
+  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>{purchases.map((purchase) => <Card key={purchase.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}>{purchase.type === 'Book' ? <MenuBookOutlinedIcon /> : <SchoolOutlinedIcon />}</Box><Box sx={{ flex: 1 }}><Chip label={purchase.type} size="small" variant="outlined" sx={{ mb: 1 }} /><Typography variant="h6" sx={{ mb: 2 }}>{purchase.item_name}</Typography><Button variant="outlined" size="small" component="a" href={purchase.download_url} onClick={(event) => { if (purchase.exam_id) { event.preventDefault(); navigateTo(purchase.download_url) } }} startIcon={<DownloadOutlinedIcon />}>{purchase.type === 'Book' ? 'Download item' : 'Practice exam'}</Button></Box></Stack></CardContent></Card>)}</Box>
 </>
 
 const catalogPageSize = 6
