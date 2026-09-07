@@ -48,6 +48,34 @@ const isValidCredentials = (email, password) => (
   password.length <= 128
 )
 
+const quoteIdentifier = (identifier) => `"${identifier.replaceAll('"', '""')}"`
+
+const ensureColumns = async (tableName, columns) => {
+  const existingColumns = await sql`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = ${tableName}
+  `
+  const existingColumnNames = new Set(existingColumns.map(({ column_name }) => column_name))
+
+  for (const [columnName, definition] of Object.entries(columns)) {
+    if (!existingColumnNames.has(columnName)) {
+      await sql.unsafe(`ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN IF NOT EXISTS ${quoteIdentifier(columnName)} ${definition}`)
+    }
+  }
+}
+
+const ensureNullable = async (tableName, columnName) => {
+  const [column] = await sql`
+    SELECT is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = ${tableName} AND column_name = ${columnName}
+  `
+  if (column?.is_nullable === 'NO') {
+    await sql.unsafe(`ALTER TABLE ${quoteIdentifier(tableName)} ALTER COLUMN ${quoteIdentifier(columnName)} DROP NOT NULL`)
+  }
+}
+
 const initializeDatabase = async () => {
   await sql`
     CREATE TABLE IF NOT EXISTS tutors (
@@ -74,9 +102,11 @@ const initializeDatabase = async () => {
     )
   `
 
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''`
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT ''`
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Active'`
+  await ensureColumns('users', {
+    name: "TEXT NOT NULL DEFAULT ''",
+    phone: "TEXT NOT NULL DEFAULT ''",
+    status: "TEXT NOT NULL DEFAULT 'Active'",
+  })
 
   await sql`
     CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -126,18 +156,20 @@ const initializeDatabase = async () => {
     )
   `
 
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS level TEXT NOT NULL DEFAULT 'Beginner'`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS tutor TEXT NOT NULL DEFAULT ''`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS tutor_id BIGINT REFERENCES tutors(id) ON DELETE SET NULL`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Published'`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS students INTEGER NOT NULL DEFAULT 0`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS long_description TEXT NOT NULL DEFAULT ''`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS learning_outcomes JSONB NOT NULL DEFAULT '[]'::jsonb`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '[]'::jsonb`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate BOOLEAN NOT NULL DEFAULT false`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS modules JSONB NOT NULL DEFAULT '[]'::jsonb`
-  await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+  await ensureColumns('courses', {
+    level: "TEXT NOT NULL DEFAULT 'Beginner'",
+    tutor: "TEXT NOT NULL DEFAULT ''",
+    tutor_id: 'BIGINT REFERENCES tutors(id) ON DELETE SET NULL',
+    status: "TEXT NOT NULL DEFAULT 'Published'",
+    students: 'INTEGER NOT NULL DEFAULT 0',
+    description: "TEXT NOT NULL DEFAULT ''",
+    long_description: "TEXT NOT NULL DEFAULT ''",
+    learning_outcomes: "JSONB NOT NULL DEFAULT '[]'::jsonb",
+    requirements: "JSONB NOT NULL DEFAULT '[]'::jsonb",
+    certificate: 'BOOLEAN NOT NULL DEFAULT false',
+    modules: "JSONB NOT NULL DEFAULT '[]'::jsonb",
+    updated_at: 'TIMESTAMPTZ NOT NULL DEFAULT NOW()',
+  })
 
   await sql`
     CREATE TABLE IF NOT EXISTS practice_exams (
@@ -177,9 +209,11 @@ const initializeDatabase = async () => {
       paid_at TIMESTAMPTZ
     )
   `
-  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS practice_exam_id BIGINT REFERENCES practice_exams(id) ON DELETE RESTRICT`
-  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'ETB'`
-  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS chapa_reference TEXT`
+  await ensureColumns('payments', {
+    practice_exam_id: 'BIGINT REFERENCES practice_exams(id) ON DELETE RESTRICT',
+    currency: "TEXT NOT NULL DEFAULT 'ETB'",
+    chapa_reference: 'TEXT',
+  })
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS payments_chapa_reference_idx ON payments(chapa_reference) WHERE chapa_reference IS NOT NULL`
 
   await sql`
@@ -223,13 +257,19 @@ const initializeDatabase = async () => {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
-  await sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS modules JSONB NOT NULL DEFAULT '[]'::jsonb`
-  await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
-  await sql`ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_status TEXT CHECK (class_status IN ('enrolled', 'waitlisted'))`
-  await sql`ALTER TABLE enrollments ALTER COLUMN course_id DROP NOT NULL`
+  await ensureColumns('classes', {
+    modules: "JSONB NOT NULL DEFAULT '[]'::jsonb",
+  })
+  await ensureColumns('enrollments', {
+    class_id: 'BIGINT REFERENCES classes(id) ON DELETE SET NULL',
+    class_status: "TEXT CHECK (class_status IN ('enrolled', 'waitlisted'))",
+  })
+  await ensureNullable('enrollments', 'course_id')
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS enrollments_class_payment_idx ON enrollments (student_id, payment_id) WHERE course_id IS NULL`
-  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL`
-  await sql`ALTER TABLE payments ALTER COLUMN course_id DROP NOT NULL`
+  await ensureColumns('payments', {
+    class_id: 'BIGINT REFERENCES classes(id) ON DELETE SET NULL',
+  })
+  await ensureNullable('payments', 'course_id')
 
   await sql`
     CREATE TABLE IF NOT EXISTS course_progress (
@@ -243,8 +283,10 @@ const initializeDatabase = async () => {
       PRIMARY KEY (user_id, course_id)
     )
   `
-  await sql`ALTER TABLE course_progress ADD COLUMN IF NOT EXISTS time_spent_seconds INTEGER NOT NULL DEFAULT 0`
-  await sql`ALTER TABLE course_progress ADD COLUMN IF NOT EXISTS quiz_results JSONB NOT NULL DEFAULT '{}'::jsonb`
+  await ensureColumns('course_progress', {
+    time_spent_seconds: 'INTEGER NOT NULL DEFAULT 0',
+    quiz_results: "JSONB NOT NULL DEFAULT '{}'::jsonb",
+  })
 
   await sql`
     CREATE TABLE IF NOT EXISTS student_lesson_progress (
@@ -293,9 +335,11 @@ const initializeDatabase = async () => {
       CHECK ((submitted_at IS NULL AND score IS NULL AND passed IS NULL) OR (submitted_at IS NOT NULL AND score IS NOT NULL AND passed IS NOT NULL))
     )
   `
-  await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS violations JSONB NOT NULL DEFAULT '[]'::jsonb`
-  await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS disqualified BOOLEAN NOT NULL DEFAULT false`
-  await sql`ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS retake_approved BOOLEAN NOT NULL DEFAULT false`
+  await ensureColumns('quiz_attempts', {
+    violations: "JSONB NOT NULL DEFAULT '[]'::jsonb",
+    disqualified: 'BOOLEAN NOT NULL DEFAULT false',
+    retake_approved: 'BOOLEAN NOT NULL DEFAULT false',
+  })
   await sql`CREATE INDEX IF NOT EXISTS student_lesson_progress_enrollment_idx ON student_lesson_progress(enrollment_id, last_accessed_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS quiz_attempts_enrollment_lesson_idx ON quiz_attempts(enrollment_id, lesson_id, submitted_at DESC)`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_one_open_attempt_idx ON quiz_attempts(enrollment_id, lesson_id) WHERE submitted_at IS NULL`
