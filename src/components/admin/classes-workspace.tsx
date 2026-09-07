@@ -139,7 +139,7 @@ const normalizeSchedule = (schedule: unknown): ClassSchedule => {
   return {
     startDate: typeof candidate.startDate === 'string' ? candidate.startDate : '',
     endDate: typeof candidate.endDate === 'string' ? candidate.endDate : '',
-    days: Array.isArray(candidate.days) ? candidate.days.filter((day): day is string => typeof day === 'string') : [],
+    days: Array.isArray(candidate.days) ? candidate.days.filter((day): day is string => typeof day === 'string').map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].find((name) => name.toLowerCase() === day.slice(0, 3).toLowerCase()) ?? day) : [],
     time: typeof candidate.time === 'string' ? candidate.time : '',
     duration: typeof candidate.duration === 'number' && candidate.duration > 0 ? candidate.duration : 60,
   }
@@ -169,9 +169,40 @@ const WorkspaceHeading: FC<{ title: string; description: string; action?: ReactN
 
 const ClassStatusChip: FC<{ status: ClassStatus }> = ({ status }) => <Chip label={classStatusLabel(status)} color={classStatusColor(status)} size="small" />
 
-const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSchedule) => void; allowedPastStartDate?: string }> = ({ schedule, onChange, allowedPastStartDate }) => {
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const dateValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+const parseDateValue = (value: string) => value ? new Date(`${value}T00:00:00`) : null
+
+const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSchedule) => void; allowedPastStartDate?: string; meetingLink: string; onMeetingLinkChange: (value: string) => void }> = ({ schedule, onChange, allowedPastStartDate, meetingLink, onMeetingLinkChange }) => {
+  const [visibleMonth, setVisibleMonth] = useState(() => parseDateValue(schedule.startDate) ?? new Date())
   const dateValidation = getDateValidation(schedule, allowedPastStartDate)
-  return <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField required fullWidth label="Class start date" type="date" value={schedule.startDate} onChange={(event) => onChange({ ...schedule, startDate: event.target.value })} error={dateValidation.startInPast} helperText={dateValidation.startInPast ? 'Start date cannot be in the past.' : undefined} InputLabelProps={{ shrink: true }} /><TextField required fullWidth label="Class end date" type="date" value={schedule.endDate} onChange={(event) => onChange({ ...schedule, endDate: event.target.value })} error={dateValidation.endBeforeStart} helperText={dateValidation.endBeforeStart ? 'End date must be later than the start date.' : undefined} InputLabelProps={{ shrink: true }} /></Stack>
+  const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1)
+  const calendarStart = new Date(firstDay)
+  calendarStart.setDate(1 - firstDay.getDay())
+  const dates = Array.from({ length: 42 }, (_, index) => { const date = new Date(calendarStart); date.setDate(calendarStart.getDate() + index); return date })
+  const updateDateRange = (date: Date) => {
+    const selected = dateValue(date)
+    if (!schedule.startDate || schedule.endDate) onChange({ ...schedule, startDate: selected, endDate: '' })
+    else if (selected < schedule.startDate) onChange({ ...schedule, startDate: selected, endDate: schedule.startDate })
+    else onChange({ ...schedule, endDate: selected })
+  }
+  const start = parseDateValue(schedule.startDate)?.getTime() ?? null
+  const end = parseDateValue(schedule.endDate)?.getTime() ?? null
+  return <Paper variant="outlined" sx={{ p: 2 }}>
+    <Stack spacing={2}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
+        <Box><Typography variant="subtitle2">Class schedule</Typography><Typography variant="caption" color="text.secondary">Select a date range, recurring session days, and time from one calendar.</Typography></Box>
+        <Stack direction="row" spacing={1}><Typography variant="body2"><strong>From:</strong> {schedule.startDate || 'Select date'}</Typography><Typography variant="body2"><strong>To:</strong> {schedule.endDate || 'Select date'}</Typography></Stack>
+      </Stack>
+      <Stack direction="row" justifyContent="space-between" alignItems="center"><IconButton size="small" onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1))} aria-label="Previous month">‹</IconButton><Typography sx={{ fontWeight: 700 }}>{visibleMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' })}</Typography><IconButton size="small" onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1))} aria-label="Next month">›</IconButton></Stack>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>{dayNames.map((day) => <Typography key={day} variant="caption" color="text.secondary" sx={{ textAlign: 'center', fontWeight: 700 }}>{day}</Typography>)}{dates.map((date) => { const value = dateValue(date); const timestamp = date.getTime(); const inRange = start !== null && end !== null && timestamp >= start && timestamp <= end; const isSessionDate = inRange && schedule.days.includes(dayNames[date.getDay()]); const isSelected = value === schedule.startDate || value === schedule.endDate; return <Box key={value} component="button" type="button" onClick={() => updateDateRange(date)} sx={{ minHeight: 38, border: 1, borderColor: isSelected ? 'primary.main' : isSessionDate ? 'success.main' : 'transparent', borderRadius: 1, backgroundColor: isSelected ? 'primary.main' : isSessionDate ? 'success.light' : 'transparent', color: isSelected ? 'primary.contrastText' : date.getMonth() === visibleMonth.getMonth() ? 'text.primary' : 'text.disabled', cursor: 'pointer', font: 'inherit', '&:hover': { borderColor: 'primary.main' } }}>{date.getDate()}</Box> })}</Box>
+      <Box><Typography variant="body2" sx={{ mb: 0.75, fontWeight: 600 }}>Recurring session days</Typography><Stack direction="row" spacing={0.75} flexWrap="wrap">{dayNames.slice(1).concat(dayNames[0]).map((day) => <Button key={day} size="small" variant={schedule.days.includes(day) ? 'contained' : 'outlined'} onClick={() => onChange({ ...schedule, days: schedule.days.includes(day) ? schedule.days.filter((current) => current !== day) : [...schedule.days, day] })}>{day}</Button>)}</Stack></Box>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField required fullWidth label="Session time" type="time" value={schedule.time} onChange={(event) => onChange({ ...schedule, time: event.target.value })} InputLabelProps={{ shrink: true }} /><TextField required fullWidth label="Meeting link" type="url" value={meetingLink} onChange={(event) => onMeetingLinkChange(event.target.value)} /></Stack>
+      <TextField required fullWidth label="Session duration (minutes)" type="number" inputProps={{ min: 1 }} value={schedule.duration} onChange={(event) => onChange({ ...schedule, duration: Math.max(1, Number(event.target.value)) })} />
+      {dateValidation.startInPast && <Typography color="error" variant="caption">Choose a start date that is not in the past.</Typography>}{dateValidation.endBeforeStart && <Typography color="error" variant="caption">The end date must be later than the start date.</Typography>}
+      <Typography variant="caption" color="text.secondary">Green dates are the concrete live-session dates inside the selected range.</Typography>
+    </Stack>
+  </Paper>
 }
 
 const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => void; onSave: (student: PendingStudent, values: PendingAssignmentValue) => void }> = ({ student, onClose, onSave }) => {
@@ -182,7 +213,7 @@ const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => 
   }, [student])
 
   const assignmentDateValidation = getDateValidation(values.schedule)
-  const canSave = values.capacity >= 1 && Boolean(values.schedule.startDate && values.schedule.endDate) && !assignmentDateValidation.startInPast && !assignmentDateValidation.endBeforeStart
+  const canSave = values.capacity >= 1 && Boolean(values.schedule.startDate && values.schedule.endDate && values.schedule.days.length && values.schedule.time && values.meeting_link) && !assignmentDateValidation.startInPast && !assignmentDateValidation.endBeforeStart
 
   return (
     <Dialog open={Boolean(student)} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="assign-schedule-title">
@@ -192,7 +223,7 @@ const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => 
           <Typography color="text.secondary" variant="body2">Create a class for this paid International Online Interactive enrollee. Use a capacity of 1 for a private class.</Typography>
           <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={tutors.some((tutor) => tutor.id === values.tutor_id) ? values.tutor_id : ''} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
           <TextField required fullWidth label="Capacity" type="number" value={values.capacity} onChange={(event) => setValues({ ...values, capacity: Math.max(1, Number(event.target.value)) })} inputProps={{ min: 1 }} helperText="Set to 1 for a private class." />
-          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class availability</Typography><ScheduleFields schedule={values.schedule} onChange={(schedule) => setValues({ ...values, schedule })} /></Box>
+          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class availability</Typography><ScheduleFields schedule={values.schedule} meetingLink={values.meeting_link} onMeetingLinkChange={(meeting_link) => setValues({ ...values, meeting_link })} onChange={(schedule) => setValues({ ...values, schedule })} /></Box>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: 2 }}><Button onClick={onClose}>Cancel</Button><Button variant="contained" onClick={() => student && onSave(student, values)} disabled={!canSave}>Create class</Button></DialogActions>
@@ -245,7 +276,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
 
   const allowedPastStartDate = classRecord ? normalizeSchedule(classRecord.schedule).startDate : undefined
   const classDateValidation = getDateValidation(values.schedule, allowedPastStartDate)
-  const canSave = Boolean(values.title.trim() && values.tutor_id >= 1 && values.capacity >= 1 && values.schedule.startDate && values.schedule.endDate && !classDateValidation.startInPast && !classDateValidation.endBeforeStart)
+  const canSave = Boolean(values.title.trim() && values.tutor_id >= 1 && values.capacity >= 1 && values.schedule.startDate && values.schedule.endDate && values.schedule.days.length && values.schedule.time && values.meeting_link && !classDateValidation.startInPast && !classDateValidation.endBeforeStart)
   const selectablePrograms = classRecord ? Object.keys(programLabels) as ProgramId[] : manageablePrograms
 
   return (
@@ -262,7 +293,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
             <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={tutors.some((tutor) => tutor.id === values.tutor_id) ? values.tutor_id : ''} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
             <TextField required fullWidth label="Price" type="number" value={values.price} onChange={(event) => setValues({ ...values, price: Math.max(0, Number(event.target.value)) })} inputProps={{ min: 0, step: 0.01 }} />
           </Stack>
-          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class availability</Typography><ScheduleFields schedule={values.schedule} allowedPastStartDate={allowedPastStartDate} onChange={(schedule) => setValues({ ...values, schedule })} /></Box>
+          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class availability</Typography><ScheduleFields schedule={values.schedule} allowedPastStartDate={allowedPastStartDate} meetingLink={values.meeting_link} onMeetingLinkChange={(meeting_link) => setValues({ ...values, meeting_link })} onChange={(schedule) => setValues({ ...values, schedule })} /></Box>
           <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class curriculum</Typography><CourseEditor curriculumOnly classSchedule={values.schedule} classMeetingLink={values.meeting_link} course={{ id: classRecord?.id ?? 0, title: values.title, category: 'Class', level: '', tutor: '', status: 'Draft', students: 0, price: values.price, cover: '', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: normalizeModules(values.modules) }} onChange={(course) => setValues({ ...values, modules: course.modules })} /></Box>
           <Box sx={{ display: 'flex\',, alignItems: \'center\', justifyContent: \'space-between\', gap: 2, p: 2, border: 1, borderColor: \'divider\', borderRadius: 1, backgroundColor: \'background.default' }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{values.published ? 'Published class' : 'Unpublished class'}</Typography><Typography color="text.secondary" variant="caption">Only published classes appear in Active Classes.</Typography></Box><Switch checked={values.published} onChange={(event) => setValues({ ...values, published: event.target.checked })} inputProps={{ 'aria-label': 'Publish class' }} /></Box>
         </Stack>
