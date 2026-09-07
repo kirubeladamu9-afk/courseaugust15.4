@@ -806,7 +806,6 @@ app.get('/api/practice-exams/:id', async (request, response) => {
   const [exam] = await sql`
     SELECT practice_exams.id::INTEGER AS id, practice_exams.title, practice_exams.subject, practice_exams.grade, practice_exams.price::FLOAT AS price, practice_exams.published
     FROM practice_exams
-    INNER JOIN practice_purchases ON practice_purchases.exam_id = practice_exams.id AND practice_purchases.user_id = ${request.userId}
     WHERE practice_exams.id = ${examId} AND practice_exams.published = true
   `
   if (!exam) return response.status(403).json({ message: 'Purchase this practice exam to access its questions.' })
