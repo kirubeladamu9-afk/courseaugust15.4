@@ -327,7 +327,8 @@ const getEnrollmentOverallGrade = (enrollment: DashboardEnrollment, completionPe
     now,
   })
 }
-const OverallGradeValue: FC<{ grade: ReturnType<typeof getEnrollmentOverallGrade>; rank?: number }> = ({ grade, rank }) => <Stack direction="row" spacing={1.25} alignItems="center"><Typography variant="body2" color="text.secondary">Overall grade</Typography>{rank !== undefined && <Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>Rank {rank}</Typography>}<Typography variant="body2" sx={{ fontWeight: 700 }}>{grade.percentage}%</Typography><Chip label={grade.letter} size="small" color={grade.letter === 'F' ? 'error' : grade.letter === 'D' ? 'warning' : 'success'} /></Stack>
+const OverallGradeValue: FC<{ grade: ReturnType<typeof getEnrollmentOverallGrade> }> = ({ grade }) => <Stack direction="row" spacing={1.25} alignItems="center"><Typography variant="body2" color="text.secondary">Overall grade</Typography><Typography variant="body2" sx={{ fontWeight: 700 }}>{grade.percentage}%</Typography><Chip label={grade.letter} size="small" color={grade.letter === 'F' ? 'error' : grade.letter === 'D' ? 'warning' : 'success'} /></Stack>
+const ClassRankValue: FC<{ rank?: number }> = ({ rank }) => rank === undefined ? null : <Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>Class rank: {rank}</Typography>
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
@@ -482,7 +483,7 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelect
         const course = getEnrollmentCourse(enrollment)
         if (!course) return null
         const classRank = enrollment.type === 'class' && gamificationData.classId === enrollment.classRecord?.id ? gamificationData.leaderboard.find((entry) => entry.isCurrentStudent)?.rank : undefined
-        return <Stack key={`${enrollment.type}-${enrollment.id}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box><Typography sx={{ fontWeight: 600 }}>{enrollment.type === 'class' ? enrollment.classRecord?.title : course.title}</Typography><Typography variant="body2" color="text.secondary">{enrollment.type === 'class' ? 'Class' : 'Course'}</Typography></Box><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, enrollment.progress, now)} rank={classRank} /></Stack>
+        return <Stack key={`${enrollment.type}-${enrollment.id}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box><Typography sx={{ fontWeight: 600 }}>{enrollment.type === 'class' ? enrollment.classRecord?.title : course.title}</Typography><Typography variant="body2" color="text.secondary">{enrollment.type === 'class' ? 'Class' : 'Course'}</Typography></Box><Stack spacing={0.5} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, enrollment.progress, now)} /><ClassRankValue rank={classRank} /></Stack></Stack>
       })}</Stack>
     </Paper>
     <GamificationWidgets data={gamificationData} />
@@ -549,7 +550,7 @@ const ClassesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
           <Typography variant="h6" sx={{ mb: 1 }}>{classRecord.title}</Typography>
           <Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography>
           <Typography color="text.secondary" variant="body2" sx={{ mb: 1 }}>{nextLiveLesson?.scheduledAt ? `Next live session: ${new Date(nextLiveLesson.scheduledAt).toLocaleString()}` : classScheduleLabel(classRecord.schedule)}</Typography>
-          <Box sx={{ mb: 2 }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, progress, now)} rank={classRank} /></Box>
+          <Stack spacing={0.5} alignItems="flex-start" sx={{ mb: 2 }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, progress, now)} /><ClassRankValue rank={classRank} /></Stack>
           <Box sx={{ mt: 'auto' }}><Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}><Typography variant="body2">Progress</Typography><Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>{progress}%</Typography></Stack><LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4, mb: 2 }} /><Button fullWidth variant="contained" disabled={!canOpenClass} onClick={() => { if (canOpenClass) onOpenCourse(course.id) }}>{classEnded || classRecord.status === 'closed' ? 'Class ended' : !hasStarted ? 'Available at start time' : progress ? 'Continue class' : 'Open class'}</Button></Box>
         </CardContent>
       </Card>
