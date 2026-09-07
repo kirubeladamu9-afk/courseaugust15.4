@@ -33,7 +33,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { type FC, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
-import { assignAdminClass, createAdminClass, deleteAdminClass, getAdminClassLeaderboard, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment, type ClassLeaderboardEntry } from '@/services/api'
+import { assignAdminClass, createAdminClass, deleteAdminClass, getClassLeaderboard, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment, type ClassLeaderboardEntry } from '@/services/api'
 import { type AdminCourse, type AdminLesson, type AdminModule, type LessonType } from './admin-data'
 import { CourseEditor } from './admin-dashboard'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
@@ -68,6 +68,7 @@ interface AdminClass {
 interface ClassEnrollment {
   id: number
   class_id: number
+  student_id: number
   student_name: string
   enrolled_date: string
   status: EnrollmentStatus
@@ -312,7 +313,7 @@ const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassE
   useEffect(() => {
     if (!classRecord) return
     setLeaderboardLoading(true)
-    void getAdminClassLeaderboard(classRecord.id)
+    void getClassLeaderboard(classRecord.id)
       .then((entries) => { setLeaderboard(entries); setLeaderboardError(null) })
       .catch((error) => setLeaderboardError(error instanceof Error ? error.message : 'Unable to load the class leaderboard.'))
       .finally(() => setLeaderboardLoading(false))
@@ -324,8 +325,13 @@ const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassE
   const waitlisted = enrollments.filter((enrollment) => enrollment.status === 'waitlisted')
   const isAtCapacity = enrolled.length >= classRecord.capacity
   const liveLessons = (Array.isArray(classRecord.modules) ? classRecord.modules : []).flatMap((module) => module.lessons).filter((lesson) => lesson.type === 'live')
+  const classRanks = new Map(leaderboard.map((entry) => [entry.studentId, entry.rank]))
   const rosterColumns: DataColumn<ClassEnrollment>[] = [
     { key: 'student_name', label: 'Student Name' },
+    { key: 'student_id', label: 'Class rank', render: (_, enrollment) => {
+      const rank = classRanks.get(enrollment.student_id)
+      return rank ? <Chip label={`#${rank}`} size="small" color={rank === 1 ? 'primary' : 'default'} variant={rank === 1 ? 'filled' : 'outlined'} /> : <Typography variant="body2" color="text.secondary">—</Typography>
+    } },
     { key: 'enrolled_date', label: 'Enrolled Date' },
     { key: 'attendance', label: 'Live session attendance', render: (_, enrollment) => liveLessons.length ? <Stack spacing={0.5}>{liveLessons.map((lesson) => <Typography key={lesson.id} variant="body2"><strong>{lesson.title}</strong>: {enrollment.attendance[lesson.id] ?? 'Not marked'}</Typography>)}</Stack> : <Typography variant="body2" color="text.secondary">No live sessions</Typography> },
   ]

@@ -625,6 +625,7 @@ export interface ClassLeaderboardEntry {
 export interface AdminClassEnrollment {
   id: number
   class_id: number
+  student_id: number
   student_name: string
   enrolled_date: string
   status: 'enrolled' | 'waitlisted'
@@ -651,7 +652,7 @@ const requestClasses = async (url: string, init?: RequestInit): Promise<AdminCla
   return response.json()
 }
 
-export const getAdminClassLeaderboard = async (classId: number): Promise<ClassLeaderboardEntry[]> => {
+export const getClassLeaderboard = async (classId: number): Promise<ClassLeaderboardEntry[]> => {
   const response = await requestApi(`/api/admin/classes/${classId}/leaderboard`)
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
