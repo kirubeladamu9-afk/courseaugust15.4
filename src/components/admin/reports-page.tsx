@@ -1,40 +1,52 @@
+import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
 import Typography from '@mui/material/Typography'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
-import { type FC, type ReactNode } from 'react'
+import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
+import { type FC, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { getAdminDashboardOverview, getAdminPayments, type AdminDashboardOverview, type AdminPayment } from '@/services/api'
 
-const PageHeading: FC<{ title: string; description: string }> = ({ title, description }) => (
-  <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 4, flexDirection: { xs: 'column', sm: 'row' } }}>
-    <Box>
-      <Typography variant="h4" sx={{ mb: 0.5 }}>{title}</Typography>
-      <Typography color="text.secondary">{description}</Typography>
-    </Box>
-  </Box>
-)
+const PageHeading: FC<{ title: string; description: string }> = ({ title, description }) => <Box sx={{ mb: 4 }}><Typography variant="h4" sx={{ mb: 0.5 }}>{title}</Typography><Typography color="text.secondary">{description}</Typography></Box>
+const StatCard: FC<{ label: string; value: string; detail: string; icon: ReactNode }> = ({ label, value, detail, icon }) => <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1, minWidth: 200 }}><Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}><Typography color="text.secondary" variant="body2">{label}</Typography><Box sx={{ color: 'primary.main' }}>{icon}</Box></Box><Typography variant="h4" sx={{ mb: 0.5 }}>{value}</Typography><Typography color="text.secondary" variant="body2">{detail}</Typography></Paper>
 
-const StatCard: FC<{ label: string; value: string; detail: string; icon: ReactNode }> = ({ label, value, detail, icon }) => (
-  <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1, minWidth: 200 }}>
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-      <Typography color="text.secondary" variant="body2">{label}</Typography>
-      <Box sx={{ color: 'primary.main' }}>{icon}</Box>
-    </Box>
-    <Typography variant="h4" sx={{ mb: 0.5 }}>{value}</Typography>
-    <Typography color="text.secondary" variant="body2">{detail}</Typography>
-  </Paper>
-)
+const ReportsPage: FC = () => {
+  const [overview, setOverview] = useState<AdminDashboardOverview | null>(null)
+  const [payments, setPayments] = useState<AdminPayment[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-const ReportsPage: FC = () => (
-  <>
-    <PageHeading title="Reports" description="Review platform revenue and payment performance." />
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-      <StatCard label="Total revenue" value="$24,680" detail="All-time collected" icon={<PaymentsOutlinedIcon />} />
-      <StatCard label="Pending payments" value="$1,240" detail="12 transactions" icon={<AssessmentOutlinedIcon />} />
-      <StatCard label="This month" value="$4,860" detail="18.4% increase" icon={<AssessmentOutlinedIcon />} />
-    </Stack>
-  </>
-)
+  useEffect(() => {
+    Promise.all([getAdminDashboardOverview(), getAdminPayments()]).then(([dashboard, paymentRecords]) => { setOverview(dashboard); setPayments(paymentRecords) }).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load reports.')).finally(() => setIsLoading(false))
+  }, [])
+
+  const metrics = useMemo(() => {
+    const paid = payments.filter((payment) => payment.status === 'Paid')
+    const pending = payments.filter((payment) => payment.status === 'Pending')
+    const failed = payments.filter((payment) => payment.status === 'Failed')
+    const paidRevenue = paid.reduce((total, payment) => total + payment.amount, 0)
+    const pendingRevenue = pending.reduce((total, payment) => total + payment.amount, 0)
+    const averagePayment = paid.length ? paidRevenue / paid.length : 0
+    return { paidRevenue, pendingRevenue, pendingCount: pending.length, failedCount: failed.length, averagePayment, successRate: payments.length ? (paid.length / payments.length) * 100 : 0 }
+  }, [payments])
+
+  if (isLoading) return <><PageHeading title="Reports" description="Review platform revenue and payment performance." /><Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading reports" /></Box></>
+  if (error || !overview) return <><PageHeading title="Reports" description="Review platform revenue and payment performance." /><Alert severity="error">{error ?? 'Report data is unavailable.'}</Alert></>
+
+  const currency = (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const maxRevenue = Math.max(1, ...overview.revenueByMonth.map((month) => month.value))
+
+  return <><PageHeading title="Reports" description="Review platform revenue, payment performance, and platform activity." /><Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}><StatCard label="Collected revenue" value={currency(metrics.paidRevenue)} detail={`${payments.filter((payment) => payment.status === 'Paid').length} successful payments`} icon={<PaymentsOutlinedIcon />} /><StatCard label="Pending value" value={currency(metrics.pendingRevenue)} detail={`${metrics.pendingCount} payments awaiting completion`} icon={<AssessmentOutlinedIcon />} /><StatCard label="Average payment" value={currency(metrics.averagePayment)} detail={`${metrics.successRate.toFixed(1)}% payment success rate`} icon={<AssessmentOutlinedIcon />} /><StatCard label="Active students" value={overview.activeStudents.toLocaleString()} detail={`${overview.publishedCourses} published courses`} icon={<GroupsOutlinedIcon />} /></Stack><Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} sx={{ mb: 3 }}><Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}><Typography variant="h6" sx={{ mb: 0.5 }}>Revenue by month</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>Collected payment volume from the platform overview.</Typography><Stack spacing={1.5}>{overview.revenueByMonth.map((month) => <Box key={month.label} sx={{ display: 'grid', gridTemplateColumns: '72px minmax(80px, 1fr) auto', alignItems: 'center', gap: 1.5 }}><Typography variant="body2" color="text.secondary">{month.label}</Typography><Box sx={{ height: 10, borderRadius: 5, backgroundColor: 'action.hover', overflow: 'hidden' }}><Box sx={{ height: '100%', width: `${(month.value / maxRevenue) * 100}%`, backgroundColor: 'primary.main', borderRadius: 5 }} /></Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{currency(month.value)}</Typography></Box>)}</Stack></Paper><Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}><Typography variant="h6" sx={{ mb: 0.5 }}>Platform snapshot</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>Current operational totals from the database.</Typography><Stack spacing={2}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}><SchoolOutlinedIcon color="primary" /><Box><Typography variant="body2" color="text.secondary">Published courses</Typography><Typography variant="h6">{overview.publishedCourses}</Typography></Box></Box><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}><GroupsOutlinedIcon color="primary" /><Box><Typography variant="body2" color="text.secondary">Active students</Typography><Typography variant="h6">{overview.activeStudents}</Typography></Box></Box><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}><AssessmentOutlinedIcon color="primary" /><Box><Typography variant="body2" color="text.secondary">Failed payments</Typography><Typography variant="h6">{metrics.failedCount}</Typography></Box></Box></Stack></Paper></Stack><Paper elevation={0} sx={{ border: 1, borderColor: 'divider', overflow: 'hidden' }}><Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}><Box><Typography variant="h6">Recent payments</Typography><Typography color="text.secondary" variant="body2">Latest payment activity across courses and classes.</Typography></Box><Chip label={`${payments.length} total`} variant="outlined" /></Box><Table size="small"><TableHead><TableRow><TableCell>Student</TableCell><TableCell>Item</TableCell><TableCell>Date</TableCell><TableCell align="right">Amount</TableCell><TableCell>Status</TableCell></TableRow></TableHead><TableBody>{payments.slice(0, 8).map((payment) => <TableRow key={payment.id}><TableCell>{payment.student}</TableCell><TableCell>{payment.course}</TableCell><TableCell>{payment.date}</TableCell><TableCell align="right">{currency(payment.amount)}</TableCell><TableCell><Chip label={payment.status} size="small" color={payment.status === 'Paid' ? 'success' : payment.status === 'Failed' ? 'error' : 'warning'} /></TableCell></TableRow>)}{payments.length === 0 && <TableRow><TableCell colSpan={5}><Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No payment activity yet.</Typography></TableCell></TableRow>}</TableBody></Table></Paper></>
+}
 
 export default ReportsPage
