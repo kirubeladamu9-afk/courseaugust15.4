@@ -17,7 +17,6 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
         return <Box
           component={isRoute ? 'a' : ScrollLink}
           key={destination}
-          activeClass="current"
           onClick={(event: React.MouseEvent<HTMLElement>) => {
             setActiveDestination(destination)
             if (isRoute) {
@@ -25,12 +24,17 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
               navigateTo(destination)
             }
           }}
-          onSetActive={isRoute ? undefined : (to) => setActiveDestination(to)}
-          to={isRoute ? undefined : destination}
-          href={isRoute ? destination : `#${destination}`}
-          spy={true}
-          smooth={true}
-          duration={350}
+          {...(isRoute
+            ? { href: destination }
+            : {
+                activeClass: 'current',
+                onSetActive: (to: string) => setActiveDestination(to),
+                to: destination,
+                href: `#${destination}`,
+                spy: true,
+                smooth: true,
+                duration: 350,
+              })}
           sx={{
             position: 'relative',
             color: 'text.disabled',
