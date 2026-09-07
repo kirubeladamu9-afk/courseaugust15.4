@@ -14,14 +14,6 @@ export const navigations: Navigation[] = [
     path: 'training-programs',
   },
   {
-    label: 'Testimonial',
-    path: 'testimonial', // '/testimonial',
-  },
-  {
-    label: 'Mentor',
-    path: 'mentors', // '/mentors',
-  },
-  {
     label: 'Practice Exams',
     path: 'practice-exams',
   },
