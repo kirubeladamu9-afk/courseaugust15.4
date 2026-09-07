@@ -185,22 +185,24 @@ const createLesson = (id: number, type: LessonType): AdminLesson => ({
   ...(type === 'live' ? { meetingUrl: '', recurringDays: [], sessionTime: '', sessionDuration: 60, scheduledAt: '', endsAt: '', estimatedDuration: 3600 } : {}),
 })
 
-const getClassLiveLessonSettings = (schedule: ClassLessonSchedule, meetingLink: string, lessonIndex: number) => {
-  const dayIndexes = new Set(schedule.days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].findIndex((name) => name.toLowerCase() === day.slice(0, 3).toLowerCase())))
-  const date = new Date(`${schedule.startDate}T00:00:00`)
-  let matches = 0
-  while (matches < lessonIndex && dayIndexes.size > 0) {
-    date.setDate(date.getDate() + 1)
-    if (dayIndexes.has(date.getDay())) matches += 1
+const getClassLiveLessonSettings = (schedule: ClassLessonSchedule, meetingLink: string, existingLessons: AdminLesson[]) => {
+  const dayIndexes = new Set(schedule.days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].findIndex((name) => name.toLowerCase() === day.slice(0, 3).toLowerCase())).filter((day) => day >= 0))
+  const usedDates = new Set(existingLessons.filter((lesson) => lesson.type === 'live' && lesson.scheduledAt).map((lesson) => lesson.scheduledAt!.slice(0, 10)))
+  const dates: Date[] = []
+  const cursor = new Date(`${schedule.startDate}T00:00:00`)
+  const rangeEnd = new Date(`${schedule.endDate}T00:00:00`)
+  while (cursor <= rangeEnd) {
+    if (dayIndexes.has(cursor.getDay())) dates.push(new Date(cursor))
+    cursor.setDate(cursor.getDate() + 1)
   }
-  if (dayIndexes.size === 0) date.setDate(date.getDate() + lessonIndex)
+  const nextDate = dates.find((date) => !usedDates.has(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`))
   const [hours, minutes] = schedule.time.split(':').map(Number)
-  if (Number.isFinite(hours) && Number.isFinite(minutes)) date.setHours(hours, minutes, 0, 0)
+  if (nextDate && Number.isFinite(hours) && Number.isFinite(minutes)) nextDate.setHours(hours, minutes, 0, 0)
   const toLocalDateTime = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}T${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`
-  const scheduledAt = toLocalDateTime(date)
-  const end = new Date(date)
-  end.setMinutes(end.getMinutes() + schedule.duration)
-  return { meetingUrl: meetingLink, recurringDays: schedule.days, sessionTime: schedule.time, sessionDuration: schedule.duration, estimatedDuration: schedule.duration * 60, scheduledAt, endsAt: toLocalDateTime(end), dateOverridden: false }
+  const scheduledAt = nextDate ? toLocalDateTime(nextDate) : ''
+  const end = nextDate ? new Date(nextDate) : null
+  if (end) end.setMinutes(end.getMinutes() + schedule.duration)
+  return { meetingUrl: meetingLink, recurringDays: schedule.days, sessionTime: schedule.time, sessionDuration: schedule.duration, estimatedDuration: schedule.duration * 60, scheduledAt, endsAt: end ? toLocalDateTime(end) : '', dateOverridden: false }
 }
 
 const lessonTypeOptions: Array<{ type: LessonType; label: string; detail: string }> = [
@@ -302,11 +304,10 @@ export const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCou
   const openLessonPanel = (moduleId: number, lesson: AdminLesson, isNew: boolean) => {
     setAddingLessonModuleId(null)
     setVideoUploadProgress(0)
-    const liveLessonIndex = course.modules.flatMap((module) => module.lessons).filter((item) => item.type === 'live').findIndex((item) => item.id === lesson.id)
-    const nextLiveLessonIndex = isNew ? course.modules.flatMap((module) => module.lessons).filter((item) => item.type === 'live').length : liveLessonIndex
     const lessonCopy = { ...lesson, resources: [...lesson.resources], quizQuestions: lesson.quizQuestions?.map((question) => ({ ...question, options: [...question.options] })), practiceQuestions: lesson.practiceQuestions?.map((question) => ({ ...question, options: [...question.options] })) }
-    const inheritedSchedule = lesson.type === 'live' && classSchedule?.startDate ? getClassLiveLessonSettings(classSchedule, classMeetingLink, nextLiveLessonIndex) : {}
-    setLessonPanel({ moduleId, lesson: { ...lessonCopy, ...inheritedSchedule }, isNew, liveLessonIndex: nextLiveLessonIndex })
+    const existingLessons = course.modules.flatMap((module) => module.lessons)
+    const inheritedSchedule = isNew && lesson.type === 'live' && classSchedule?.startDate ? getClassLiveLessonSettings(classSchedule, classMeetingLink, existingLessons) : {}
+    setLessonPanel({ moduleId, lesson: { ...lessonCopy, ...inheritedSchedule }, isNew, liveLessonIndex: 0 })
   }
 
   const updateLessonDraft = (nextLesson: AdminLesson) => setLessonPanel((panel) => panel ? { ...panel, lesson: nextLesson } : panel)
@@ -318,7 +319,8 @@ export const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCou
 
   const saveLesson = () => {
     if (!lessonPanel) return
-    const lesson = { ...lessonPanel.lesson, title: lessonPanel.lesson.title.trim(), ...(lessonPanel.lesson.type === 'live' && classSchedule ? getClassLiveLessonSettings(classSchedule, classMeetingLink, lessonPanel.liveLessonIndex) : {}) }
+    const existingLessons = course.modules.flatMap((module) => module.lessons)
+    const lesson = { ...lessonPanel.lesson, title: lessonPanel.lesson.title.trim(), ...(lessonPanel.isNew && lessonPanel.lesson.type === 'live' && classSchedule ? getClassLiveLessonSettings(classSchedule, classMeetingLink, existingLessons) : {}) }
     if (!lesson.title) return
     onChange({ ...course, modules: course.modules.map((module) => module.id === lessonPanel.moduleId ? { ...module, lessons: lessonPanel.isNew ? [...module.lessons, lesson] : module.lessons.map((currentLesson) => currentLesson.id === lesson.id ? lesson : currentLesson) } : module) })
     setLessonPanel(null)
@@ -363,7 +365,7 @@ export const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCou
   }
 
   const isVideoProcessing = lessonPanel?.lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100
-  const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl))
+  const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl) || (lessonPanel?.isNew && lessonPanel.lesson.type === 'live' && classSchedule && !lessonPanel.lesson.scheduledAt))
   const handleThumbnailFile = (file: File) => {
     const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif']
     if (!supportedTypes.includes(file.type)) {
