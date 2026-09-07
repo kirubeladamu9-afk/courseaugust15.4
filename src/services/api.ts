@@ -36,10 +36,18 @@ interface PaymentStatus {
   status: 'pending' | 'paid' | 'failed'
 }
 
+export interface PracticeLessonQuestion {
+  id: number
+  question: string
+  options: string[]
+  correctAnswer: string
+  explanation: string
+}
+
 interface EnrollmentLesson {
   id: number
   title: string
-  type: 'video' | 'article' | 'quiz' | 'live'
+  type: 'video' | 'article' | 'quiz' | 'practice' | 'live'
   duration: number | null
   videoUrl?: string
   thumbnailUrl?: string
@@ -47,6 +55,7 @@ interface EnrollmentLesson {
   articleBody?: string
   resources?: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: Array<{ id: number; question: string; options: string[] }>
+  practiceQuestions?: PracticeLessonQuestion[]
   passThreshold?: number
   meetingUrl?: string
   scheduledAt?: string
@@ -590,7 +599,7 @@ export interface AdminClass {
   capacity: number
   schedule: AdminClassSchedule
   meeting_link: string
-  modules: Array<{ id: number; title: string; lessons: Array<{ id: number; title: string; type: 'video' | 'article' | 'quiz' | 'live'; duration: number | null; resources: Array<{ id: number; name: string; url?: string }> }> }>
+  modules: Array<{ id: number; title: string; lessons: Array<{ id: number; title: string; type: 'video' | 'article' | 'quiz' | 'practice' | 'live'; duration: number | null; resources: Array<{ id: number; name: string; url?: string }> }> }>
   price: number
   status: AdminClassStatus
   published: boolean

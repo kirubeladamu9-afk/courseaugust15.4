@@ -734,7 +734,7 @@ const maxEngagementSeconds = 60
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const getEnrollmentProgress = (modules, lessonProgress) => {
-  const lessons = getCourseLessons(modules)
+  const lessons = getCourseLessons(modules).filter((lesson) => lesson.type !== 'practice')
   const completedLessonIds = lessons
     .filter((lesson) => lessonProgress?.[lesson.id]?.completedAt)
     .map((lesson) => lesson.id)

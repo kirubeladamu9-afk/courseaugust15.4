@@ -1,4 +1,4 @@
-export type LessonType = 'video' | 'article' | 'quiz' | 'live'
+export type LessonType = 'video' | 'article' | 'quiz' | 'practice' | 'live'
 
 export interface LessonResource {
   id: number
@@ -13,6 +13,14 @@ export interface QuizQuestion {
   correctOption: number
 }
 
+export interface PracticeQuestion {
+  id: number
+  question: string
+  options: string[]
+  correctAnswer: string
+  explanation: string
+}
+
 export interface AdminLesson {
   id: number
   title: string
@@ -23,6 +31,7 @@ export interface AdminLesson {
   resources: LessonResource[]
   articleBody?: string
   quizQuestions?: QuizQuestion[]
+  practiceQuestions?: PracticeQuestion[]
   passThreshold?: number
   meetingUrl?: string
   recurringDays?: string[]

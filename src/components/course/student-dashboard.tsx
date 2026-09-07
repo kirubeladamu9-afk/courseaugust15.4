@@ -110,13 +110,14 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
  interface DashboardLesson {
   id: number
   title: string
-  type: 'video' | 'article' | 'quiz' | 'live'
+  type: 'video' | 'article' | 'quiz' | 'practice' | 'live'
   duration: string
   description: string
   videoUrl?: string
   thumbnailUrl?: string
   resources: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: QuizQuestion[]
+  practiceQuestions?: Array<{ id: number; question: string; options: string[]; correctAnswer: string; explanation: string }>
   passThreshold?: number
   meetingUrl?: string
   scheduledAt?: string
@@ -237,6 +238,7 @@ const getClassSessionState = (classRecord: DashboardClass, now: Date) => {
   return { activeLesson, isActive: Boolean(activeLesson), hasEnded: Boolean(latestStarted && !activeLesson) }
 }
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
+const getCompletionLessons = (course: DashboardCourse) => getLessons(course).filter((lesson) => lesson.type !== 'practice')
 const getEnrollmentContentId = (enrollment: MyEnrollment) => enrollment.classId ?? enrollment.courseId ?? enrollment.id
 const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
   id: getEnrollmentContentId(enrollment),
@@ -252,12 +254,13 @@ const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
       id: lesson.id,
       title: lesson.title,
       type: lesson.type,
-      duration: lesson.duration ? formatDuration(lesson.duration) : lesson.type === 'article' ? 'Article' : lesson.type === 'quiz' ? 'Quiz' : 'Video',
+      duration: lesson.duration ? formatDuration(lesson.duration) : lesson.type === 'article' ? 'Article' : lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'practice' ? 'Practice' : 'Video',
       description: lesson.articleBody || 'Work through this lesson at your own pace.',
       videoUrl: lesson.videoUrl,
       thumbnailUrl: lesson.thumbnailUrl,
       resources: lesson.resources ?? [],
       quizQuestions: lesson.quizQuestions,
+      practiceQuestions: lesson.practiceQuestions,
       passThreshold: lesson.passThreshold,
       meetingUrl: lesson.meetingUrl,
       scheduledAt: lesson.scheduledAt,
@@ -307,12 +310,13 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnr
   if (!classRecord) return [courseEnrollment]
   return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, activityDates, classRecord }]
 })
-const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
+const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getCompletionLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getCompletionLessons(course).length)) * 100)
 const getEnrollmentCourse = (enrollment: DashboardEnrollment) => enrollment.course ?? enrollment.classRecord?.course
 const findCourseEnrollment = (records: DashboardEnrollment[], courseId: number) => records.find((enrollment) => enrollment.type === 'class' && getEnrollmentCourse(enrollment)?.id === courseId) ?? records.find((enrollment) => getEnrollmentCourse(enrollment)?.id === courseId)
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
+  if (type === 'practice') return <QuizOutlinedIcon fontSize="small" />
   return <PlayCircleOutlineIcon fontSize="small" />
 }
 
@@ -893,6 +897,18 @@ const ArticleLessonContent: FC<{ description: string; onFinalPageChange: (isFina
   </Box>
 }
 
+const PracticeLessonView: FC<{ questions: NonNullable<DashboardLesson['practiceQuestions']> }> = ({ questions }) => {
+  const [questionIndex, setQuestionIndex] = useState(0)
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
+  useEffect(() => { setQuestionIndex(0); setSelectedAnswer(null) }, [questions])
+  if (!questions.length) return <EmptyState title="Practice unavailable" description="This practice lesson does not have any questions yet." />
+  const question = questions[questionIndex]
+  const answered = selectedAnswer !== null
+  const isCorrect = selectedAnswer === question.correctAnswer
+  const isLast = questionIndex === questions.length - 1
+  return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Stack direction="row" justifyContent="space-between"><Typography variant="overline" color="primary.main">Practice question {questionIndex + 1} of {questions.length}</Typography><Chip size="small" label="Unlimited practice" /></Stack><Typography variant="h5">{question.question}</Typography><Stack spacing={1} role="radiogroup" aria-label="Practice answer options">{question.options.filter(Boolean).map((option) => <Button key={option} variant={selectedAnswer === option ? 'contained' : 'outlined'} color={answered ? option === question.correctAnswer ? 'success' : selectedAnswer === option ? 'error' : 'inherit' : 'inherit'} disabled={answered} onClick={() => setSelectedAnswer(option)} sx={{ justifyContent: 'flex-start', textAlign: 'left' }}>{option}</Button>)}</Stack>{answered && <Paper elevation={0} sx={{ p: 2, backgroundColor: isCorrect ? 'success.light' : 'error.light' }}><Typography sx={{ fontWeight: 700, mb: 0.5 }}>{isCorrect ? 'Correct' : `Not quite. The correct answer is ${question.correctAnswer}.`}</Typography><Typography variant="body2">{question.explanation}</Typography></Paper>}{answered && <Button variant="contained" onClick={() => { setQuestionIndex((index) => isLast ? 0 : index + 1); setSelectedAnswer(null) }}>{isLast ? 'Practice again' : 'Next question'}</Button>}</Stack></Paper>
+}
+
 const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; attendance: Record<number, 'Present' | 'Absent'>; isClass: boolean; now: Date; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>, disqualified?: boolean) => Promise<DashboardQuizResult | null>; onQuizViolation: (lessonId: number, attemptId: number, violation: QuizViolation) => Promise<void>; onQuizActiveChange: (active: boolean) => void; sessionJoinClicks: Record<number, string>; onJoinLiveSession: (lessonId: number, meetingUrl: string) => Promise<void>; readOnly?: boolean }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, attendance = {}, isClass, now, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit, onQuizViolation, onQuizActiveChange, sessionJoinClicks, onJoinLiveSession, readOnly = false }) => {
   const lessons = getLessons(course)
   const [selectedLessonId, setSelectedLessonId] = useState(initialLessonId ?? lessons[0]?.id)
@@ -908,7 +924,8 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   if (!selectedLesson) return <EmptyState title="Course content unavailable" description="This course does not have any lessons yet." actionLabel="Back to courses" onAction={onBack} />
 
   const isCompleted = completedLessonIds.includes(selectedLesson.id)
-  const isCourseComplete = lessons.length > 0 && progress === 100
+  const completionLessons = getCompletionLessons(course)
+  const isCourseComplete = completionLessons.length > 0 && progress === 100
   const failedQuizLessons = lessons.filter((lesson) => lesson.type === 'quiz' && quizResults[lesson.id] && !quizResults[lesson.id].passed)
   const allQuizzesPassed = lessons.filter((lesson) => lesson.type === 'quiz').every((lesson) => quizResults[lesson.id]?.passed === true)
   const liveLessons = lessons.filter((lesson) => lesson.type === 'live')
@@ -927,13 +944,18 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const canJoinLiveSession = selectedLesson.type === 'live' && Number.isFinite(liveSessionStart) && Number.isFinite(liveSessionEnd) && now.getTime() >= liveSessionStart && now.getTime() < liveSessionEnd
   const isLessonLocked = (lessonId: number) => {
     const lessonIndex = lessons.findIndex((lesson) => lesson.id === lessonId)
-    return lessonIndex > 0 && lessons.slice(0, lessonIndex).some((lesson) => !completedLessonIds.includes(lesson.id) && !(isClass && attendance[lesson.id] === 'Absent'))
+    return lessonIndex > 0 && lessons.slice(0, lessonIndex).filter((lesson) => lesson.type !== 'practice').some((lesson) => !completedLessonIds.includes(lesson.id) && !(isClass && attendance[lesson.id] === 'Absent'))
   }
 
   if (!started) return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to My Courses</Box>
     <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={1} sx={{ mb: 3 }}><Box><Typography variant="h4" sx={{ mb: 0.5 }}>{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.level} · Tutor: {course.tutor}</Typography></Box><Chip label="Not started" color="default" /></Stack>
     <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, border: 1, borderColor: 'divider' }}><Typography variant="h5" sx={{ mb: 0.5 }}>Course content</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>Review the lessons below, then start the course when you&apos;re ready to learn.</Typography><Stack spacing={2} sx={{ mb: 3 }}>{course.modules.map((module) => <Box key={module.id}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.75 }}>{module.title}</Typography><Stack spacing={0.5}>{module.lessons.map((lesson) => <Box key={lesson.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box sx={{ display: 'flex', color: 'text.secondary' }}>{iconForLesson(lesson.type)}</Box><Typography variant="body2" sx={{ flex: 1 }}>{lesson.title}</Typography><Typography variant="caption" color="text.secondary">{lesson.duration}</Typography></Box>)}</Stack></Box>)}</Stack><Button variant="contained" size="large" onClick={onStart} startIcon={<PlayCircleOutlineIcon />}>Start course</Button></Paper>
+  </>
+
+  if (selectedLesson.type === 'practice') return <>
+    <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>
+    <PracticeLessonView questions={selectedLesson.practiceQuestions ?? []} />
   </>
 
   if ((selectedLesson.type as string) === 'quiz') return <>
