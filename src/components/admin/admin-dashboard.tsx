@@ -495,6 +495,10 @@ const OverviewPage: FC = () => {
 
   useEffect(() => { void reloadOverview() }, [])
 
+  const latestRevenue = overview?.revenueByMonth.slice(-1)[0]?.value ?? 0
+  const totalEnrollments = overview?.enrollmentsByCategory.reduce((total, category) => total + category.value, 0) ?? 0
+  const leadingCategory = overview?.enrollmentsByCategory.slice().sort((first, second) => second.value - first.value)[0]
+
   return <>
     <PageHeading title="Dashboard overview" description="A snapshot of your learning platform." />
     {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading dashboard data" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadOverview() }} /></Paper> : overview && <><Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
@@ -502,6 +506,12 @@ const OverviewPage: FC = () => {
       <StatCard label="Active students" value={new Intl.NumberFormat('en-US').format(overview.activeStudents)} detail="Across published courses" icon={<GroupOutlinedIcon />} />
       <StatCard label="Published courses" value={new Intl.NumberFormat('en-US').format(overview.publishedCourses)} detail={`${overview.draftCourses} course${overview.draftCourses === 1 ? '' : 's'} in draft`} icon={<SchoolOutlinedIcon />} />
       <StatCard label="Active tutors" value={new Intl.NumberFormat('en-US').format(overview.activeTutors)} detail={`${overview.inactiveTutors} inactive tutor${overview.inactiveTutors === 1 ? '' : 's'}`} icon={<PersonOutlineIcon />} />
+    </Stack>
+    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
+      <StatCard label="This month" value={new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(latestRevenue)} detail="Latest reported month" icon={<AssessmentOutlinedIcon />} />
+      <StatCard label="Total enrollments" value={new Intl.NumberFormat('en-US').format(totalEnrollments)} detail="Across all categories" icon={<GroupOutlinedIcon />} />
+      <StatCard label="Learning categories" value={new Intl.NumberFormat('en-US').format(overview.enrollmentsByCategory.length)} detail="Categories with enrollment activity" icon={<ArticleOutlinedIcon />} />
+      <StatCard label="Leading category" value={leadingCategory?.label ?? 'No data'} detail={leadingCategory ? `${leadingCategory.value} enrollments` : 'No enrollment activity yet'} icon={<SchoolOutlinedIcon />} />
     </Stack>
     <DashboardCharts revenueByMonth={overview.revenueByMonth} enrollmentsByCategory={overview.enrollmentsByCategory} /></>}
   </>
