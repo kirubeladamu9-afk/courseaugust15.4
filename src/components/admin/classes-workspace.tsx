@@ -116,8 +116,8 @@ const getTodayInputValue = () => {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
-const getDateValidation = (schedule: ClassSchedule) => ({
-  startInPast: Boolean(schedule.startDate && schedule.startDate < getTodayInputValue()),
+const getDateValidation = (schedule: ClassSchedule, allowedPastStartDate?: string) => ({
+  startInPast: Boolean(schedule.startDate && schedule.startDate < getTodayInputValue() && schedule.startDate !== allowedPastStartDate),
   endBeforeStart: Boolean(schedule.startDate && schedule.endDate && schedule.endDate <= schedule.startDate),
 })
 
@@ -163,8 +163,8 @@ const WorkspaceHeading: FC<{ title: string; description: string; action?: ReactN
 
 const ClassStatusChip: FC<{ status: ClassStatus }> = ({ status }) => <Chip label={classStatusLabel(status)} color={classStatusColor(status)} size="small" />
 
-const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSchedule) => void }> = ({ schedule, onChange }) => {
-  const dateValidation = getDateValidation(schedule)
+const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSchedule) => void; allowedPastStartDate?: string }> = ({ schedule, onChange, allowedPastStartDate }) => {
+  const dateValidation = getDateValidation(schedule, allowedPastStartDate)
   return <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField required fullWidth label="Class start date" type="date" value={schedule.startDate} onChange={(event) => onChange({ ...schedule, startDate: event.target.value })} error={dateValidation.startInPast} helperText={dateValidation.startInPast ? 'Start date cannot be in the past.' : undefined} InputLabelProps={{ shrink: true }} /><TextField required fullWidth label="Class end date" type="date" value={schedule.endDate} onChange={(event) => onChange({ ...schedule, endDate: event.target.value })} error={dateValidation.endBeforeStart} helperText={dateValidation.endBeforeStart ? 'End date must be later than the start date.' : undefined} InputLabelProps={{ shrink: true }} /></Stack>
 }
 
@@ -237,7 +237,8 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
     if (open && !classRecord && values.tutor_id < 1 && tutors[0]) setValues((current) => ({ ...current, tutor_id: tutors[0].id }))
   }, [classRecord, open, values.tutor_id, tutors.length])
 
-  const classDateValidation = getDateValidation(values.schedule)
+  const allowedPastStartDate = classRecord ? normalizeSchedule(classRecord.schedule).startDate : undefined
+  const classDateValidation = getDateValidation(values.schedule, allowedPastStartDate)
   const canSave = Boolean(values.title.trim() && values.tutor_id >= 1 && values.capacity >= 1 && values.schedule.startDate && values.schedule.endDate && !classDateValidation.startInPast && !classDateValidation.endBeforeStart)
   const selectablePrograms = classRecord ? Object.keys(programLabels) as ProgramId[] : manageablePrograms
 
@@ -255,7 +256,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
             <FormControl fullWidth required><InputLabel>Tutor</InputLabel><Select label="Tutor" value={tutors.some((tutor) => tutor.id === values.tutor_id) ? values.tutor_id : ''} onChange={(event) => setValues({ ...values, tutor_id: Number(event.target.value) })}>{tutors.map((tutor) => <MenuItem key={tutor.id} value={tutor.id}>{tutor.name}</MenuItem>)}</Select></FormControl>
             <TextField required fullWidth label="Price" type="number" value={values.price} onChange={(event) => setValues({ ...values, price: Math.max(0, Number(event.target.value)) })} inputProps={{ min: 0, step: 0.01 }} />
           </Stack>
-          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class availability</Typography><ScheduleFields schedule={values.schedule} onChange={(schedule) => setValues({ ...values, schedule })} /></Box>
+          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class availability</Typography><ScheduleFields schedule={values.schedule} allowedPastStartDate={allowedPastStartDate} onChange={(schedule) => setValues({ ...values, schedule })} /></Box>
           <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class curriculum</Typography><CourseEditor curriculumOnly course={{ id: classRecord?.id ?? 0, title: values.title, category: 'Class', level: '', tutor: '', status: 'Draft', students: 0, price: values.price, cover: '', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: normalizeModules(values.modules) }} onChange={(course) => setValues({ ...values, modules: course.modules })} /></Box>
           <Box sx={{ display: 'flex\',, alignItems: \'center\', justifyContent: \'space-between\', gap: 2, p: 2, border: 1, borderColor: \'divider\', borderRadius: 1, backgroundColor: \'background.default' }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{values.published ? 'Published class' : 'Unpublished class'}</Typography><Typography color="text.secondary" variant="caption">Only published classes appear in Active Classes.</Typography></Box><Switch checked={values.published} onChange={(event) => setValues({ ...values, published: event.target.checked })} inputProps={{ 'aria-label': 'Publish class' }} /></Box>
         </Stack>
