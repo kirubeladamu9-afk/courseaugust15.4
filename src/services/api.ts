@@ -39,9 +39,18 @@ interface PaymentStatus {
 export interface PracticeLessonQuestion {
   id: number
   question: string
+  topic: string
   options: string[]
   correctAnswer: string
   explanation: string
+}
+
+export interface WeakArea {
+  topic: string
+  correct: number
+  total: number
+  accuracy: number
+  practiceLessons: Array<{ lessonId: number; lessonTitle: string }>
 }
 
 interface EnrollmentLesson {
@@ -129,6 +138,7 @@ export interface MyEnrollment {
   sessionJoinClicks: Record<number, string>
   lessonProgress: Record<number, LessonProgress>
   quizAttempts: QuizAttempt[]
+  weakAreas: WeakArea[]
   completedLessonIds: number[]
   started: boolean
   timeSpentSeconds: number
@@ -268,6 +278,7 @@ export interface TutorClassStudent {
   progressPercentage: number
   timeSpentSeconds: number
   quizAttempts: QuizAttempt[]
+  weakAreas: WeakArea[]
 }
 
 const authStorageKey = 'coursespace-auth-user'
@@ -333,6 +344,12 @@ export const getAdminPracticeQuestions = async (examId: number): Promise<Practic
 
 export const createAdminPracticeQuestion = async (examId: number, payload: Omit<PracticeQuestion, 'id' | 'exam_id'>): Promise<PracticeQuestion> => {
   const response = await requestApi(`/api/admin/practice-exams/${examId}/questions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionText: payload.question_text, topic: payload.topic, options: payload.options, correctAnswer: payload.correct_answer, explanation: payload.explanation }) })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const updateAdminPracticeQuestion = async (examId: number, questionId: number, payload: Omit<PracticeQuestion, 'id' | 'exam_id'>): Promise<PracticeQuestion> => {
+  const response = await requestApi(`/api/admin/practice-exams/${examId}/questions/${questionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionText: payload.question_text, topic: payload.topic, options: payload.options, correctAnswer: payload.correct_answer, explanation: payload.explanation }) })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
@@ -888,6 +905,18 @@ export const submitQuizAttempt = (enrollmentId: number, lessonId: number, attemp
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ answers, disqualified }),
 })
+
+export const recordPracticeLessonAnswer = (enrollmentId: number, lessonId: number, questionId: number, answer: string) => requestLearningProgress<{ correct: boolean }>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/practice-answers`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ questionId, answer }),
+})
+
+export const recordPracticeExamAnswer = async (examId: number, questionId: number, answer: string) => {
+  const response = await requestApi(`/api/practice-exams/${examId}/questions/${questionId}/answers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer }) })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json() as Promise<{ correct: boolean }>
+}
 
 export const signOut = async () => {
   try {

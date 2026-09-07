@@ -60,7 +60,7 @@ import { Logo } from '@/components/logo'
 import EnrollmentModal from './enrollment-modal'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
 import { toast } from '@/components/toast'
-import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getGamification, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type GamificationData, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType } from '@/services/api'
+import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getGamification, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, recordPracticeLessonAnswer, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type GamificationData, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType, type WeakArea } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 import { calculateOverallGrade } from '@/lib/overall-grade'
 
@@ -88,6 +88,7 @@ import { calculateOverallGrade } from '@/lib/overall-grade'
   progress: number
   timeSpentSeconds: number
   quizResults: Record<number, DashboardQuizResult>
+  weakAreas: WeakArea[]
   attendance: Record<number, 'Present' | 'Absent'>
   sessionJoinClicks: Record<number, string>
   activityDates: string[]
@@ -307,9 +308,9 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnr
     ...record.quizAttempts.filter((attempt) => attempt.passed === true).map((attempt) => attempt.submittedAt ?? attempt.startedAt),
     ...Object.entries(record.attendance ?? {}).filter(([, status]) => status === 'Present').map(([lessonId]) => lessonById.get(Number(lessonId))?.scheduledAt),
   ].filter((date): date is string => Boolean(date))
-  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: getEnrollmentContentId(record), status: 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, activityDates, course }
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: getEnrollmentContentId(record), status: 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, weakAreas: record.weakAreas ?? [], attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, activityDates, course }
   if (!classRecord) return [courseEnrollment]
-  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, activityDates, classRecord }]
+  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, weakAreas: record.weakAreas ?? [], attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, activityDates, classRecord }]
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getCompletionLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getCompletionLessons(course).length)) * 100)
 const getEnrollmentCourse = (enrollment: DashboardEnrollment) => enrollment.course ?? enrollment.classRecord?.course
@@ -467,7 +468,13 @@ const StudentCalendarView: FC<{ enrollments: DashboardEnrollment[]; now: Date; o
   />
 }
 
-const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number) => void; gamificationData: GamificationData }> = ({ enrollments, now, onSelectView, onOpenCourse, gamificationData }) => {
+const WeakAreasPanel: FC<{ enrollments: DashboardEnrollment[]; onOpenCourse: (courseId: number, lessonId?: number) => void }> = ({ enrollments, onOpenCourse }) => {
+  const areas = enrollments.flatMap((enrollment) => enrollment.weakAreas.map((area) => ({ enrollment, area })))
+  if (areas.length === 0) return null
+  return <Paper elevation={0} sx={{ p: 2.5, mb: 3, border: 1, borderColor: 'warning.light', backgroundColor: 'warning.lighter' }}><Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Weak Areas</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>These topics are below 60% accuracy. Practice them again to build confidence.</Typography><Stack spacing={1}>{areas.map(({ enrollment, area }) => <Stack key={`${enrollment.id}-${area.topic}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.paper' }}><Box><Stack direction="row" spacing={1} alignItems="center"><Typography sx={{ fontWeight: 700 }}>{area.topic}</Typography><Chip size="small" color="warning" label={`${area.accuracy}% accuracy`} /></Stack><Typography variant="body2" color="text.secondary">{area.correct} of {area.total} answers correct · Practice this topic again.</Typography></Box>{area.practiceLessons[0] && <Button size="small" variant="outlined" onClick={() => onOpenCourse(enrollment.item_id, area.practiceLessons[0].lessonId)}>Practice {area.practiceLessons[0].lessonTitle}</Button>}</Stack>)}</Stack></Paper>
+}
+
+const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number, lessonId?: number) => void; gamificationData: GamificationData }> = ({ enrollments, now, onSelectView, onOpenCourse, gamificationData }) => {
   const courseEnrollments = enrollments.filter((enrollment) => enrollment.type === 'course' && enrollment.status !== 'completed')
   const activeCourseCount = courseEnrollments.length
   const nextClassEnrollment = enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.status === 'active' && enrollment.classRecord?.status === 'open' && classHasStarted(enrollment.classRecord.schedule, now))
@@ -491,6 +498,7 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelect
         return <Stack key={`${enrollment.type}-${enrollment.id}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box><Typography sx={{ fontWeight: 600 }}>{enrollment.type === 'class' ? enrollment.classRecord?.title : course.title}</Typography><Typography variant="body2" color="text.secondary">{enrollment.type === 'class' ? 'Class' : 'Course'}</Typography></Box><Stack spacing={0.5} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, enrollment.progress, now)} /><ClassRankValue rank={classRank} /></Stack></Stack>
       })}</Stack>
     </Paper>
+    <WeakAreasPanel enrollments={enrollments} onOpenCourse={onOpenCourse} />
     <GamificationWidgets data={gamificationData} />
     {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mb: 3 }}><Box><Typography component="h2" variant="subtitle2" sx={{ fontWeight: 700 }}>Pending items</Typography><Typography variant="body2">You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling. We&apos;ll contact you to arrange the next step.</Typography></Box></Alert>}
     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
@@ -931,7 +939,7 @@ const ArticleLessonContent: FC<{ description: string; onFinalPageChange: (isFina
   </Box>
 }
 
-const PracticeLessonView: FC<{ questions: NonNullable<DashboardLesson['practiceQuestions']> }> = ({ questions }) => {
+const PracticeLessonView: FC<{ questions: NonNullable<DashboardLesson['practiceQuestions']>; onAnswer: (questionId: number, answer: string) => void }> = ({ questions, onAnswer }) => {
   const [questionIndex, setQuestionIndex] = useState(0)
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   useEffect(() => { setQuestionIndex(0); setSelectedAnswer(null) }, [questions])
@@ -940,10 +948,10 @@ const PracticeLessonView: FC<{ questions: NonNullable<DashboardLesson['practiceQ
   const answered = selectedAnswer !== null
   const isCorrect = selectedAnswer === question.correctAnswer
   const isLast = questionIndex === questions.length - 1
-  return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Stack direction="row" justifyContent="space-between"><Typography variant="overline" color="primary.main">Practice question {questionIndex + 1} of {questions.length}</Typography><Chip size="small" label="Unlimited practice" /></Stack><Typography variant="h5">{question.question}</Typography><Stack spacing={1} role="radiogroup" aria-label="Practice answer options">{question.options.filter(Boolean).map((option) => <Button key={option} variant={selectedAnswer === option ? 'contained' : 'outlined'} color={answered ? option === question.correctAnswer ? 'success' : selectedAnswer === option ? 'error' : 'inherit' : 'inherit'} disabled={answered} onClick={() => setSelectedAnswer(option)} sx={{ justifyContent: 'flex-start', textAlign: 'left' }}>{option}</Button>)}</Stack>{answered && <Paper elevation={0} sx={{ p: 2, backgroundColor: isCorrect ? 'success.light' : 'error.light' }}><Typography sx={{ fontWeight: 700, mb: 0.5 }}>{isCorrect ? 'Correct' : `Not quite. The correct answer is ${question.correctAnswer}.`}</Typography><Typography variant="body2">{question.explanation}</Typography></Paper>}{answered && <Button variant="contained" onClick={() => { setQuestionIndex((index) => isLast ? 0 : index + 1); setSelectedAnswer(null) }}>{isLast ? 'Practice again' : 'Next question'}</Button>}</Stack></Paper>
+  return <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, border: 1, borderColor: 'divider' }}><Stack spacing={2}><Stack direction="row" justifyContent="space-between"><Typography variant="overline" color="primary.main">Practice question {questionIndex + 1} of {questions.length}</Typography><Chip size="small" label="Unlimited practice" /></Stack><Typography variant="h5">{question.question}</Typography><Stack spacing={1} role="radiogroup" aria-label="Practice answer options">{question.options.filter(Boolean).map((option) => <Button key={option} variant={selectedAnswer === option ? 'contained' : 'outlined'} color={answered ? option === question.correctAnswer ? 'success' : selectedAnswer === option ? 'error' : 'inherit' : 'inherit'} disabled={answered} onClick={() => { setSelectedAnswer(option); onAnswer(question.id, option) }} sx={{ justifyContent: 'flex-start', textAlign: 'left' }}>{option}</Button>)}</Stack>{answered && <Paper elevation={0} sx={{ p: 2, backgroundColor: isCorrect ? 'success.light' : 'error.light' }}><Typography sx={{ fontWeight: 700, mb: 0.5 }}>{isCorrect ? 'Correct' : `Not quite. The correct answer is ${question.correctAnswer}.`}</Typography><Typography variant="body2">{question.explanation}</Typography></Paper>}{answered && <Button variant="contained" onClick={() => { setQuestionIndex((index) => isLast ? 0 : index + 1); setSelectedAnswer(null) }}>{isLast ? 'Practice again' : 'Next question'}</Button>}</Stack></Paper>
 }
 
-const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; attendance: Record<number, 'Present' | 'Absent'>; isClass: boolean; now: Date; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>, disqualified?: boolean) => Promise<DashboardQuizResult | null>; onQuizViolation: (lessonId: number, attemptId: number, violation: QuizViolation) => Promise<void>; onQuizActiveChange: (active: boolean) => void; sessionJoinClicks: Record<number, string>; onJoinLiveSession: (lessonId: number, meetingUrl: string) => Promise<void>; readOnly?: boolean }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, attendance = {}, isClass, now, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit, onQuizViolation, onQuizActiveChange, sessionJoinClicks, onJoinLiveSession, readOnly = false }) => {
+const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLessonIds: number[]; started: boolean; timeSpentSeconds: number; quizResults: Record<number, DashboardQuizResult>; attendance: Record<number, 'Present' | 'Absent'>; isClass: boolean; now: Date; initialLessonId?: number; onBack: () => void; onStart: () => void; onCompleteLesson: (lessonId: number) => void | Promise<void>; onQuizStart: (lessonId: number) => Promise<QuizAttempt | null>; onQuizAnswer: (lessonId: number, attemptId: number, questionId: number, answer: QuizAnswerRecord) => Promise<void>; onQuizSubmit: (lessonId: number, attemptId: number, answers: Record<number, QuizAnswerRecord>, disqualified?: boolean) => Promise<DashboardQuizResult | null>; onQuizViolation: (lessonId: number, attemptId: number, violation: QuizViolation) => Promise<void>; onQuizActiveChange: (active: boolean) => void; onPracticeAnswer: (lessonId: number, questionId: number, answer: string) => void; sessionJoinClicks: Record<number, string>; onJoinLiveSession: (lessonId: number, meetingUrl: string) => Promise<void>; readOnly?: boolean }> = ({ course, progress, completedLessonIds, started, timeSpentSeconds, quizResults, attendance = {}, isClass, now, initialLessonId, onBack, onStart, onCompleteLesson, onQuizStart, onQuizAnswer, onQuizSubmit, onQuizViolation, onQuizActiveChange, onPracticeAnswer, sessionJoinClicks, onJoinLiveSession, readOnly = false }) => {
   const lessons = getLessons(course)
   const [selectedLessonId, setSelectedLessonId] = useState(initialLessonId ?? lessons[0]?.id)
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
@@ -989,7 +997,7 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
 
   if (selectedLesson.type === 'practice') return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>
-    <PracticeLessonView questions={selectedLesson.practiceQuestions ?? []} />
+    <PracticeLessonView questions={selectedLesson.practiceQuestions ?? []} onAnswer={(questionId, answer) => onPracticeAnswer(selectedLesson.id, questionId, answer)} />
   </>
 
   if ((selectedLesson.type as string) === 'quiz') return <>
@@ -1314,6 +1322,13 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       return result
     } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to submit quiz.'); return null }
   }
+  const recordPracticeAnswer = (lessonId: number, questionId: number, answer: string) => {
+    if (!selectedCourseEnrollment) return
+    void recordPracticeLessonAnswer(selectedCourseEnrollment.id, lessonId, questionId, answer)
+      .then(() => getMyEnrollments())
+      .then((records) => setEnrollments(mapMyEnrollments(records, currentUserId)))
+      .catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save practice answer.'))
+  }
   const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
   const classCheckoutCourse = classToEnroll ? { id: classToEnroll.courseId ?? classToEnroll.id, title: classToEnroll.title, price: classToEnroll.price } : null
 
@@ -1339,7 +1354,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
           {activeView === 'other-classes' && <OtherClassesView classes={otherClasses} enrolledClassIds={enrolledClassIds} isLoading={isLoadingOtherClasses} error={otherClassesError} onEnroll={setClassToEnroll} />}
           {activeView === 'profile' && <ProfileView onUpdateProfile={updateProfile} />}
           {activeView === 'payments' && <PaymentHistoryView payments={payments} isLoading={isLoadingPayments} error={paymentError} />}
-          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} now={now} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizStart={startQuizAttempt} onQuizAnswer={saveQuizAnswerForAttempt} onQuizSubmit={submitQuiz} onQuizViolation={saveQuizViolationForAttempt} onQuizActiveChange={setQuizActive} attendance={selectedCourseEnrollment.attendance} sessionJoinClicks={selectedCourseEnrollment.sessionJoinClicks} onJoinLiveSession={joinLiveSession} isClass={selectedCourseEnrollment.type === 'class'} readOnly={readOnlyQuizResult} />}
+          {activeView === 'course-view' && selectedCourse && selectedCourseEnrollment && <CourseViewer course={selectedCourse} progress={selectedCourseProgress} completedLessonIds={completedLessons[selectedCourse.id] ?? []} started={Boolean(startedCourses[selectedCourse.id] || completedLessons[selectedCourse.id]?.length)} timeSpentSeconds={timeSpent[selectedCourse.id] ?? 0} quizResults={quizResults[selectedCourse.id] ?? {}} now={now} initialLessonId={selectedLessonId} onBack={() => selectView(selectedCourseEnrollment.type === 'class' ? 'classes' : 'courses')} onStart={() => startCourse(selectedCourse.id)} onCompleteLesson={completeLesson} onQuizStart={startQuizAttempt} onQuizAnswer={saveQuizAnswerForAttempt} onQuizSubmit={submitQuiz} onQuizViolation={saveQuizViolationForAttempt} onQuizActiveChange={setQuizActive} onPracticeAnswer={recordPracticeAnswer} attendance={selectedCourseEnrollment.attendance} sessionJoinClicks={selectedCourseEnrollment.sessionJoinClicks} onJoinLiveSession={joinLiveSession} isClass={selectedCourseEnrollment.type === 'class'} readOnly={readOnlyQuizResult} />}
         </>}
       </Box>
     </Box>

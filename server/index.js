@@ -204,12 +204,16 @@ const initializeDatabase = async () => {
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       exam_id BIGINT NOT NULL REFERENCES practice_exams(id) ON DELETE CASCADE,
       question_text TEXT NOT NULL,
+      topic TEXT NOT NULL DEFAULT '',
       options JSONB NOT NULL DEFAULT '[]'::jsonb,
       correct_answer TEXT NOT NULL,
       explanation TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  await ensureColumns('practice_questions', {
+    topic: "TEXT NOT NULL DEFAULT ''",
+  })
   await sql`
     CREATE TABLE IF NOT EXISTS payments (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -254,6 +258,23 @@ const initializeDatabase = async () => {
       UNIQUE (student_id, course_id, payment_id)
     )
   `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS practice_answers (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      enrollment_id BIGINT REFERENCES enrollments(id) ON DELETE CASCADE,
+      exam_id BIGINT REFERENCES practice_exams(id) ON DELETE CASCADE,
+      lesson_id BIGINT,
+      question_id BIGINT NOT NULL,
+      topic TEXT NOT NULL,
+      correct BOOLEAN NOT NULL,
+      answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CHECK (enrollment_id IS NOT NULL OR exam_id IS NOT NULL)
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS practice_answers_user_idx ON practice_answers(user_id, answered_at DESC)`
+  await sql`CREATE INDEX IF NOT EXISTS practice_answers_enrollment_idx ON practice_answers(enrollment_id, answered_at DESC)`
 
   await sql`
     CREATE TABLE IF NOT EXISTS classes (
@@ -790,12 +811,39 @@ const getQuestionResults = (modules, attempt) => {
   })
 }
 
+const getWeakAreas = (modules, quizAttempts, practiceAnswers) => {
+  const topics = new Map()
+  const addAnswer = (topic, correct) => {
+    const label = typeof topic === 'string' ? topic.trim() : ''
+    if (!label) return
+    const key = label.toLocaleLowerCase()
+    const current = topics.get(key) ?? { topic: label, correct: 0, total: 0 }
+    current.correct += correct ? 1 : 0
+    current.total += 1
+    topics.set(key, current)
+  }
+  const lessons = getCourseLessons(modules)
+  for (const attempt of Array.isArray(quizAttempts) ? quizAttempts : []) {
+    if (!attempt?.submittedAt) continue
+    const questions = lessons.find((lesson) => lesson?.id === attempt.lessonId)?.quizQuestions ?? []
+    const answers = normalizeQuizAnswers(attempt.answers, questions)
+    for (const question of questions) addAnswer(question.topic, selectedOptionFromRecord(answers[String(question.id)], question) === question.correctOption)
+  }
+  for (const answer of Array.isArray(practiceAnswers) ? practiceAnswers : []) addAnswer(answer.topic, answer.correct)
+  return [...topics.values()].map((area) => ({
+    ...area,
+    accuracy: Math.round((area.correct / area.total) * 100),
+    practiceLessons: lessons.filter((lesson) => lesson.type === 'practice' && (lesson.practiceQuestions ?? []).some((question) => question.topic?.trim().toLocaleLowerCase() === area.topic.toLocaleLowerCase())).map((lesson) => ({ lessonId: Number(lesson.id), lessonTitle: lesson.title })),
+  })).filter((area) => area.accuracy < 60).sort((first, second) => first.accuracy - second.accuracy || first.topic.localeCompare(second.topic))
+}
+
 const serializeEnrollment = (enrollment) => {
   const modules = deserializeJson(enrollment.modules)
   const rawLessonProgress = deserializeJson(enrollment.lessonProgress)
   const rawQuizAttempts = deserializeJson(enrollment.quizAttempts)
-  const lessonProgress = isPlainObject(rawLessonProgress) ? rawLessonProgress : {}
   const quizAttempts = Array.isArray(rawQuizAttempts) ? rawQuizAttempts.map((attempt) => ({ ...attempt, questionResults: getQuestionResults(modules, attempt) })) : []
+  const practiceAnswers = deserializeJson(enrollment.practiceAnswers)
+  const lessonProgress = isPlainObject(rawLessonProgress) ? rawLessonProgress : {}
   const { completedLessonIds, progressPercentage } = getEnrollmentProgress(modules, lessonProgress)
 
   return {
@@ -804,6 +852,7 @@ const serializeEnrollment = (enrollment) => {
     classSchedule: isPlainObject(deserializeJson(enrollment.classSchedule)) ? deserializeJson(enrollment.classSchedule) : null,
     lessonProgress,
     quizAttempts,
+    weakAreas: getWeakAreas(modules, quizAttempts, practiceAnswers),
     completedLessonIds,
     started: Object.keys(lessonProgress).length > 0,
     timeSpentSeconds: Number(enrollment.timeSpentSeconds) || 0,
@@ -1231,12 +1280,29 @@ app.get('/api/practice-exams/:id', async (request, response) => {
   `
   if (!exam) return response.status(403).json({ message: 'Purchase this practice exam to access its questions.' })
   const questions = await sql`
-    SELECT id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, options, correct_answer, explanation
+    SELECT id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, topic, options, correct_answer, explanation
     FROM practice_questions
     WHERE exam_id = ${examId}
     ORDER BY id
   `
   return response.json({ ...exam, questions: questions.map((question) => ({ ...question, options: deserializeJson(question.options) })) })
+})
+
+app.post('/api/practice-exams/:examId/questions/:questionId/answers', requireAuthenticated, async (request, response) => {
+  const examId = parseCourseId(request.params.examId)
+  const questionId = parseEnrollmentId(request.params.questionId)
+  const answer = typeof request.body?.answer === 'string' ? request.body.answer.trim() : ''
+  if (examId === null || questionId === null || !answer) return response.status(400).json({ message: 'Choose a valid practice answer.' })
+  const [question] = await sql`
+    SELECT id, topic, correct_answer AS "correctAnswer"
+    FROM practice_questions
+    INNER JOIN practice_exams ON practice_exams.id = practice_questions.exam_id
+    WHERE practice_questions.id = ${questionId} AND practice_questions.exam_id = ${examId} AND practice_exams.published = true
+  `
+  if (!question) return response.status(404).json({ message: 'Practice question not found.' })
+  const correct = answer === question.correctAnswer
+  await sql`INSERT INTO practice_answers ${sql({ user_id: request.userId, exam_id: examId, question_id: questionId, topic: question.topic, correct })}`
+  return response.status(201).json({ correct })
 })
 
 app.get('/api/courses/:id', async (request, response) => {
@@ -1395,6 +1461,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
            lesson_summary."timeSpentSeconds",
            lesson_summary."lastActivityAt",
            quiz_summary."quizAttempts",
+           practice_summary."practiceAnswers",
            attendance_summary.attendance,
            session_join_summary."sessionJoinClicks"
     FROM enrollments
@@ -1439,6 +1506,11 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
       FROM quiz_attempts
       WHERE enrollment_id = enrollments.id
     ) AS quiz_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object('topic', topic, 'correct', correct)), '[]'::jsonb) AS "practiceAnswers"
+      FROM practice_answers
+      WHERE enrollment_id = enrollments.id OR (enrollment_id IS NULL AND user_id = enrollments.user_id)
+    ) AS practice_summary ON true
     LEFT JOIN LATERAL (
       SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, status), '{}'::jsonb) AS attendance
       FROM class_attendance
@@ -1781,6 +1853,27 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts/:attemp
   if (!result) return response.status(404).json({ message: 'Course enrollment not found.' })
   if (result.error) return response.status(400).json({ message: result.error })
   return response.json(result.attempt)
+})
+
+app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/practice-answers', requireAuthenticated, async (request, response) => {
+  const enrollmentId = parseEnrollmentId(request.params.enrollmentId)
+  const lessonId = parseEnrollmentId(request.params.lessonId)
+  const questionId = parseEnrollmentId(String(request.body?.questionId ?? ''))
+  const answer = typeof request.body?.answer === 'string' ? request.body.answer.trim() : ''
+  if (enrollmentId === null || lessonId === null || questionId === null || !answer) return response.status(400).json({ message: 'Choose a valid practice answer.' })
+  const result = await sql.begin(async (transaction) => {
+    const enrollment = await getOwnedEnrollment(transaction, request.userId, enrollmentId)
+    if (!enrollment) return null
+    const lesson = findCourseLesson(enrollment.modules, lessonId)
+    const question = (lesson?.practiceQuestions ?? []).find((item) => Number(item?.id) === questionId)
+    if (!lesson || lesson.type !== 'practice' || !question) return { error: 'Practice question not found.' }
+    const correct = answer === question.correctAnswer
+    await transaction`INSERT INTO practice_answers ${sql({ user_id: request.userId, enrollment_id: enrollmentId, lesson_id: lessonId, question_id: questionId, topic: question.topic, correct })}`
+    return { correct }
+  })
+  if (!result) return response.status(404).json({ message: 'Course enrollment not found.' })
+  if (result.error) return response.status(404).json({ message: result.error })
+  return response.status(201).json(result)
 })
 
 app.post('/api/admin/quiz-attempts/:attemptId/retake-approval', requireAdmin, async (request, response) => {
@@ -2465,7 +2558,7 @@ app.get('/api/admin/practice-exams/:id/questions', requireAdmin, async (request,
   const examId = parseCourseId(request.params.id)
   if (examId === null) return response.status(400).json({ message: 'Invalid practice exam id.' })
   const questions = await sql`
-    SELECT id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, options, correct_answer, explanation
+    SELECT id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, topic, options, correct_answer, explanation
     FROM practice_questions
     WHERE exam_id = ${examId}
     ORDER BY id
@@ -2477,17 +2570,38 @@ app.post('/api/admin/practice-exams/:id/questions', requireAdmin, async (request
   const examId = parseCourseId(request.params.id)
   const body = request.body ?? {}
   const questionText = typeof body.questionText === 'string' ? body.questionText.trim() : ''
+  const topic = typeof body.topic === 'string' ? body.topic.trim() : ''
   const options = Array.isArray(body.options) ? body.options.filter((option) => typeof option === 'string').map((option) => option.trim()).filter(Boolean) : []
   const correctAnswer = typeof body.correctAnswer === 'string' ? body.correctAnswer.trim() : ''
   const explanation = typeof body.explanation === 'string' ? body.explanation.trim() : ''
-  if (examId === null || !questionText || options.length < 2 || !options.includes(correctAnswer) || !explanation) return response.status(400).json({ message: 'Question text, at least two options, a matching correct answer, and an explanation are required.' })
+  if (examId === null || !questionText || !topic || options.length < 2 || !options.includes(correctAnswer) || !explanation) return response.status(400).json({ message: 'Question text, topic, at least two options, a matching correct answer, and an explanation are required.' })
   const [exam] = await sql`SELECT id FROM practice_exams WHERE id = ${examId}`
   if (!exam) return response.status(404).json({ message: 'Practice exam not found.' })
   const [question] = await sql`
-    INSERT INTO practice_questions ${sql({ exam_id: examId, question_text: questionText, options: JSON.stringify(options), correct_answer: correctAnswer, explanation })}
-    RETURNING id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, options, correct_answer, explanation
+    INSERT INTO practice_questions ${sql({ exam_id: examId, question_text: questionText, topic, options: JSON.stringify(options), correct_answer: correctAnswer, explanation })}
+    RETURNING id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, topic, options, correct_answer, explanation
   `
   return response.status(201).json({ ...question, options: deserializeJson(question.options) })
+})
+
+app.patch('/api/admin/practice-exams/:examId/questions/:questionId', requireAdmin, async (request, response) => {
+  const examId = parseCourseId(request.params.examId)
+  const questionId = parseEnrollmentId(request.params.questionId)
+  const body = request.body ?? {}
+  const questionText = typeof body.questionText === 'string' ? body.questionText.trim() : ''
+  const topic = typeof body.topic === 'string' ? body.topic.trim() : ''
+  const options = Array.isArray(body.options) ? body.options.filter((option) => typeof option === 'string').map((option) => option.trim()).filter(Boolean) : []
+  const correctAnswer = typeof body.correctAnswer === 'string' ? body.correctAnswer.trim() : ''
+  const explanation = typeof body.explanation === 'string' ? body.explanation.trim() : ''
+  if (examId === null || questionId === null || !questionText || !topic || options.length < 2 || !options.includes(correctAnswer) || !explanation) return response.status(400).json({ message: 'Question text, topic, at least two options, a matching correct answer, and an explanation are required.' })
+  const [question] = await sql`
+    UPDATE practice_questions
+    SET question_text = ${questionText}, topic = ${topic}, options = ${JSON.stringify(options)}::jsonb, correct_answer = ${correctAnswer}, explanation = ${explanation}
+    WHERE id = ${questionId} AND exam_id = ${examId}
+    RETURNING id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, topic, options, correct_answer, explanation
+  `
+  if (!question) return response.status(404).json({ message: 'Practice question not found.' })
+  return response.json({ ...question, options: deserializeJson(question.options) })
 })
 
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
