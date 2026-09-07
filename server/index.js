@@ -1038,6 +1038,13 @@ const syncGamificationForUser = async (userId) => {
   `
   const [lessonMilestone] = await sql`SELECT COUNT(*)::INTEGER AS total FROM gamification_activity_rewards WHERE user_id = ${userId} AND source_type = 'lesson'`
   const [quizMilestone] = await sql`SELECT COUNT(*)::INTEGER AS total FROM gamification_activity_rewards WHERE user_id = ${userId} AND source_type = 'quiz'`
+  const [activityCounts] = await sql`
+    SELECT COUNT(*) FILTER (WHERE source_type = 'lesson')::INTEGER AS "lessonCount",
+           COUNT(*) FILTER (WHERE source_type = 'quiz')::INTEGER AS "quizCount",
+           COUNT(*) FILTER (WHERE source_type = 'live')::INTEGER AS "liveCount"
+    FROM gamification_activity_rewards
+    WHERE user_id = ${userId}
+  `
   const badgeUnlocks = [
     ['first-quiz-passed', Number(quizMilestone.total) > 0],
     ['seven-day-streak', streak.longest >= 7],
@@ -1055,7 +1062,7 @@ const syncGamificationForUser = async (userId) => {
     }
   }
 
-  return { stats: { student_id: Number(userId), xp: Number(statsTotals.xp), level: level.level, points: Number(statsTotals.points), current_streak: streak.current, longest_streak: streak.longest, next_level_xp: level.nextLevelXp, level_progress: level.progress }, challengeResults }
+  return { stats: { student_id: Number(userId), xp: Number(statsTotals.xp), level: level.level, points: Number(statsTotals.points), current_streak: streak.current, longest_streak: streak.longest, next_level_xp: level.nextLevelXp, level_progress: level.progress, lesson_count: Number(activityCounts.lessonCount), quiz_count: Number(activityCounts.quizCount), live_count: Number(activityCounts.liveCount) }, challengeResults }
 }
 
 const readCourse = async (id, publishedOnly = false) => {
@@ -1237,6 +1244,73 @@ app.get('/api/students', requireAuthenticated, async (request, response) => {
     ORDER BY created_at DESC
   `
   response.json(students)
+})
+
+app.get('/api/gamification', requireAuthenticated, async (request, response) => {
+  await syncGamificationActivity()
+  const { stats, challengeResults } = await syncGamificationForUser(request.userId)
+  const badges = await sql`
+    SELECT id, name, icon, description, criteria
+    FROM gamification_badges
+    ORDER BY id
+  `
+  const achievements = await sql`
+    SELECT id::TEXT AS id, user_id AS student_id, badge_id, unlocked_at
+    FROM gamification_achievements
+    WHERE user_id = ${request.userId}
+    ORDER BY unlocked_at DESC
+  `
+  const [classContext] = await sql`
+    SELECT enrollments.class_id AS "classId", classes.title AS "classTitle"
+    FROM enrollments
+    INNER JOIN classes ON classes.id = enrollments.class_id
+    WHERE enrollments.user_id = ${request.userId} AND enrollments.class_id IS NOT NULL
+    ORDER BY enrollments.created_at DESC
+    LIMIT 1
+  `
+  const leaderboard = await sql`
+    WITH cohort_users AS (
+      SELECT DISTINCT enrollments.user_id
+      FROM enrollments
+      WHERE enrollments.class_id = ${classContext?.classId ?? null}
+    )
+    SELECT users.id::INTEGER AS id,
+           COALESCE(NULLIF(users.name, ''), users.email) AS name,
+           LEFT(COALESCE(NULLIF(users.name, ''), users.email), 1) AS avatar,
+           (COALESCE(activity_totals.xp, 0) + COALESCE(challenge_totals.xp, 0))::INTEGER AS xp,
+           users.id = ${request.userId} AS "isCurrentStudent"
+    FROM cohort_users
+    INNER JOIN users ON users.id = cohort_users.user_id
+    LEFT JOIN (
+      SELECT user_id, SUM(xp)::INTEGER AS xp
+      FROM gamification_activity_rewards
+      GROUP BY user_id
+    ) activity_totals ON activity_totals.user_id = users.id
+    LEFT JOIN (
+      SELECT completions.user_id, SUM(challenges.xp_reward)::INTEGER AS xp
+      FROM gamification_challenge_completions completions
+      INNER JOIN gamification_challenges challenges ON challenges.id = completions.challenge_id
+      GROUP BY completions.user_id
+    ) challenge_totals ON challenge_totals.user_id = users.id
+    ORDER BY xp DESC, name
+    LIMIT 20
+  `
+  return response.json({
+    stats,
+    badges,
+    achievements,
+    challenges: challengeResults.map(({ criteria: _criteria, ...challenge }) => ({
+      id: challenge.id,
+      title: challenge.title,
+      type: challenge.type,
+      xp_reward: Number(challenge.xpReward),
+      points_reward: Number(challenge.pointsReward),
+      completed: challenge.completed,
+      completed_at: challenge.completedAt,
+    })),
+    leaderboard,
+    classTitle: classContext?.classTitle ?? null,
+  })
 })
 
 app.get('/api/enrollments', requireAuthenticated, async (request, response) => {

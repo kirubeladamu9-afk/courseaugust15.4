@@ -136,6 +136,9 @@ export interface GamificationStats {
   longest_streak: number
   next_level_xp: number
   level_progress: number
+  lesson_count: number
+  quiz_count: number
+  live_count: number
 }
 
 export interface GamificationBadge {
