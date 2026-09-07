@@ -184,12 +184,18 @@ export interface GamificationLeaderboardEntry {
   isCurrentStudent: boolean
 }
 
+export interface GamificationClassRank {
+  classId: number
+  rank: number
+}
+
 export interface GamificationData {
   stats: GamificationStats
   badges: GamificationBadge[]
   achievements: GamificationAchievement[]
   challenges: GamificationChallenge[]
   leaderboard: GamificationLeaderboardEntry[]
+  classRanks: GamificationClassRank[]
   classId: number | null
   classTitle: string | null
 }

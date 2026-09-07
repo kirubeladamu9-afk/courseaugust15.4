@@ -1286,6 +1286,37 @@ app.get('/api/gamification', requireAuthenticated, async (request, response) => 
     ORDER BY enrollments.created_at DESC
     LIMIT 1
   `
+  const classRanks = await sql`
+    WITH class_users AS (
+      SELECT DISTINCT enrollments.class_id,
+             enrollments.user_id,
+             COALESCE(NULLIF(users.name, ''), users.email) AS name
+      FROM enrollments
+      INNER JOIN users ON users.id = enrollments.user_id
+      WHERE enrollments.class_id IS NOT NULL
+    ), class_scores AS (
+      SELECT class_users.class_id,
+             class_users.user_id,
+             class_users.name,
+             (COALESCE(activity_totals.xp, 0) + COALESCE(challenge_totals.xp, 0))::INTEGER AS xp
+      FROM class_users
+      LEFT JOIN (
+        SELECT user_id, SUM(xp)::INTEGER AS xp
+        FROM gamification_activity_rewards
+        GROUP BY user_id
+      ) activity_totals ON activity_totals.user_id = class_users.user_id
+      LEFT JOIN (
+        SELECT completions.user_id, SUM(challenges.xp_reward)::INTEGER AS xp
+        FROM gamification_challenge_completions completions
+        INNER JOIN gamification_challenges challenges ON challenges.id = completions.challenge_id
+        GROUP BY completions.user_id
+      ) challenge_totals ON challenge_totals.user_id = class_users.user_id
+    )
+    SELECT class_id AS "classId",
+           ROW_NUMBER() OVER (PARTITION BY class_id ORDER BY xp DESC, name)::INTEGER AS rank
+    FROM class_scores
+    WHERE user_id = ${request.userId}
+  `
   const leaderboard = await sql`
     WITH cohort_users AS (
       SELECT DISTINCT enrollments.user_id
@@ -1329,6 +1360,7 @@ app.get('/api/gamification', requireAuthenticated, async (request, response) => 
       completed_at: challenge.completedAt,
     })),
     leaderboard,
+    classRanks,
     classId: classContext?.classId ?? null,
     classTitle: classContext?.classTitle ?? null,
   })
