@@ -329,7 +329,11 @@ const getEnrollmentOverallGrade = (enrollment: DashboardEnrollment, completionPe
 }
 const OverallGradeValue: FC<{ grade: ReturnType<typeof getEnrollmentOverallGrade> }> = ({ grade }) => <Stack direction="row" spacing={1.25} alignItems="center"><Typography variant="body2" color="text.secondary">Overall grade</Typography><Typography variant="body2" sx={{ fontWeight: 700 }}>{grade.percentage}%</Typography><Chip label={grade.letter} size="small" color={grade.letter === 'F' ? 'error' : grade.letter === 'D' ? 'warning' : 'success'} /></Stack>
 const ClassRankValue: FC<{ rank?: number }> = ({ rank }) => rank === undefined ? null : <Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>Class rank: {rank}</Typography>
-const getClassRank = (data: GamificationData | null, classId?: number) => classId === undefined ? undefined : data?.classRanks.find((entry) => entry.classId === classId)?.rank
+const getClassRank = (data: GamificationData | null, classId?: number) => {
+  if (!data || classId === undefined) return undefined
+  const rank = data.classRanks?.find((entry) => Number(entry.classId) === classId)?.rank
+  return rank ?? (Number(data.classId) === classId ? data.leaderboard.find((entry) => entry.isCurrentStudent)?.rank : undefined)
+}
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
@@ -547,11 +551,11 @@ const ClassesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
       return <Card key={enrollment.id} elevation={0} sx={{ border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ minHeight: 110, p: 2.5, display: 'flex', alignItems: 'flex-end', background: 'linear-gradient(135deg, rgba(16, 125, 111, 0.16), rgba(16, 125, 111, 0.04))' }}><ClassOutlinedIcon color="primary" sx={{ fontSize: 38 }} /></Box>
         <CardContent sx={{ display: 'flex', flex: 1, flexDirection: 'column' }}>
-          <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}><Chip label={classRecord.status === 'pending_schedule' ? 'Pending schedule' : classEnded || classRecord.status === 'closed' ? 'Closed' : !hasStarted ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Active class'} size="small" color={canOpenClass ? 'success' : 'warning'} variant="outlined" /><Typography variant="caption" color="text.secondary">Class</Typography></Stack>
+          <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center" sx={{ mb: 1 }}><Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap"><Chip label={classRecord.status === 'pending_schedule' ? 'Pending schedule' : classEnded || classRecord.status === 'closed' ? 'Closed' : !hasStarted ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Active class'} size="small" color={canOpenClass ? 'success' : 'warning'} variant="outlined" /><ClassRankValue rank={classRank} /></Stack><Typography variant="caption" color="text.secondary">Class</Typography></Stack>
           <Typography variant="h6" sx={{ mb: 1 }}>{classRecord.title}</Typography>
           <Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography>
           <Typography color="text.secondary" variant="body2" sx={{ mb: 1 }}>{nextLiveLesson?.scheduledAt ? `Next live session: ${new Date(nextLiveLesson.scheduledAt).toLocaleString()}` : classScheduleLabel(classRecord.schedule)}</Typography>
-          <Stack spacing={0.5} alignItems="flex-start" sx={{ mb: 2 }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, progress, now)} /><ClassRankValue rank={classRank} /></Stack>
+          <Box sx={{ mb: 2 }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, progress, now)} /></Box>
           <Box sx={{ mt: 'auto' }}><Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}><Typography variant="body2">Progress</Typography><Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>{progress}%</Typography></Stack><LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4, mb: 2 }} /><Button fullWidth variant="contained" disabled={!canOpenClass} onClick={() => { if (canOpenClass) onOpenCourse(course.id) }}>{classEnded || classRecord.status === 'closed' ? 'Class ended' : !hasStarted ? 'Available at start time' : progress ? 'Continue class' : 'Open class'}</Button></Box>
         </CardContent>
       </Card>
