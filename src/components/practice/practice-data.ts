@@ -26,3 +26,24 @@ export interface PracticePurchase {
 export interface PracticeExamWithQuestions extends PracticeExam {
   questions: PracticeQuestion[]
 }
+
+export interface PracticeResult {
+  correct: number
+  total: number
+  completedAt: string
+}
+
+const practiceResultsKey = 'coursespace-practice-results'
+
+export const getPracticeResults = (): Record<number, PracticeResult> => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(practiceResultsKey) ?? '{}')
+    return stored && typeof stored === 'object' ? stored as Record<number, PracticeResult> : {}
+  } catch {
+    return {}
+  }
+}
+
+export const savePracticeResult = (examId: number, result: PracticeResult) => {
+  localStorage.setItem(practiceResultsKey, JSON.stringify({ ...getPracticeResults(), [examId]: result }))
+}
