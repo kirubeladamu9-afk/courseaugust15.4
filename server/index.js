@@ -24,6 +24,22 @@ const seedTutors = [
   { name: 'Rizki Known', email: 'rizki@example.com', status: 'Active' },
 ]
 
+const gamificationBadgeSeeds = [
+  { id: 'first-quiz-passed', name: 'First Quiz Passed', icon: 'quiz', description: 'Passed your first quiz and started building assessment momentum.', criteria: 'Pass 1 quiz' },
+  { id: 'seven-day-streak', name: '7-Day Streak', icon: 'streak', description: 'Kept your learning habit going for seven days.', criteria: 'Reach a 7-day streak' },
+  { id: 'perfect-attendance', name: 'Perfect Attendance', icon: 'attendance', description: 'Attended every live session currently tracked for your cohort.', criteria: 'Attend every live session' },
+  { id: 'course-completed', name: 'Course Completed', icon: 'course', description: 'Completed every lesson in a course.', criteria: 'Complete 1 course' },
+  { id: 'lesson-momentum', name: 'Lesson Momentum', icon: 'momentum', description: 'Completed ten lessons across your learning plan.', criteria: 'Complete 10 lessons' },
+]
+
+const gamificationChallengeSeeds = [
+  { id: 'daily-lesson', title: 'Complete 1 lesson today', type: 'daily', criteria: 'lesson_today', xpReward: 30, pointsReward: 10, sortOrder: 1 },
+  { id: 'daily-quiz', title: 'Pass a quiz today', type: 'daily', criteria: 'quiz_today', xpReward: 45, pointsReward: 15, sortOrder: 2 },
+  { id: 'daily-live', title: 'Attend a live session today', type: 'daily', criteria: 'live_today', xpReward: 50, pointsReward: 18, sortOrder: 3 },
+  { id: 'weekly-live', title: 'Attend both live sessions this week', type: 'weekly', criteria: 'live_week', xpReward: 80, pointsReward: 30, sortOrder: 1 },
+  { id: 'weekly-lessons', title: 'Complete 3 lessons this week', type: 'weekly', criteria: 'lesson_week', xpReward: 90, pointsReward: 35, sortOrder: 2 },
+]
+
 const hashPassword = async (password) => {
   const salt = randomBytes(16).toString('hex')
   const hash = await scrypt(password, salt, 64)
@@ -343,6 +359,89 @@ const initializeDatabase = async () => {
   await sql`CREATE INDEX IF NOT EXISTS student_lesson_progress_enrollment_idx ON student_lesson_progress(enrollment_id, last_accessed_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS quiz_attempts_enrollment_lesson_idx ON quiz_attempts(enrollment_id, lesson_id, submitted_at DESC)`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS quiz_attempts_one_open_attempt_idx ON quiz_attempts(enrollment_id, lesson_id) WHERE submitted_at IS NULL`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS gamification_activity_rewards (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_type TEXT NOT NULL CHECK (source_type IN ('lesson', 'quiz', 'live')),
+      source_id TEXT NOT NULL,
+      xp INTEGER NOT NULL CHECK (xp >= 0),
+      points INTEGER NOT NULL CHECK (points >= 0),
+      awarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, source_type, source_id)
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS gamification_student_stats (
+      user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      xp INTEGER NOT NULL DEFAULT 0 CHECK (xp >= 0),
+      level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1),
+      points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0),
+      current_streak INTEGER NOT NULL DEFAULT 0 CHECK (current_streak >= 0),
+      longest_streak INTEGER NOT NULL DEFAULT 0 CHECK (longest_streak >= 0),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS gamification_badges (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      description TEXT NOT NULL,
+      criteria TEXT NOT NULL
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS gamification_achievements (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      badge_id TEXT NOT NULL REFERENCES gamification_badges(id) ON DELETE CASCADE,
+      unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, badge_id)
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS gamification_challenges (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL CHECK (type IN ('daily', 'weekly')),
+      xp_reward INTEGER NOT NULL CHECK (xp_reward >= 0),
+      points_reward INTEGER NOT NULL CHECK (points_reward >= 0),
+      criteria TEXT NOT NULL DEFAULT 'lesson_today',
+      sort_order INTEGER NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT true
+    )
+  `
+  await ensureColumns('gamification_challenges', {
+    criteria: "TEXT NOT NULL DEFAULT 'lesson_today'",
+  })
+  await sql`
+    CREATE TABLE IF NOT EXISTS gamification_challenge_completions (
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      challenge_id TEXT NOT NULL REFERENCES gamification_challenges(id) ON DELETE CASCADE,
+      period_key TEXT NOT NULL,
+      completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, challenge_id, period_key)
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS gamification_activity_rewards_user_idx ON gamification_activity_rewards(user_id, awarded_at DESC)`
+  await sql`CREATE INDEX IF NOT EXISTS gamification_achievements_user_idx ON gamification_achievements(user_id, unlocked_at DESC)`
+  await sql`CREATE INDEX IF NOT EXISTS gamification_challenge_completions_user_idx ON gamification_challenge_completions(user_id, completed_at DESC)`
+
+  for (const badge of gamificationBadgeSeeds) {
+    await sql`
+      INSERT INTO gamification_badges ${sql(badge)}
+      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, description = EXCLUDED.description, criteria = EXCLUDED.criteria
+    `
+  }
+  for (const challenge of gamificationChallengeSeeds) {
+    await sql`
+      INSERT INTO gamification_challenges (id, title, type, criteria, xp_reward, points_reward, sort_order)
+      VALUES (${challenge.id}, ${challenge.title}, ${challenge.type}, ${challenge.criteria}, ${challenge.xpReward}, ${challenge.pointsReward}, ${challenge.sortOrder})
+      ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, type = EXCLUDED.type, criteria = EXCLUDED.criteria, xp_reward = EXCLUDED.xp_reward, points_reward = EXCLUDED.points_reward, sort_order = EXCLUDED.sort_order
+    `
+  }
 
   for (const seedTutor of seedTutors) {
     await sql`
@@ -704,6 +803,259 @@ const serializeEnrollment = (enrollment) => {
     attendance: deserializeJson(enrollment.attendance) ?? {},
     progressPercentage,
   }
+}
+
+const gamificationLevelThresholds = [0, 100, 250, 500, 850, 1300, 1900, 2600, 3400]
+const getGamificationLevelInfo = (xp) => {
+  let levelIndex = 0
+  gamificationLevelThresholds.forEach((threshold, index) => {
+    if (xp >= threshold) levelIndex = index
+  })
+  const currentThreshold = gamificationLevelThresholds[levelIndex]
+  const nextThreshold = gamificationLevelThresholds[levelIndex + 1] ?? currentThreshold + (levelIndex + 2) * 600
+  return {
+    level: levelIndex + 1,
+    nextLevelXp: nextThreshold,
+    progress: Math.min(100, ((xp - currentThreshold) / Math.max(1, nextThreshold - currentThreshold)) * 100),
+  }
+}
+
+const getDateKey = (value) => new Date(value).toISOString().slice(0, 10)
+const getGamificationStreak = (activityDates) => {
+  const activeDays = new Set(activityDates.filter(Boolean).map(getDateKey))
+  const today = new Date()
+  const todayKey = getDateKey(today)
+  const yesterday = new Date(today)
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+  const yesterdayKey = getDateKey(yesterday)
+  let current = 0
+  if (activeDays.has(todayKey) || activeDays.has(yesterdayKey)) {
+    const cursor = new Date(activeDays.has(todayKey) ? today : yesterday)
+    while (activeDays.has(getDateKey(cursor))) {
+      current += 1
+      cursor.setUTCDate(cursor.getUTCDate() - 1)
+    }
+  }
+
+  const sortedDays = [...activeDays].sort()
+  let longest = 0
+  let run = 0
+  sortedDays.forEach((day, index) => {
+    const previous = sortedDays[index - 1]
+    const difference = previous
+      ? (Date.parse(`${day}T00:00:00Z`) - Date.parse(`${previous}T00:00:00Z`)) / 86400000
+      : null
+    run = difference === 1 ? run + 1 : 1
+    longest = Math.max(longest, run)
+  })
+  return { current, longest }
+}
+
+const syncGamificationActivity = async () => {
+  await sql`
+    DELETE FROM gamification_activity_rewards rewards
+    USING class_attendance attendance
+    WHERE rewards.source_type = 'live'
+      AND rewards.user_id = (SELECT user_id FROM enrollments WHERE id = attendance.enrollment_id)
+      AND rewards.source_id = attendance.enrollment_id::TEXT || ':' || attendance.lesson_id::TEXT
+      AND attendance.status <> 'Present'
+  `
+  await sql`
+    INSERT INTO gamification_activity_rewards (user_id, source_type, source_id, xp, points, awarded_at)
+    SELECT enrollments.user_id,
+           'lesson',
+           enrollments.id::TEXT || ':' || progress.lesson_id::TEXT,
+           25,
+           10,
+           progress.completed_at
+    FROM enrollments
+    INNER JOIN student_lesson_progress progress ON progress.enrollment_id = enrollments.id
+    WHERE progress.completed_at IS NOT NULL
+    ON CONFLICT (user_id, source_type, source_id) DO NOTHING
+  `
+  await sql`
+    INSERT INTO gamification_activity_rewards (user_id, source_type, source_id, xp, points, awarded_at)
+    SELECT passed_attempts.user_id,
+           'quiz',
+           passed_attempts.enrollment_id::TEXT || ':' || passed_attempts.lesson_id::TEXT,
+           50,
+           20,
+           passed_attempts.submitted_at
+    FROM (
+      SELECT DISTINCT ON (enrollments.user_id, quiz_attempts.enrollment_id, quiz_attempts.lesson_id)
+             enrollments.user_id,
+             quiz_attempts.enrollment_id,
+             quiz_attempts.lesson_id,
+             quiz_attempts.submitted_at
+      FROM quiz_attempts
+      INNER JOIN enrollments ON enrollments.id = quiz_attempts.enrollment_id
+      WHERE quiz_attempts.passed = true
+        AND quiz_attempts.submitted_at IS NOT NULL
+      ORDER BY enrollments.user_id, quiz_attempts.enrollment_id, quiz_attempts.lesson_id, quiz_attempts.submitted_at
+    ) AS passed_attempts
+    ON CONFLICT (user_id, source_type, source_id) DO NOTHING
+  `
+  await sql`
+    INSERT INTO gamification_activity_rewards (user_id, source_type, source_id, xp, points, awarded_at)
+    SELECT enrollments.user_id,
+           'live',
+           attendance.enrollment_id::TEXT || ':' || attendance.lesson_id::TEXT,
+           40,
+           15,
+           attendance.marked_at
+    FROM class_attendance attendance
+    INNER JOIN enrollments ON enrollments.id = attendance.enrollment_id
+    WHERE attendance.status = 'Present'
+    ON CONFLICT (user_id, source_type, source_id) DO NOTHING
+  `
+}
+
+const isGamificationChallengeComplete = async (userId, criteria) => {
+  if (criteria === 'lesson_today') {
+    const [result] = await sql`SELECT EXISTS (SELECT 1 FROM student_lesson_progress progress INNER JOIN enrollments ON enrollments.id = progress.enrollment_id WHERE enrollments.user_id = ${userId} AND progress.completed_at >= CURRENT_DATE) AS fulfilled`
+    return result.fulfilled
+  }
+  if (criteria === 'quiz_today') {
+    const [result] = await sql`SELECT EXISTS (SELECT 1 FROM quiz_attempts attempts INNER JOIN enrollments ON enrollments.id = attempts.enrollment_id WHERE enrollments.user_id = ${userId} AND attempts.passed = true AND attempts.submitted_at >= CURRENT_DATE) AS fulfilled`
+    return result.fulfilled
+  }
+  if (criteria === 'live_today') {
+    const [result] = await sql`SELECT EXISTS (SELECT 1 FROM class_attendance attendance INNER JOIN enrollments ON enrollments.id = attendance.enrollment_id WHERE enrollments.user_id = ${userId} AND attendance.status = 'Present' AND attendance.marked_at >= CURRENT_DATE) AS fulfilled`
+    return result.fulfilled
+  }
+  if (criteria === 'live_week') {
+    const [result] = await sql`SELECT COUNT(*) >= 2 AS fulfilled FROM class_attendance attendance INNER JOIN enrollments ON enrollments.id = attendance.enrollment_id WHERE enrollments.user_id = ${userId} AND attendance.status = 'Present' AND attendance.marked_at >= date_trunc('week', CURRENT_DATE)`
+    return result.fulfilled
+  }
+  const [result] = await sql`SELECT COUNT(*) >= 3 AS fulfilled FROM student_lesson_progress progress INNER JOIN enrollments ON enrollments.id = progress.enrollment_id WHERE enrollments.user_id = ${userId} AND progress.completed_at >= date_trunc('week', CURRENT_DATE)`
+  return result.fulfilled
+}
+
+const syncGamificationForUser = async (userId) => {
+  const challenges = await sql`
+    SELECT id, title, type, criteria, xp_reward AS "xpReward", points_reward AS "pointsReward"
+    FROM gamification_challenges
+    WHERE active = true
+    ORDER BY type, sort_order
+  `
+  const dailyChallenges = challenges.filter((challenge) => challenge.type === 'daily')
+  const weeklyChallenges = challenges.filter((challenge) => challenge.type === 'weekly')
+  const dayIndex = Math.floor(Date.now() / 86400000)
+  const selectedChallenges = [
+    dailyChallenges[dayIndex % dailyChallenges.length],
+    dailyChallenges[(dayIndex + 1) % dailyChallenges.length],
+    weeklyChallenges[Math.floor(dayIndex / 7) % weeklyChallenges.length],
+  ].filter(Boolean)
+  const [periods] = await sql`SELECT CURRENT_DATE::TEXT AS today, date_trunc('week', CURRENT_DATE)::DATE::TEXT AS week`
+  const challengeResults = []
+  for (const challenge of selectedChallenges) {
+    const periodKey = challenge.type === 'daily' ? periods.today : periods.week
+    const fulfilled = await isGamificationChallengeComplete(userId, challenge.criteria)
+    if (fulfilled) {
+      await sql`
+        INSERT INTO gamification_challenge_completions (user_id, challenge_id, period_key)
+        VALUES (${userId}, ${challenge.id}, ${periodKey})
+        ON CONFLICT (user_id, challenge_id, period_key) DO NOTHING
+      `
+    }
+    const [completion] = await sql`
+      SELECT completed_at AS "completedAt"
+      FROM gamification_challenge_completions
+      WHERE user_id = ${userId} AND challenge_id = ${challenge.id} AND period_key = ${periodKey}
+    `
+    challengeResults.push({ ...challenge, completed: Boolean(completion), completedAt: completion?.completedAt ?? null })
+  }
+
+  const [statsTotals] = await sql`
+    SELECT COALESCE(SUM(rewards.xp), 0)::INTEGER AS xp,
+           COALESCE(SUM(rewards.points), 0)::INTEGER AS points
+    FROM (
+      SELECT xp, points FROM gamification_activity_rewards WHERE user_id = ${userId}
+      UNION ALL
+      SELECT challenges.xp_reward AS xp, challenges.points_reward AS points
+      FROM gamification_challenge_completions completions
+      INNER JOIN gamification_challenges challenges ON challenges.id = completions.challenge_id
+      WHERE completions.user_id = ${userId}
+    ) AS rewards
+  `
+  const activityDates = await sql`
+    SELECT progress.completed_at AS "activityDate"
+    FROM student_lesson_progress progress
+    INNER JOIN enrollments ON enrollments.id = progress.enrollment_id
+    WHERE enrollments.user_id = ${userId} AND progress.completed_at IS NOT NULL
+    UNION ALL
+    SELECT attempts.submitted_at AS "activityDate"
+    FROM quiz_attempts attempts
+    INNER JOIN enrollments ON enrollments.id = attempts.enrollment_id
+    WHERE enrollments.user_id = ${userId} AND attempts.passed = true AND attempts.submitted_at IS NOT NULL
+    UNION ALL
+    SELECT attendance.marked_at AS "activityDate"
+    FROM class_attendance attendance
+    INNER JOIN enrollments ON enrollments.id = attendance.enrollment_id
+    WHERE enrollments.user_id = ${userId} AND attendance.status = 'Present'
+  `
+  const streak = getGamificationStreak(activityDates.map((activity) => activity.activityDate))
+  const level = getGamificationLevelInfo(Number(statsTotals.xp))
+  await sql`
+    INSERT INTO gamification_student_stats (user_id, xp, level, points, current_streak, longest_streak)
+    VALUES (${userId}, ${statsTotals.xp}, ${level.level}, ${statsTotals.points}, ${streak.current}, ${streak.longest})
+    ON CONFLICT (user_id) DO UPDATE SET xp = EXCLUDED.xp, level = EXCLUDED.level, points = EXCLUDED.points, current_streak = EXCLUDED.current_streak, longest_streak = EXCLUDED.longest_streak, updated_at = NOW()
+  `
+
+  const [courseMilestone] = await sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM enrollments
+      LEFT JOIN courses ON courses.id = enrollments.course_id
+      LEFT JOIN classes ON classes.id = enrollments.class_id
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE WHEN jsonb_typeof(CASE WHEN enrollments.class_id IS NULL THEN courses.modules ELSE classes.modules END) = 'array'
+          THEN CASE WHEN enrollments.class_id IS NULL THEN courses.modules ELSE classes.modules END
+          ELSE '[]'::jsonb END
+      ) AS modules
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE WHEN jsonb_typeof(modules.value->'lessons') = 'array' THEN modules.value->'lessons' ELSE '[]'::jsonb END
+      ) AS lessons
+      LEFT JOIN student_lesson_progress progress ON progress.enrollment_id = enrollments.id AND progress.lesson_id = (lessons.value->>'id')::BIGINT
+      WHERE enrollments.user_id = ${userId}
+      GROUP BY enrollments.id
+      HAVING COUNT(*) > 0 AND COUNT(*) FILTER (WHERE progress.completed_at IS NOT NULL) = COUNT(*)
+    ) AS completed
+  `
+  const [attendanceMilestone] = await sql`
+    SELECT COUNT(*)::INTEGER AS total,
+           COUNT(*) FILTER (WHERE attendance.status = 'Present')::INTEGER AS present
+    FROM enrollments
+    INNER JOIN classes ON classes.id = enrollments.class_id
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(classes.modules) = 'array' THEN classes.modules ELSE '[]'::jsonb END
+    ) AS modules
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(modules.value->'lessons') = 'array' THEN modules.value->'lessons' ELSE '[]'::jsonb END
+    ) AS lessons
+    LEFT JOIN class_attendance attendance ON attendance.enrollment_id = enrollments.id AND attendance.lesson_id = (lessons.value->>'id')::BIGINT
+    WHERE enrollments.user_id = ${userId} AND enrollments.class_status = 'enrolled' AND lessons.value->>'type' = 'live'
+  `
+  const [lessonMilestone] = await sql`SELECT COUNT(*)::INTEGER AS total FROM gamification_activity_rewards WHERE user_id = ${userId} AND source_type = 'lesson'`
+  const [quizMilestone] = await sql`SELECT COUNT(*)::INTEGER AS total FROM gamification_activity_rewards WHERE user_id = ${userId} AND source_type = 'quiz'`
+  const badgeUnlocks = [
+    ['first-quiz-passed', Number(quizMilestone.total) > 0],
+    ['seven-day-streak', streak.longest >= 7],
+    ['perfect-attendance', Number(attendanceMilestone.total) > 0 && Number(attendanceMilestone.total) === Number(attendanceMilestone.present)],
+    ['course-completed', courseMilestone.completed],
+    ['lesson-momentum', Number(lessonMilestone.total) >= 10],
+  ]
+  for (const [badgeId, unlocked] of badgeUnlocks) {
+    if (unlocked) {
+      await sql`
+        INSERT INTO gamification_achievements (user_id, badge_id)
+        VALUES (${userId}, ${badgeId})
+        ON CONFLICT (user_id, badge_id) DO NOTHING
+      `
+    }
+  }
+
+  return { stats: { student_id: Number(userId), xp: Number(statsTotals.xp), level: level.level, points: Number(statsTotals.points), current_streak: streak.current, longest_streak: streak.longest, next_level_xp: level.nextLevelXp, level_progress: level.progress }, challengeResults }
 }
 
 const readCourse = async (id, publishedOnly = false) => {

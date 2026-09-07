@@ -127,6 +127,59 @@ export interface MyEnrollment {
   lastActivityAt: string | null
 }
 
+export interface GamificationStats {
+  student_id: number
+  xp: number
+  level: number
+  points: number
+  current_streak: number
+  longest_streak: number
+  next_level_xp: number
+  level_progress: number
+}
+
+export interface GamificationBadge {
+  id: string
+  name: string
+  icon: string
+  description: string
+  criteria: string
+}
+
+export interface GamificationAchievement {
+  id: string
+  student_id: number
+  badge_id: string
+  unlocked_at: string
+}
+
+export interface GamificationChallenge {
+  id: string
+  title: string
+  type: 'daily' | 'weekly'
+  xp_reward: number
+  points_reward: number
+  completed: boolean
+  completed_at: string | null
+}
+
+export interface GamificationLeaderboardEntry {
+  id: number
+  name: string
+  avatar: string
+  xp: number
+  isCurrentStudent: boolean
+}
+
+export interface GamificationData {
+  stats: GamificationStats
+  badges: GamificationBadge[]
+  achievements: GamificationAchievement[]
+  challenges: GamificationChallenge[]
+  leaderboard: GamificationLeaderboardEntry[]
+  classTitle: string | null
+}
+
 export interface PublicClass {
   id: number
   title: string
@@ -726,6 +779,12 @@ export const getMyPayments = async (): Promise<MyPayment[]> => {
 
 export const getMyEnrollments = async (): Promise<MyEnrollment[]> => {
   const response = await requestApi('/api/enrollments')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getGamification = async (): Promise<GamificationData> => {
+  const response = await requestApi('/api/gamification')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
