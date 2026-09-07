@@ -15,6 +15,14 @@ export const navigations: Navigation[] = [
   },
   {
     label: 'Practice Exams',
-    path: 'practice-exams',
+    path: '/practice-exams',
+  },
+  {
+    label: 'About Us',
+    path: '/about-us',
+  },
+  {
+    label: 'Contact Us',
+    path: '/contact-us',
   },
 ]

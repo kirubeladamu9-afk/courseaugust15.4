@@ -8,26 +8,26 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
   if (isAdmin) return null
 
   const destinations = navigations
-  const [activeDestination, setActiveDestination] = useState(() => window.location.pathname === '/practice-exams' ? 'practice-exams' : 'hero')
+  const [activeDestination, setActiveDestination] = useState(() => window.location.pathname.startsWith('/practice-exams') ? '/practice-exams' : 'hero')
 
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
       {destinations.map(({ path: destination, label }) => {
-        const isPracticeExams = destination === 'practice-exams'
+        const isRoute = destination.startsWith('/')
         return <Box
-          component={isPracticeExams ? 'a' : ScrollLink}
+          component={isRoute ? 'a' : ScrollLink}
           key={destination}
           activeClass="current"
           onClick={(event: React.MouseEvent<HTMLElement>) => {
             setActiveDestination(destination)
-            if (isPracticeExams) {
+            if (isRoute) {
               event.preventDefault()
-              navigateTo('/practice-exams')
+              navigateTo(destination)
             }
           }}
-          onSetActive={isPracticeExams ? undefined : (to) => setActiveDestination(to)}
-          to={isPracticeExams ? undefined : destination}
-          href={isPracticeExams ? '/practice-exams' : `#${destination}`}
+          onSetActive={isRoute ? undefined : (to) => setActiveDestination(to)}
+          to={isRoute ? undefined : destination}
+          href={isRoute ? destination : `#${destination}`}
           spy={true}
           smooth={true}
           duration={350}
