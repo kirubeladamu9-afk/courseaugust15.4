@@ -605,6 +605,14 @@ export interface AdminClass {
   published: boolean
 }
 
+export interface ClassLeaderboardEntry {
+  rank: number
+  studentId: number
+  firstName: string
+  avatar: string
+  xp: number
+}
+
 export interface AdminClassEnrollment {
   id: number
   class_id: number
@@ -630,6 +638,12 @@ export interface AdminClassesWorkspace {
 
 const requestClasses = async (url: string, init?: RequestInit): Promise<AdminClass> => {
   const response = await requestApi(url, init)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getAdminClassLeaderboard = async (classId: number): Promise<ClassLeaderboardEntry[]> => {
+  const response = await requestApi(`/api/admin/classes/${classId}/leaderboard`)
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

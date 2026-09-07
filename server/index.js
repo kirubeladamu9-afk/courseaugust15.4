@@ -2821,6 +2821,43 @@ const refreshClassStatus = async (id) => {
   return readAdminClass(id)
 }
 
+app.get('/api/admin/classes/:id/leaderboard', requireAdminOrTutor, async (request, response) => {
+  const classId = parseCourseId(request.params.id)
+  if (classId === null) return response.status(400).json({ message: 'Invalid class id.' })
+  const tutorCondition = request.userRole === 'tutor' ? sql`AND classes.tutor_id = ${request.tutorId}` : sql``
+  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} ${tutorCondition}`
+  if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
+  const leaderboard = await sql`
+    SELECT ROW_NUMBER() OVER (ORDER BY (COALESCE(lesson_totals.completed, 0) * 25 + COALESCE(quiz_totals.passed, 0) * 50 + COALESCE(attendance_totals.present, 0) * 40) DESC, students.full_name, students.id)::INTEGER AS rank,
+           students.id::INTEGER AS "studentId",
+           split_part(students.full_name, ' ', 1) AS "firstName",
+           LEFT(COALESCE(NULLIF(students.full_name, ''), users.email), 1) AS avatar,
+           (COALESCE(lesson_totals.completed, 0) * 25 + COALESCE(quiz_totals.passed, 0) * 50 + COALESCE(attendance_totals.present, 0) * 40)::INTEGER AS xp
+    FROM enrollments
+    INNER JOIN students ON students.id = enrollments.student_id
+    INNER JOIN users ON users.id = students.user_id
+    INNER JOIN classes ON classes.id = enrollments.class_id
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) FILTER (WHERE progress.completed_at IS NOT NULL)::INTEGER AS completed
+      FROM student_lesson_progress progress
+      WHERE progress.enrollment_id = enrollments.id
+    ) lesson_totals ON true
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) FILTER (WHERE attempts.passed = true)::INTEGER AS passed
+      FROM quiz_attempts attempts
+      WHERE attempts.enrollment_id = enrollments.id AND attempts.submitted_at IS NOT NULL
+    ) quiz_totals ON true
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) FILTER (WHERE attendance.status = 'Present')::INTEGER AS present
+      FROM class_attendance attendance
+      WHERE attendance.enrollment_id = enrollments.id
+    ) attendance_totals ON true
+    WHERE enrollments.class_id = ${classId} AND enrollments.class_status = 'enrolled'
+    ORDER BY xp DESC, students.full_name, students.id
+  `
+  return response.json(leaderboard)
+})
+
 app.get('/api/admin/classes', requireAdminOrTutor, async (_request, response) => {
   await sql`UPDATE classes SET status = 'closed', updated_at = NOW() WHERE (schedule->>'endDate') IS NOT NULL AND (schedule->>'endDate') < CURRENT_DATE::TEXT AND status <> 'closed'`
   const [classes, enrollments, pendingStudents, tutors, courses] = await Promise.all([

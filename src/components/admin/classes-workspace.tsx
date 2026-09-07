@@ -1,4 +1,5 @@
 import Box from '@mui/material/Box'
+import Avatar from '@mui/material/Avatar'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
@@ -32,7 +33,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { type FC, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
-import { assignAdminClass, createAdminClass, deleteAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment } from '@/services/api'
+import { assignAdminClass, createAdminClass, deleteAdminClass, getAdminClassLeaderboard, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment, type ClassLeaderboardEntry } from '@/services/api'
 import { type AdminCourse, type AdminLesson, type AdminModule, type LessonType } from './admin-data'
 import { CourseEditor } from './admin-dashboard'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
@@ -266,6 +267,18 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
 
 const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassEnrollment[]; onBack: () => void; onEdit: () => void; onRemoveEnrollment: (enrollment: ClassEnrollment) => void; onPromote: (enrollment: ClassEnrollment) => void }> = ({ classRecord, enrollments, onBack, onEdit, onRemoveEnrollment, onPromote }) => {
   const [tab, setTab] = useState('roster')
+  const [leaderboard, setLeaderboard] = useState<ClassLeaderboardEntry[]>([])
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!classRecord) return
+    setLeaderboardLoading(true)
+    void getAdminClassLeaderboard(classRecord.id)
+      .then((entries) => { setLeaderboard(entries); setLeaderboardError(null) })
+      .catch((error) => setLeaderboardError(error instanceof Error ? error.message : 'Unable to load the class leaderboard.'))
+      .finally(() => setLeaderboardLoading(false))
+  }, [classRecord?.id])
 
   if (!classRecord) return <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography variant="h6" sx={{ mb: 1 }}>Class not found</Typography><Typography color="text.secondary" sx={{ mb: 2 }}>This class is no longer available in the workspace.</Typography><Button startIcon={<ArrowBackIcon />} onClick={onBack}>Back to Active Classes</Button></Paper>
 
@@ -292,8 +305,9 @@ const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassE
         <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1 }}><Typography color="text.secondary" variant="body2" sx={{ mb: 0.5 }}>Status</Typography><ClassStatusChip status={classRecord.status} /></Paper>
       </Stack>
       <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', mb: 3 }}>
-        <Box sx={{ px: 2, borderBottom: 1, borderColor: 'divider' }}><Tabs value={tab} onChange={(_, nextTab) => setTab(nextTab)} aria-label="Class detail tabs"><Tab value="roster" label={`Roster (${enrolled.length})`} /></Tabs></Box>
+        <Box sx={{ px: 2, borderBottom: 1, borderColor: 'divider' }}><Tabs value={tab} onChange={(_, nextTab) => setTab(nextTab)} aria-label="Class detail tabs"><Tab value="roster" label={`Roster (${enrolled.length})`} /><Tab value="curriculum" label="Curriculum" /></Tabs></Box>
         {tab === 'roster' && <Box sx={{ p: 2 }}><AdminDataTable rows={enrolled} columns={rosterColumns} searchPlaceholder="Search roster" searchKeys={['student_name']} actions={(enrollment) => <Tooltip title={`Remove ${enrollment.student_name} from the roster`}><IconButton size="small" color="error" onClick={() => onRemoveEnrollment(enrollment)} aria-label={`Remove ${enrollment.student_name}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>} /></Box>}
+        {tab === 'curriculum' && <Box sx={{ p: 2 }}><Typography variant="h6" sx={{ mb: 0.5 }}>Class curriculum</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Practice, lesson, quiz, and live-session content for this class.</Typography><Stack spacing={1} sx={{ mb: 3 }}>{classRecord.modules.flatMap((module) => module.lessons.map((lesson) => <Stack key={lesson.id} direction="row" justifyContent="space-between" alignItems="center" sx={{ p: 1.25, border: 1, borderColor: 'divider', borderRadius: 1 }}><Typography variant="body2">{lesson.title}</Typography><Chip size="small" label={lesson.type} variant="outlined" /></Stack>))}</Stack><Typography variant="h6" sx={{ mb: 0.5 }}>XP Leaderboard</Typography><Typography color="text.secondary" variant="body2" sx={{ mb: 1.5 }}>XP earned only from this class: lessons, passed quizzes, and live attendance.</Typography>{leaderboardLoading ? <Typography color="text.secondary">Loading leaderboard...</Typography> : leaderboardError ? <Typography color="error">{leaderboardError}</Typography> : leaderboard.length === 0 ? <Typography color="text.secondary">No enrolled students yet.</Typography> : <Stack spacing={0.75}>{leaderboard.map((entry) => <Stack key={entry.studentId} direction="row" spacing={1.25} alignItems="center" sx={{ p: 1, borderRadius: 1.5, backgroundColor: entry.rank === 1 ? 'action.hover' : 'transparent' }}><Typography color="text.secondary" sx={{ width: 24, fontWeight: 700 }}>#{entry.rank}</Typography><Avatar sx={{ width: 32, height: 32, fontSize: 13 }}>{entry.avatar}</Avatar><Typography sx={{ flex: 1, fontWeight: 600 }}>{entry.firstName}</Typography><Typography color="primary.main" sx={{ fontWeight: 700 }}>{entry.xp} XP</Typography></Stack>)}</Stack>}</Box>}
       </Paper>
       {waitlisted.length > 0 && <Paper elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 1.5, p: 2.5, flexDirection: { xs: 'column', sm: 'row' } }}><Box><Typography variant="h6">Waitlist</Typography><Typography color="text.secondary" variant="body2">{isAtCapacity ? 'This class is full. Remove a roster student before promoting someone.' : 'A seat is available. Promote a waitlisted student to the roster.'}</Typography></Box><Chip label={`${waitlisted.length} waiting`} size="small" color="warning" /></Box>
