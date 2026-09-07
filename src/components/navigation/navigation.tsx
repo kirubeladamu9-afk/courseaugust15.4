@@ -48,35 +48,37 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
     '&:hover': { color: 'primary.main', '&>div': { display: 'block' } },
   }
 
+  const renderDestination = ({ path: destination, label }: typeof primaryDestinations[number]) => {
+    const isRoute = destination.startsWith('/')
+    return <Box
+      component={isRoute ? 'a' : ScrollLink}
+      key={destination}
+      onClick={(event: React.MouseEvent<HTMLElement>) => handleDestinationClick(destination, event)}
+      {...(isRoute
+        ? { href: destination }
+        : {
+            activeClass: 'current',
+            onSetActive: (to: string) => setActiveDestination(to),
+            to: destination,
+            href: `#${destination}`,
+            spy: true,
+            smooth: true,
+            duration: 350,
+          })}
+      sx={{
+        ...linkSx,
+        ...(destination === 'hero' && { color: 'primary.main' }),
+        ...(activeDestination === destination && { color: 'primary.main', '&>div': { display: 'block' } }),
+      }}
+    >
+      {headlineCurve}
+      {label}
+    </Box>
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'center' } }}>
-      {primaryDestinations.map(({ path: destination, label }) => {
-        const isRoute = destination.startsWith('/')
-        return <Box
-          component={isRoute ? 'a' : ScrollLink}
-          key={destination}
-          onClick={(event: React.MouseEvent<HTMLElement>) => handleDestinationClick(destination, event)}
-          {...(isRoute
-            ? { href: destination }
-            : {
-                activeClass: 'current',
-                onSetActive: (to: string) => setActiveDestination(to),
-                to: destination,
-                href: `#${destination}`,
-                spy: true,
-                smooth: true,
-                duration: 350,
-              })}
-          sx={{
-            ...linkSx,
-            ...(destination === 'hero' && { color: 'primary.main' }),
-            ...(activeDestination === destination && { color: 'primary.main', '&>div': { display: 'block' } }),
-          }}
-        >
-          {headlineCurve}
-          {label}
-        </Box>
-      })}
+      {primaryDestinations.filter(({ path }) => path === 'hero').map(renderDestination)}
       <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', mb: { xs: 3, md: 0 }, px: { xs: 0, md: 3 } }}>
         <Box
           component="button"
@@ -114,6 +116,7 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
           })}
         </Menu>
       </Box>
+      {primaryDestinations.filter(({ path }) => path !== 'hero').map(renderDestination)}
     </Box>
   )
 }
