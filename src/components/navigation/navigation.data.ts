@@ -21,4 +21,8 @@ export const navigations: Navigation[] = [
     label: 'Mentor',
     path: 'mentors', // '/mentors',
   },
+  {
+    label: 'Practice Exams',
+    path: 'practice-exams',
+  },
 ]

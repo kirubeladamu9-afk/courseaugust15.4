@@ -1,25 +1,33 @@
 import React, { FC, useState } from 'react'
 import Box from '@mui/material/Box'
 import { Link as ScrollLink } from 'react-scroll'
+import { navigateTo } from '@/lib/navigation'
 import { navigations } from './navigation.data'
 
 const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
   if (isAdmin) return null
 
   const destinations = navigations
-  const [activeDestination, setActiveDestination] = useState('hero')
+  const [activeDestination, setActiveDestination] = useState(() => window.location.pathname === '/practice-exams' ? 'practice-exams' : 'hero')
 
   return (
     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
-      {destinations.map(({ path: destination, label }) => (
-        <Box
-          component={ScrollLink}
+      {destinations.map(({ path: destination, label }) => {
+        const isPracticeExams = destination === 'practice-exams'
+        return <Box
+          component={isPracticeExams ? 'a' : ScrollLink}
           key={destination}
           activeClass="current"
-          onClick={() => setActiveDestination(destination)}
-          onSetActive={(to) => setActiveDestination(to)}
-          to={destination}
-          href={`#${destination}`}
+          onClick={(event: React.MouseEvent<HTMLElement>) => {
+            setActiveDestination(destination)
+            if (isPracticeExams) {
+              event.preventDefault()
+              navigateTo('/practice-exams')
+            }
+          }}
+          onSetActive={isPracticeExams ? undefined : (to) => setActiveDestination(to)}
+          to={isPracticeExams ? undefined : destination}
+          href={isPracticeExams ? '/practice-exams' : `#${destination}`}
           spy={true}
           smooth={true}
           duration={350}
@@ -71,7 +79,7 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
           </Box>
           {label}
         </Box>
-      ))}
+      })}
     </Box>
   )
 }
