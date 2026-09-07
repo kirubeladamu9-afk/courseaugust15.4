@@ -54,6 +54,7 @@ import VideoCallOutlinedIcon from '@mui/icons-material/VideoCallOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Course } from '@/interfaces/course'
+import ScheduleCalendar, { type ScheduleSession } from '@/components/schedule-calendar'
 import { Logo } from '@/components/logo'
 import EnrollmentModal from './enrollment-modal'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
@@ -61,7 +62,7 @@ import { toast } from '@/components/toast'
 import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
- type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
+ type DashboardView = 'overview' | 'calendar' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
  type EnrollmentType = 'course' | 'class'
  type EnrollmentStatus = 'active' | 'pending_schedule' | 'completed'
  type ClassStatus = 'pending_schedule' | 'open' | 'full' | 'closed'
@@ -383,6 +384,7 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
     <Box component="nav" aria-label="Student dashboard navigation" sx={{ p: 1.5, flex: 1 }}>
       <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Main menu</Typography>
       {navItem('overview', 'Dashboard', <DashboardOutlinedIcon fontSize="small" />, activeView === 'overview')}
+      {navItem('calendar', 'Calendar', <CalendarTodayOutlinedIcon fontSize="small" />, activeView === 'calendar')}
       <Box>
         {navItem('courses', 'My Enrollments', <MenuBookOutlinedIcon fontSize="small" />, enrollmentActive, <ExpandMoreIcon fontSize="small" sx={{ transform: isEnrollmentExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }} />, toggleEnrollment, isEnrollmentExpanded)}
         {isEnrollmentExpanded && <Box sx={{ ml: 2, mb: 1 }}>
@@ -399,6 +401,37 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
     </Box>
     <Box sx={{ p: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, backgroundColor: 'background.default', borderRadius: 2 }}><SchoolOutlinedIcon color="primary" fontSize="small" /><Typography variant="caption" color="text.secondary">Keep learning at your own pace.</Typography></Box></Box>
   </Box>
+}
+
+const StudentCalendarView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onJoin: (session: ScheduleSession) => void }> = ({ enrollments, now, onJoin }) => {
+  const sessions = enrollments.flatMap((enrollment) => {
+    const classRecord = enrollment.classRecord
+    if (enrollment.type !== 'class' || !classRecord?.course) return []
+    const course = classRecord.course
+    return getLessons(course)
+      .filter((lesson) => lesson.type === 'live' && lesson.scheduledAt)
+      .map((lesson) => ({
+        id: `${enrollment.id}-${lesson.id}`,
+        classTitle: classRecord.title,
+        lessonTitle: lesson.title,
+        scheduledAt: lesson.scheduledAt!,
+        endsAt: lesson.endsAt,
+        meetingUrl: lesson.meetingUrl || classRecord.meeting_link,
+        classSchedule: classScheduleLabel(classRecord.schedule),
+        enrollmentId: enrollment.id,
+        lessonId: lesson.id,
+      }))
+  })
+
+  return <ScheduleCalendar
+    title="Class calendar"
+    description="See every upcoming live session from your enrolled classes in one place."
+    sessions={sessions}
+    now={now}
+    emptyTitle="No upcoming live sessions"
+    emptyDescription="Your scheduled live lessons will appear here once they are added to an enrolled class."
+    onJoin={onJoin}
+  />
 }
 
 const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number) => void }> = ({ enrollments, now, onSelectView, onOpenCourse }) => {
@@ -1102,7 +1135,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const selectedCourseProgress = selectedCourse ? getCourseProgress(selectedCourse, completedLessons[selectedCourse.id] ?? []) : 0
   const enrolledCourseIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'course').map((enrollment) => String(enrollment.item_id)))
   const enrolledClassIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'class').map((enrollment) => enrollment.item_id))
-  const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'other-courses' ? 'Other Courses' : activeView === 'other-classes' ? 'Other Classes' : activeView === 'profile' ? 'Profile' : 'Payment History'
+  const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'calendar' ? 'Calendar' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'other-courses' ? 'Other Courses' : activeView === 'other-classes' ? 'Other Classes' : activeView === 'profile' ? 'Profile' : 'Payment History'
 
   const selectView = (view: DashboardView) => {
     setActiveView(view)
@@ -1131,11 +1164,11 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       setProgressError(error instanceof Error ? error.message : 'Unable to start course.')
     }
   }
-  const joinLiveSession = async (lessonId: number, meetingUrl: string) => {
-    if (!selectedCourseEnrollment) return
+  const joinLiveSession = async (lessonId: number, meetingUrl: string, enrollmentId = selectedCourseEnrollment?.id) => {
+    if (!enrollmentId) return
     try {
-      const joinLog = await logLiveSessionJoin(selectedCourseEnrollment.id, lessonId)
-      setEnrollments((current) => current.map((enrollment) => enrollment.id === selectedCourseEnrollment.id ? { ...enrollment, sessionJoinClicks: { ...enrollment.sessionJoinClicks, [lessonId]: joinLog.clickedAt } } : enrollment))
+      const joinLog = await logLiveSessionJoin(enrollmentId, lessonId)
+      setEnrollments((current) => current.map((enrollment) => enrollment.id === enrollmentId ? { ...enrollment, sessionJoinClicks: { ...enrollment.sessionJoinClicks, [lessonId]: joinLog.clickedAt } } : enrollment))
       window.location.assign(meetingUrl)
     } catch (error) {
       setProgressError(error instanceof Error ? error.message : 'Unable to log your class join.')
@@ -1213,6 +1246,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
         {progressError && <Alert severity="error" onClose={() => setProgressError(null)} sx={{ mb: 3 }}>{progressError}</Alert>}
         {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
           {activeView === 'overview' && <OverviewView enrollments={enrollments} now={now} onSelectView={selectView} onOpenCourse={openCourse} />}
+          {activeView === 'calendar' && <StudentCalendarView enrollments={enrollments} now={now} onJoin={(session) => { if (session.lessonId && session.meetingUrl) void joinLiveSession(session.lessonId, session.meetingUrl, session.enrollmentId) }} />}
           {activeView === 'courses' && <CoursesView enrollments={enrollments} completedLessons={completedLessons} onOpenCourse={openCourse} />}
           {activeView === 'classes' && <ClassesView enrollments={enrollments} completedLessons={completedLessons} now={now} onOpenCourse={openCourse} />}
           {activeView === 'quizzes' && <QuizzesView enrollments={enrollments} completedLessons={completedLessons} quizResults={quizResults} onOpenCourse={openCourse} />}
