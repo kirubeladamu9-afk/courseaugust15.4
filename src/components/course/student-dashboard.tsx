@@ -55,6 +55,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import { type FC, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Course } from '@/interfaces/course'
 import ScheduleCalendar, { type ScheduleSession } from '@/components/schedule-calendar'
+import GamificationWidgets, { type GamificationActivity } from './gamification-widgets'
 import { Logo } from '@/components/logo'
 import EnrollmentModal from './enrollment-modal'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
@@ -88,6 +89,7 @@ import { navigateTo } from '@/lib/navigation'
   quizResults: Record<number, DashboardQuizResult>
   attendance: Record<number, 'Present' | 'Absent'>
   sessionJoinClicks: Record<number, string>
+  activityDates: string[]
   course?: DashboardCourse
   classRecord?: DashboardClass
  }
@@ -295,9 +297,15 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnr
   const course = mapEnrollmentCourse(record)
   const classRecord = mapEnrollmentClass(record, course)
   const quizResults = getLatestQuizResults(record.quizAttempts)
-  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: getEnrollmentContentId(record), status: 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, course }
+  const lessonById = new Map(record.modules.flatMap((module) => module.lessons).map((lesson) => [lesson.id, lesson]))
+  const activityDates = [
+    ...Object.values(record.lessonProgress ?? {}).map((progress) => progress.completedAt),
+    ...record.quizAttempts.filter((attempt) => attempt.passed === true).map((attempt) => attempt.submittedAt ?? attempt.startedAt),
+    ...Object.entries(record.attendance ?? {}).filter(([, status]) => status === 'Present').map(([lessonId]) => lessonById.get(Number(lessonId))?.scheduledAt),
+  ].filter((date): date is string => Boolean(date))
+  const courseEnrollment: DashboardEnrollment = { id: record.id, user_id: userId, type: 'course', item_id: getEnrollmentContentId(record), status: 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, activityDates, course }
   if (!classRecord) return [courseEnrollment]
-  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, classRecord }]
+  return [{ id: record.id, user_id: userId, type: 'class', item_id: classRecord.id, status: classRecord.status === 'pending_schedule' ? 'pending_schedule' : 'active', progress: record.progressPercentage, timeSpentSeconds: record.timeSpentSeconds, quizResults, attendance: record.attendance ?? {}, sessionJoinClicks: record.sessionJoinClicks ?? {}, activityDates, classRecord }]
 })
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getLessons(course).length)) * 100)
 const getEnrollmentCourse = (enrollment: DashboardEnrollment) => enrollment.course ?? enrollment.classRecord?.course
@@ -434,7 +442,7 @@ const StudentCalendarView: FC<{ enrollments: DashboardEnrollment[]; now: Date; o
   />
 }
 
-const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number) => void }> = ({ enrollments, now, onSelectView, onOpenCourse }) => {
+const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelectView: (view: DashboardView) => void; onOpenCourse: (courseId: number) => void; gamificationActivity: GamificationActivity }> = ({ enrollments, now, onSelectView, onOpenCourse, gamificationActivity }) => {
   const courseEnrollments = enrollments.filter((enrollment) => enrollment.type === 'course' && enrollment.status !== 'completed')
   const activeCourseCount = courseEnrollments.length
   const nextClassEnrollment = enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.status === 'active' && enrollment.classRecord?.status === 'open' && classHasStarted(enrollment.classRecord.schedule, now))
@@ -448,6 +456,7 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelect
       <SummaryCard label="Next live class" value={nextClass?.title ?? 'No class scheduled'} detail={nextClass ? classScheduleLabel(nextClass.schedule) : 'Check My Classes for updates'} icon={<VideoCallOutlinedIcon />} onClick={() => onSelectView('classes')} />
       <SummaryCard label="Learning progress" value={`${Math.round(courseEnrollments.reduce((total, enrollment) => total + enrollment.progress, 0) / Math.max(1, courseEnrollments.length))}%`} detail="Average across active courses" icon={<CheckCircleOutlineIcon />} />
     </Stack>
+    <GamificationWidgets activity={gamificationActivity} />
     {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mb: 3 }}><Box><Typography component="h2" variant="subtitle2" sx={{ fontWeight: 700 }}>Pending items</Typography><Typography variant="body2">You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling. We&apos;ll contact you to arrange the next step.</Typography></Box></Alert>}
     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
       <Paper elevation={0} sx={{ flex: 1, p: 2.5, border: 1, borderColor: 'divider' }}>
@@ -1136,6 +1145,35 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const enrolledCourseIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'course').map((enrollment) => String(enrollment.item_id)))
   const enrolledClassIds = new Set(enrollments.filter((enrollment) => enrollment.type === 'class').map((enrollment) => enrollment.item_id))
   const pageTitle = activeView === 'course-view' ? selectedCourse?.title ?? 'Course view' : activeView === 'overview' ? 'Dashboard' : activeView === 'calendar' ? 'Calendar' : activeView === 'courses' ? 'My Courses' : activeView === 'classes' ? 'My Classes' : activeView === 'quizzes' ? 'Quizzes & Results' : activeView === 'purchases' ? 'My Purchases' : activeView === 'other-courses' ? 'Other Courses' : activeView === 'other-classes' ? 'Other Classes' : activeView === 'profile' ? 'Profile' : 'Payment History'
+  const gamificationActivity = useMemo<GamificationActivity>(() => {
+    const completedLessonIds = [...new Set(Object.values(completedLessons).flat())]
+    const passedQuizIds = [...new Set(Object.values(quizResults).flatMap((results) => Object.entries(results).filter(([, result]) => result.passed).map(([lessonId]) => Number(lessonId))))]
+    const liveLessonIds = [...new Set(enrollments.flatMap((enrollment) => {
+      const course = getEnrollmentCourse(enrollment)
+      return course ? getLessons(course).filter((lesson) => lesson.type === 'live').map((lesson) => lesson.id) : []
+    }))]
+    const attendedLiveLessonIds = [...new Set(enrollments.flatMap((enrollment) => Object.entries(enrollment.attendance).filter(([, status]) => status === 'Present').map(([lessonId]) => Number(lessonId))))]
+    const courses = new Map<number, DashboardCourse>()
+    enrollments.forEach((enrollment) => {
+      const course = getEnrollmentCourse(enrollment)
+      if (course) courses.set(course.id, course)
+    })
+    const completedCourseCount = [...courses.values()].filter((course) => getCourseProgress(course, completedLessonIds) === 100).length
+    const classEnrollment = enrollments.find((enrollment) => enrollment.type === 'class' && enrollment.classRecord)
+
+    return {
+      studentId: currentUserId || 'student-1',
+      studentName: currentUser?.name || 'Alex Morgan',
+      completedLessonIds,
+      passedQuizIds,
+      attendedLiveLessonIds,
+      liveLessonIds,
+      completedCourseCount,
+      classTitle: classEnrollment?.classRecord?.title,
+      activityDates: [...new Set(enrollments.flatMap((enrollment) => enrollment.activityDates))],
+      asOf: now.toISOString(),
+    }
+  }, [completedLessons, currentUser?.name, currentUserId, enrollments, now, quizResults])
 
   const selectView = (view: DashboardView) => {
     setActiveView(view)
@@ -1245,7 +1283,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
         {profileMessage && <Alert severity="success" onClose={() => setProfileMessage('')} sx={{ mb: 3 }}>{profileMessage}</Alert>}
         {progressError && <Alert severity="error" onClose={() => setProgressError(null)} sx={{ mb: 3 }}>{progressError}</Alert>}
         {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
-          {activeView === 'overview' && <OverviewView enrollments={enrollments} now={now} onSelectView={selectView} onOpenCourse={openCourse} />}
+          {activeView === 'overview' && <OverviewView enrollments={enrollments} now={now} onSelectView={selectView} onOpenCourse={openCourse} gamificationActivity={gamificationActivity} />}
           {activeView === 'calendar' && <StudentCalendarView enrollments={enrollments} now={now} onJoin={(session) => { if (session.lessonId && session.meetingUrl) void joinLiveSession(session.lessonId, session.meetingUrl, session.enrollmentId) }} />}
           {activeView === 'courses' && <CoursesView enrollments={enrollments} completedLessons={completedLessons} onOpenCourse={openCourse} />}
           {activeView === 'classes' && <ClassesView enrollments={enrollments} completedLessons={completedLessons} now={now} onOpenCourse={openCourse} />}
