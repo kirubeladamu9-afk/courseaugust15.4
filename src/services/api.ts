@@ -332,7 +332,7 @@ export const getAdminPracticeQuestions = async (examId: number): Promise<Practic
 }
 
 export const createAdminPracticeQuestion = async (examId: number, payload: Omit<PracticeQuestion, 'id' | 'exam_id'>): Promise<PracticeQuestion> => {
-  const response = await requestApi(`/api/admin/practice-exams/${examId}/questions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionText: payload.question_text, options: payload.options, correctAnswer: payload.correct_answer, explanation: payload.explanation }) })
+  const response = await requestApi(`/api/admin/practice-exams/${examId}/questions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionText: payload.question_text, topic: payload.topic, options: payload.options, correctAnswer: payload.correct_answer, explanation: payload.explanation }) })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

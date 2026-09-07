@@ -11,6 +11,7 @@ export interface PracticeQuestion {
   id: number
   exam_id: number
   question_text: string
+  topic: string
   options: string[]
   correct_answer: string
   explanation: string

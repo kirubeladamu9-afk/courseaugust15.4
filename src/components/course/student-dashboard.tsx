@@ -95,7 +95,7 @@ import { calculateOverallGrade } from '@/lib/overall-grade'
   classRecord?: DashboardClass
  }
 
-type QuizQuestion = { id: number; question: string; options: string[]; type?: string; category?: string }
+type QuizQuestion = { id: number; question: string; topic?: string; options: string[]; type?: string; category?: string }
 const getQuestionSeconds = (question: QuizQuestion) => {
   const kind = `${question.type ?? ''} ${question.category ?? ''}`.toLowerCase()
   if (/true|false|boolean/.test(kind)) return 30
@@ -118,7 +118,7 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   thumbnailUrl?: string
   resources: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: QuizQuestion[]
-  practiceQuestions?: Array<{ id: number; question: string; options: string[]; correctAnswer: string; explanation: string }>
+  practiceQuestions?: Array<{ id: number; question: string; topic: string; options: string[]; correctAnswer: string; explanation: string }>
   passThreshold?: number
   meetingUrl?: string
   scheduledAt?: string

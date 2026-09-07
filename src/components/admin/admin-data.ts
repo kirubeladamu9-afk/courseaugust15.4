@@ -9,6 +9,7 @@ export interface LessonResource {
 export interface QuizQuestion {
   id: number
   question: string
+  topic: string
   options: string[]
   correctOption: number
 }
@@ -16,6 +17,7 @@ export interface QuizQuestion {
 export interface PracticeQuestion {
   id: number
   question: string
+  topic: string
   options: string[]
   correctAnswer: string
   explanation: string

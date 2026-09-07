@@ -17,7 +17,7 @@ import { createAdminPracticeExam, createAdminPracticeQuestion, getAdminPracticeE
 import { toast } from '@/components/toast'
 import { type PracticeExam, type PracticeQuestion } from '@/components/practice/practice-data'
 
-const emptyQuestion = (): Omit<PracticeQuestion, 'id' | 'exam_id'> => ({ question_text: '', options: ['', '', '', ''], correct_answer: '', explanation: '' })
+const emptyQuestion = (): Omit<PracticeQuestion, 'id' | 'exam_id'> => ({ question_text: '', topic: '', options: ['', '', '', ''], correct_answer: '', explanation: '' })
 const emptyExam = (): Omit<PracticeExam, 'id'> => ({ title: '', subject: '', grade: '', price: 0, published: false })
 
 const PracticeExamManagement: React.FC = () => {
