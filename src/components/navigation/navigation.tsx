@@ -110,7 +110,7 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
             const isRoute = destination.startsWith('/')
             const displayLabel = destination === 'training-programs' ? 'Training Programs' : label
             if (isRoute) return <MenuItem key={destination} component="a" href={destination} onClick={(event) => handleDestinationClick(destination, event)}>{displayLabel}</MenuItem>
-            return <MenuItem key={destination} component={ScrollLink} to={destination} href={`#${destination}`} spy smooth duration={350} onSetActive={(to: string) => setActiveDestination(to)} onClick={() => { setActiveDestination(destination); setProgramsAnchor(null) }}>{displayLabel}</MenuItem>
+            return <MenuItem key={destination} component="a" href={`#${destination}`} onClick={(event) => { event.preventDefault(); setActiveDestination(destination); setProgramsAnchor(null); document.getElementById(destination)?.scrollIntoView({ behavior: 'smooth' }) }}>{displayLabel}</MenuItem>
           })}
         </Menu>
       </Box>
