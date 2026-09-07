@@ -2884,7 +2884,16 @@ const refreshClassStatus = async (id) => {
 app.get('/api/admin/classes/:id/leaderboard', requireAdminOrTutor, async (request, response) => {
   const classId = parseCourseId(request.params.id)
   if (classId === null) return response.status(400).json({ message: 'Invalid class id.' })
-  const tutorCondition = request.userRole === 'tutor' ? sql`AND classes.tutor_id = ${request.tutorId}` : sql``
+  const [tutor] = request.userRole === 'tutor'
+    ? await sql`
+      SELECT tutors.id
+      FROM tutors
+      INNER JOIN users ON LOWER(TRIM(users.email)) = LOWER(TRIM(tutors.email))
+      WHERE users.id = ${request.userId}
+    `
+    : [null]
+  if (request.userRole === 'tutor' && !tutor) return response.status(403).json({ message: 'Tutor profile not found.' })
+  const tutorCondition = tutor ? sql`AND classes.tutor_id = ${tutor.id}` : sql``
   const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} ${tutorCondition}`
   if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
   const leaderboard = await sql`
