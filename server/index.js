@@ -2135,6 +2135,104 @@ app.put('/api/tutor/classes/:id/curriculum', requireTutor, async (request, respo
   return response.json({ modules: deserializeJson(updated.modules) ?? [] })
 })
 
+const evaluateAtRiskEnrollment = (record) => {
+  const modules = deserializeJson(record.modules) ?? []
+  const lessons = getCourseLessons(modules)
+  const now = Date.now()
+  const liveLessons = lessons.filter((lesson) => lesson.type === 'live' && lesson.scheduledAt && new Date(lesson.scheduledAt).getTime() <= now).sort((first, second) => new Date(first.scheduledAt).getTime() - new Date(second.scheduledAt).getTime())
+  const attendance = deserializeJson(record.attendance) ?? {}
+  let missedConsecutive = 0
+  for (const lesson of liveLessons.slice().reverse()) {
+    if (attendance[lesson.id]?.status === 'Present' || attendance[lesson.id] === 'Present') break
+    missedConsecutive += 1
+  }
+  const attendedCount = liveLessons.filter((lesson) => attendance[lesson.id]?.status === 'Present' || attendance[lesson.id] === 'Present').length
+  const attendanceRate = liveLessons.length ? attendedCount / liveLessons.length : 1
+  const quizAttempts = (deserializeJson(record.quizAttempts) ?? []).filter((attempt) => attempt.submittedAt && attempt.score !== null && attempt.passed !== null).sort((first, second) => new Date(second.submittedAt).getTime() - new Date(first.submittedAt).getTime())
+  let failedConsecutive = 0
+  for (const attempt of quizAttempts) {
+    if (attempt.passed) break
+    failedConsecutive += 1
+  }
+  const averageQuizScore = quizAttempts.length ? quizAttempts.reduce((total, attempt) => total + Number(attempt.score), 0) / quizAttempts.length : null
+  const lessonProgress = deserializeJson(record.lessonProgress) ?? {}
+  const activityDates = [
+    ...Object.values(lessonProgress).flatMap((progress) => [progress.startedAt, progress.lastAccessedAt, progress.completedAt]),
+    ...quizAttempts.flatMap((attempt) => [attempt.startedAt, attempt.submittedAt]),
+    ...Object.values(attendance).flatMap((value) => typeof value === 'object' ? [value.markedAt] : []),
+    record.enrolledDate,
+  ].filter(Boolean).map((value) => new Date(value).getTime()).filter(Number.isFinite)
+  const lastActivityAt = activityDates.length ? new Date(Math.max(...activityDates)).toISOString() : null
+  const inactiveDays = lastActivityAt ? (now - new Date(lastActivityAt).getTime()) / 86400000 : Infinity
+  const progressPercentage = getEnrollmentProgress(modules, lessonProgress).progressPercentage
+  const completedDates = Object.values(lessonProgress).map((progress) => progress.completedAt).filter(Boolean).map((value) => new Date(value).getTime()).filter(Number.isFinite)
+  const lastProgressAt = completedDates.length ? Math.max(...completedDates) : new Date(record.enrolledDate).getTime()
+  const stagnantDays = (now - lastProgressAt) / 86400000
+  const reasons = []
+  if (missedConsecutive >= 2) reasons.push(`Missed ${missedConsecutive} live sessions in a row`)
+  if (liveLessons.length > 0 && attendanceRate < 0.7) reasons.push(`Attendance ${Math.round(attendanceRate * 100)}%`)
+  if (failedConsecutive >= 2) reasons.push(`Failed ${failedConsecutive} quizzes in a row`)
+  if (averageQuizScore !== null && averageQuizScore < 50) reasons.push(`Quiz average ${Math.round(averageQuizScore)}%`)
+  if (inactiveDays >= 7) reasons.push(`No activity for ${Math.floor(inactiveDays)} days`)
+  if (progressPercentage < 100 && stagnantDays >= 7) reasons.push(`Progress unchanged for ${Math.floor(stagnantDays)} days`)
+  return reasons.length ? {
+    id: Number(record.id),
+    studentId: Number(record.studentId),
+    studentName: record.studentName,
+    studentEmail: record.studentEmail,
+    courseTitle: record.courseTitle,
+    classTitle: record.classTitle,
+    progressPercentage,
+    lastActivityAt,
+    reasons,
+  } : null
+}
+
+const getAtRiskStudents = async ({ tutorId = null } = {}) => {
+  const tutorCondition = tutorId === null ? sql`` : sql`AND (courses.tutor_id = ${tutorId} OR classes.tutor_id = ${tutorId})`
+  const records = await sql`
+    SELECT enrollments.id::INTEGER AS id,
+           students.id::INTEGER AS "studentId",
+           students.full_name AS "studentName",
+           users.email AS "studentEmail",
+           courses.title AS "courseTitle",
+           classes.title AS "classTitle",
+           enrollments.created_at AS "enrolledDate",
+           CASE WHEN classes.id IS NULL THEN courses.modules ELSE classes.modules END AS modules,
+           lesson_summary."lessonProgress",
+           quiz_summary."quizAttempts",
+           attendance_summary.attendance
+    FROM enrollments
+    INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
+    INNER JOIN students ON students.id = enrollments.student_id
+    INNER JOIN users ON users.id = students.user_id
+    LEFT JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN classes ON classes.id = enrollments.class_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, jsonb_build_object('startedAt', started_at, 'completedAt', completed_at, 'lastAccessedAt', last_accessed_at)), '{}'::jsonb) AS "lessonProgress"
+      FROM student_lesson_progress
+      WHERE enrollment_id = enrollments.id
+    ) lesson_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object('startedAt', started_at, 'score', score, 'passed', passed, 'submittedAt', submitted_at) ORDER BY started_at DESC), '[]'::jsonb) AS "quizAttempts"
+      FROM quiz_attempts
+      WHERE enrollment_id = enrollments.id
+    ) quiz_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_object_agg(lesson_id::TEXT, jsonb_build_object('status', status, 'markedAt', marked_at)), '{}'::jsonb) AS attendance
+      FROM class_attendance
+      WHERE enrollment_id = enrollments.id
+    ) attendance_summary ON true
+    WHERE (enrollments.class_id IS NULL OR enrollments.class_status = 'enrolled')
+      ${tutorCondition}
+    ORDER BY students.full_name, enrollments.created_at DESC
+  `
+  return records.map(evaluateAtRiskEnrollment).filter(Boolean)
+}
+
+app.get('/api/admin/at-risk-students', requireAdmin, async (_request, response) => response.json(await getAtRiskStudents()))
+app.get('/api/tutor/at-risk-students', requireTutor, async (request, response) => response.json(await getAtRiskStudents({ tutorId: request.tutorId })))
+
 const getTutorStudentProgress = async (contentType, contentId) => {
   const contentCondition = contentType === 'class'
     ? sql`enrollments.class_id = ${contentId} AND enrollments.class_status = 'enrolled'`

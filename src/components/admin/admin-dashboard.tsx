@@ -70,7 +70,8 @@ import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
-import { approveAdminQuizRetake, changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminQuizViolations, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AdminQuizViolation, type AuthUser } from '@/services/api'
+import { approveAdminQuizRetake, changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminQuizViolations, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AdminQuizViolation, type AtRiskStudent, type AuthUser } from '@/services/api'
+import AtRiskStudentsPanel from '@/components/at-risk-students-panel'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
 import PaymentsPage from './payments-page'
@@ -522,6 +523,9 @@ const OverviewPage: FC = () => {
   const [overview, setOverview] = useState<AdminDashboardOverview | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [atRiskStudents, setAtRiskStudents] = useState<AtRiskStudent[]>([])
+  const [atRiskLoading, setAtRiskLoading] = useState(true)
+  const [atRiskError, setAtRiskError] = useState<string | null>(null)
 
   const reloadOverview = async () => {
     try {
@@ -534,11 +538,24 @@ const OverviewPage: FC = () => {
     }
   }
 
-  useEffect(() => { void reloadOverview() }, [])
+  const reloadAtRisk = () => {
+    setAtRiskLoading(true)
+    return getAdminAtRiskStudents()
+      .then((records) => { setAtRiskStudents(records); setAtRiskError(null) })
+      .catch((error) => setAtRiskError(error instanceof Error ? error.message : 'Unable to load at-risk students.'))
+      .finally(() => setAtRiskLoading(false))
+  }
+
+  useEffect(() => {
+    void reloadOverview()
+    void reloadAtRisk()
+    const timer = window.setInterval(() => { void reloadAtRisk() }, 30000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   return <>
     <PageHeading title="Dashboard overview" description="A snapshot of your learning platform." />
-    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading dashboard data" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadOverview() }} /></Paper> : overview && <><Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 4 }}>
+    {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading dashboard data" /></Box> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void reloadOverview() }} /></Paper> : overview && <><AtRiskStudentsPanel students={atRiskStudents} loading={atRiskLoading} error={atRiskError} /><Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 4 }}>
       <StatCard label="Total revenue" value={new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(overview.totalRevenue)} detail="Published course enrollments" icon={<PaymentsOutlinedIcon />} />
       <StatCard label="Active students" value={new Intl.NumberFormat('en-US').format(overview.activeStudents)} detail="Across published courses" icon={<GroupOutlinedIcon />} />
       <StatCard label="Published courses" value={new Intl.NumberFormat('en-US').format(overview.publishedCourses)} detail={`${overview.draftCourses} course${overview.draftCourses === 1 ? '' : 's'} in draft`} icon={<SchoolOutlinedIcon />} />

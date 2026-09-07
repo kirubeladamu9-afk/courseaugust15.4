@@ -225,6 +225,18 @@ export interface TutorClass {
   modules: AdminModule[]
 }
 
+export interface AtRiskStudent {
+  id: number
+  studentId: number
+  studentName: string
+  studentEmail: string
+  courseTitle: string | null
+  classTitle: string | null
+  progressPercentage: number
+  lastActivityAt: string | null
+  reasons: string[]
+}
+
 export interface TutorClassStudent {
   id: number
   studentId: number
@@ -462,6 +474,18 @@ export const updateTutorProfile = async (profile: Partial<Pick<AdminTutor, 'name
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profile),
   })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getAdminAtRiskStudents = async (): Promise<AtRiskStudent[]> => {
+  const response = await requestApi('/api/admin/at-risk-students')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getTutorAtRiskStudents = async (): Promise<AtRiskStudent[]> => {
+  const response = await requestApi('/api/tutor/at-risk-students')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

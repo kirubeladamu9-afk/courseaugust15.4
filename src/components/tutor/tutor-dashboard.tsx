@@ -24,7 +24,8 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import { type FC, useEffect, useMemo, useState } from 'react'
 import { CourseEditor } from '@/components/admin/admin-dashboard'
 import ScheduleCalendar, { type ScheduleSession } from '@/components/schedule-calendar'
-import { getAuthenticatedUser, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorCourseStudents, getTutorOverview, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
+import { getAuthenticatedUser, getTutorAtRiskStudents, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorCourseStudents, getTutorOverview, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type AtRiskStudent, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
+import AtRiskStudentsPanel from '@/components/at-risk-students-panel'
 import { type AdminCourse, type AdminModule } from '@/components/admin/admin-data'
 import { navigateTo } from '@/lib/navigation'
 import { toast } from '@/components/toast'
@@ -152,6 +153,9 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [atRiskStudents, setAtRiskStudents] = useState<AtRiskStudent[]>([])
+  const [atRiskLoading, setAtRiskLoading] = useState(true)
+  const [atRiskError, setAtRiskError] = useState<string | null>(null)
   const [profileError, setProfileError] = useState('')
   const [profileSaved, setProfileSaved] = useState(false)
   const [now, setNow] = useState(() => new Date())
@@ -159,11 +163,23 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
   const [classDraft, setClassDraft] = useState<{ record: TutorClass; course: AdminCourse } | null>(null)
   const user = getAuthenticatedUser()
 
+  const refreshAtRisk = async () => {
+    setAtRiskLoading(true)
+    try {
+      setAtRiskStudents(await getTutorAtRiskStudents())
+      setAtRiskError(null)
+    } catch (loadError) {
+      setAtRiskError(loadError instanceof Error ? loadError.message : 'Unable to load at-risk students.')
+    } finally {
+      setAtRiskLoading(false)
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     setError('')
     try {
-      const [nextOverview, nextCourses, nextClasses] = await Promise.all([getTutorOverview(), getTutorCourses(), getTutorClasses()])
+      const [nextOverview, nextCourses, nextClasses] = await Promise.all([getTutorOverview(), getTutorCourses(), getTutorClasses(), refreshAtRisk()])
       setOverview(nextOverview)
       setCourses(nextCourses)
       setClasses(nextClasses)
@@ -179,6 +195,10 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
   }
 
   useEffect(() => { void load() }, [])
+  useEffect(() => {
+    const timer = window.setInterval(() => { void refreshAtRisk() }, 30000)
+    return () => window.clearInterval(timer)
+  }, [])
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30000)
     return () => window.clearInterval(timer)
@@ -260,6 +280,7 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     try {
       await updateTutorClassAttendance(student.id, lessonId, status)
       setStudents((current) => current.map((item) => item.id === student.id ? { ...item, attendance: { ...item.attendance, [lessonId]: status } } : item))
+      void refreshAtRisk()
       toast.add({ type: 'success', title: 'Attendance saved', description: `${student.studentName} marked ${status}.` })
     } catch (attendanceError) {
       const message = attendanceError instanceof Error ? attendanceError.message : 'Unable to save attendance.'
@@ -293,7 +314,7 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
       </Tabs>
       {error && view !== 'profile' && <Paper sx={{ p: 2, mb: 2, border: 1, borderColor: 'error.main' }}><Typography color="error">{error}</Typography></Paper>}
       {profileError && view === 'profile' && <Paper sx={{ p: 2, mb: 2, border: 1, borderColor: 'error.main' }}><Typography color="error">{profileError}</Typography></Paper>}
-      {view === 'overview' && overview && <><Typography variant="h4" sx={{ mb: 3 }}>Teaching overview</Typography><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>{statItems(overview).map((item) => <Card key={item.label} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography color="text.secondary" variant="body2">{item.label}</Typography>{item.icon}</Stack><Typography variant="h4" sx={{ mt: 1 }}>{item.value}</Typography></CardContent></Card>)}</Box><Paper elevation={0} sx={{ mt: 3, p: 3, border: 1, borderColor: 'divider' }}><Typography variant="h6" sx={{ mb: 1 }}>Your teaching assignments</Typography><Typography color="text.secondary">Manage class rosters, attendance, and your profile from the sections above.</Typography></Paper></>}
+      {view === 'overview' && overview && <><Typography variant="h4" sx={{ mb: 3 }}>Teaching overview</Typography><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>{statItems(overview).map((item) => <Card key={item.label} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography color="text.secondary" variant="body2">{item.label}</Typography>{item.icon}</Stack><Typography variant="h4" sx={{ mt: 1 }}>{item.value}</Typography></CardContent></Card>)}</Box><AtRiskStudentsPanel students={atRiskStudents} loading={atRiskLoading} error={atRiskError} /><Paper elevation={0} sx={{ mt: 3, p: 3, border: 1, borderColor: 'divider' }}><Typography variant="h6" sx={{ mb: 1 }}>Your teaching assignments</Typography><Typography color="text.secondary">Manage class rosters, attendance, and your profile from the sections above.</Typography></Paper></>}
       {view === 'schedule' && <TutorScheduleView classes={classes} now={now} />}
       {view === 'courses' && !progressTarget && <><Box sx={{ mb: 3 }}><Typography variant="h4">My courses</Typography><Typography color="text.secondary">Curriculum and student progress for your assigned courses</Typography></Box><Stack spacing={2}>{courses.length ? courses.map((course) => <Paper key={course.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h6">{course.title}</Typography><Typography color="text.secondary">{course.category} · {course.students} students</Typography></Box><Stack direction="row" spacing={1}><Button size="small" variant="outlined" onClick={() => setProgressTarget({ type: 'course', id: course.id, title: course.title, modules: course.modules })}>Student Progress</Button><Button size="small" variant="outlined" onClick={() => manageCourse(course)}>Edit curriculum</Button></Stack></Stack></Paper>) : <Typography color="text.secondary">No courses assigned yet.</Typography>}</Stack></>}
       {view === 'classes' && !progressTarget && <><Box sx={{ mb: 3 }}><Typography variant="h4">My classes</Typography><Typography color="text.secondary">Rosters, attendance, curriculum, and student progress for your assigned classes</Typography></Box><Stack spacing={2}>{classes.length ? classes.map((classRecord) => <Paper key={classRecord.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h6">{classRecord.title}</Typography><Typography color="text.secondary">{classRecord.enrolledCount} enrolled students · {classRecord.status}</Typography><Typography color="text.secondary" variant="body2">{classRecord.schedule.startDate || 'Start date pending'} – {classRecord.schedule.endDate || 'End date pending'}</Typography></Box><Stack direction="row" spacing={1}><Button size="small" variant="outlined" onClick={() => { setProgressTarget({ type: 'class', id: classRecord.id, title: classRecord.title, modules: classRecord.modules }); setView('classes') }}>Student Progress</Button><Button size="small" variant="outlined" onClick={() => { setSelectedClassId(classRecord.id); setProgressTarget(null); setView('students') }}>Students & attendance</Button><Button size="small" variant="outlined" onClick={() => manageClass(classRecord)}>Edit curriculum</Button></Stack></Stack></Paper>) : <Typography color="text.secondary">No classes assigned yet.</Typography>}</Stack></>}
