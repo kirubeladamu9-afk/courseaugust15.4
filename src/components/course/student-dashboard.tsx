@@ -62,6 +62,7 @@ import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-t
 import { toast } from '@/components/toast'
 import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getGamification, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type GamificationData, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
+import { calculateOverallGrade } from '@/lib/overall-grade'
 
  type DashboardView = 'overview' | 'calendar' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
  type EnrollmentType = 'course' | 'class'
@@ -313,6 +314,20 @@ const mapMyEnrollments = (records: MyEnrollment[], userId: number): DashboardEnr
 const getCourseProgress = (course: DashboardCourse, completedLessonIds: number[]) => Math.round((completedLessonIds.filter((lessonId) => getCompletionLessons(course).some((lesson) => lesson.id === lessonId)).length / Math.max(1, getCompletionLessons(course).length)) * 100)
 const getEnrollmentCourse = (enrollment: DashboardEnrollment) => enrollment.course ?? enrollment.classRecord?.course
 const findCourseEnrollment = (records: DashboardEnrollment[], courseId: number) => records.find((enrollment) => enrollment.type === 'class' && getEnrollmentCourse(enrollment)?.id === courseId) ?? records.find((enrollment) => getEnrollmentCourse(enrollment)?.id === courseId)
+const getEnrollmentOverallGrade = (enrollment: DashboardEnrollment, completionPercentage = enrollment.progress, now = new Date()) => {
+  const course = getEnrollmentCourse(enrollment)
+  const lessons = course ? getLessons(course) : []
+  return calculateOverallGrade({
+    quizLessonIds: lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => lesson.id),
+    quizScores: Object.fromEntries(Object.entries(enrollment.quizResults).map(([lessonId, result]) => [Number(lessonId), result.score])),
+    attendance: enrollment.attendance,
+    liveLessons: lessons.filter((lesson) => lesson.type === 'live'),
+    completionPercentage,
+    isClass: enrollment.type === 'class',
+    now,
+  })
+}
+const OverallGradeValue: FC<{ grade: ReturnType<typeof getEnrollmentOverallGrade> }> = ({ grade }) => <Stack direction="row" spacing={0.75} alignItems="center"><Typography variant="body2" color="text.secondary">Overall grade</Typography><Typography variant="body2" sx={{ fontWeight: 700 }}>{grade.percentage}%</Typography><Chip label={grade.letter} size="small" color={grade.letter === 'F' ? 'error' : grade.letter === 'D' ? 'warning' : 'success'} /></Stack>
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
@@ -460,6 +475,15 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelect
       <SummaryCard label="Next live class" value={nextClass?.title ?? 'No class scheduled'} detail={nextClass ? classScheduleLabel(nextClass.schedule) : 'Check My Classes for updates'} icon={<VideoCallOutlinedIcon />} onClick={() => onSelectView('classes')} />
       <SummaryCard label="Learning progress" value={`${Math.round(courseEnrollments.reduce((total, enrollment) => total + enrollment.progress, 0) / Math.max(1, courseEnrollments.length))}%`} detail="Average across active courses" icon={<CheckCircleOutlineIcon />} />
     </Stack>
+    <Paper elevation={0} sx={{ p: 2.5, mb: 3, border: 1, borderColor: 'divider' }}>
+      <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Overall grades</Typography>
+      <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Your combined quiz, attendance, and completion performance for each enrollment.</Typography>
+      <Stack spacing={1.25}>{enrollments.map((enrollment) => {
+        const course = getEnrollmentCourse(enrollment)
+        if (!course) return null
+        return <Stack key={`${enrollment.type}-${enrollment.id}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box><Typography sx={{ fontWeight: 600 }}>{enrollment.type === 'class' ? enrollment.classRecord?.title : course.title}</Typography><Typography variant="body2" color="text.secondary">{enrollment.type === 'class' ? 'Class' : 'Course'}</Typography></Box><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, enrollment.progress, now)} /></Stack>
+      })}</Stack>
+    </Paper>
     <GamificationWidgets data={gamificationData} />
     {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mb: 3 }}><Box><Typography component="h2" variant="subtitle2" sx={{ fontWeight: 700 }}>Pending items</Typography><Typography variant="body2">You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling. We&apos;ll contact you to arrange the next step.</Typography></Box></Alert>}
     <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
@@ -494,7 +518,8 @@ const CoursesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
             <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}><Chip label={course.category} size="small" color="primary" variant="outlined" /><Typography variant="caption" color="text.secondary">{course.level}</Typography></Stack>
             <Typography variant="h6" sx={{ mb: 1 }}>{course.title}</Typography>
             <Typography color="text.secondary" variant="body2" sx={{ mb: 0.5 }}>Tutor: {course.tutor}</Typography>
-            <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Time spent: {formatTimeSpent(enrollment.timeSpentSeconds)}</Typography>
+            <Typography color="text.secondary" variant="body2" sx={{ mb: 1 }}>Time spent: {formatTimeSpent(enrollment.timeSpentSeconds)}</Typography>
+            <Box sx={{ mb: 2 }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, progress)} /></Box>
             <Box sx={{ mt: 'auto' }}><Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}><Typography variant="body2">Progress</Typography><Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>{progress}%</Typography></Stack><LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4, mb: 2 }} /><Button fullWidth variant="contained" onClick={() => onOpenCourse(course.id)}>{progress ? 'Continue course' : 'Start course'}</Button></Box>
           </CardContent>
         </Card>
@@ -521,7 +546,8 @@ const ClassesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
           <Stack direction="row" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}><Chip label={classRecord.status === 'pending_schedule' ? 'Pending schedule' : classEnded || classRecord.status === 'closed' ? 'Closed' : !hasStarted ? `Starts ${formatClassStartDate(classRecord.schedule)}` : 'Active class'} size="small" color={canOpenClass ? 'success' : 'warning'} variant="outlined" /><Typography variant="caption" color="text.secondary">Class</Typography></Stack>
           <Typography variant="h6" sx={{ mb: 1 }}>{classRecord.title}</Typography>
           <Typography color="text.secondary" variant="body2">Tutor: {classRecord.tutorName}</Typography>
-          <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>{nextLiveLesson?.scheduledAt ? `Next live session: ${new Date(nextLiveLesson.scheduledAt).toLocaleString()}` : classScheduleLabel(classRecord.schedule)}</Typography>
+          <Typography color="text.secondary" variant="body2" sx={{ mb: 1 }}>{nextLiveLesson?.scheduledAt ? `Next live session: ${new Date(nextLiveLesson.scheduledAt).toLocaleString()}` : classScheduleLabel(classRecord.schedule)}</Typography>
+          <Box sx={{ mb: 2 }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, progress, now)} /></Box>
           <Box sx={{ mt: 'auto' }}><Stack direction="row" justifyContent="space-between" sx={{ mb: 0.75 }}><Typography variant="body2">Progress</Typography><Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>{progress}%</Typography></Stack><LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4, mb: 2 }} /><Button fullWidth variant="contained" disabled={!canOpenClass} onClick={() => { if (canOpenClass) onOpenCourse(course.id) }}>{classEnded || classRecord.status === 'closed' ? 'Class ended' : !hasStarted ? 'Available at start time' : progress ? 'Continue class' : 'Open class'}</Button></Box>
         </CardContent>
       </Card>
@@ -1266,6 +1292,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
         questionResults: submittedAttempt.questionResults,
       }
       setQuizResults((current) => ({ ...current, [selectedCourseId]: { ...(current[selectedCourseId] ?? {}), [lessonId]: result } }))
+      setEnrollments((current) => current.map((enrollment) => getEnrollmentCourse(enrollment)?.id === selectedCourseId ? { ...enrollment, quizResults: { ...enrollment.quizResults, [lessonId]: result } } : enrollment))
       setStartedCourses((current) => ({ ...current, [selectedCourseId]: true }))
       await completeLessonApi(selectedCourseEnrollment.id, lessonId)
       const completed = completedLessons[selectedCourseId] ?? []

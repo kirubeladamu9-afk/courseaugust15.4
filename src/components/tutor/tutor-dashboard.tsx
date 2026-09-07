@@ -28,6 +28,7 @@ import { getAuthenticatedUser, getTutorAtRiskStudents, getTutorClasses, getTutor
 import AtRiskStudentsPanel from '@/components/at-risk-students-panel'
 import { type AdminCourse, type AdminModule } from '@/components/admin/admin-data'
 import { navigateTo } from '@/lib/navigation'
+import { calculateOverallGrade } from '@/lib/overall-grade'
 import { toast } from '@/components/toast'
 import { signOut } from '@/services/api'
 
@@ -91,6 +92,14 @@ const StudentProgressView = ({ target, students, studentsLoading, onBack }: { ta
   const latestAttempt = (student: TutorClassStudent, lessonId: number) => student.quizAttempts
     .filter((attempt) => attempt.lessonId === lessonId && attempt.score !== null && attempt.passed !== null)
     .sort((first, second) => new Date(second.submittedAt ?? second.startedAt).getTime() - new Date(first.submittedAt ?? first.startedAt).getTime())[0]
+  const getOverallGrade = (student: TutorClassStudent) => calculateOverallGrade({
+    quizLessonIds: quizzes.map((quiz) => quiz.id),
+    quizScores: Object.fromEntries(quizzes.map((quiz) => [quiz.id, latestAttempt(student, quiz.id)?.score ?? undefined])),
+    attendance: student.attendance,
+    liveLessons,
+    completionPercentage: student.progressPercentage,
+    isClass: target.type === 'class',
+  })
 
   return <>
     <Button onClick={onBack} sx={{ mb: 2 }}>Back to My {target.type === 'course' ? 'Courses' : 'Classes'}</Button>
@@ -102,7 +111,7 @@ const StudentProgressView = ({ target, students, studentsLoading, onBack }: { ta
       {!studentsLoading && students.map((student) => <Paper key={student.id} elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: 'divider' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} sx={{ mb: quizzes.length || target.type === 'class' ? 2 : 0 }}>
           <Box><Typography variant="h6">{student.studentName}</Typography><Typography variant="body2" color="text.secondary">{student.studentEmail}</Typography></Box>
-          <Stack direction="row" spacing={3}><Box><Typography variant="body2" color="text.secondary">Completion</Typography><Typography sx={{ fontWeight: 700 }}>{student.progressPercentage}%</Typography></Box><Box><Typography variant="body2" color="text.secondary">Time learning</Typography><Typography sx={{ fontWeight: 700 }}>{formatLearningTime(student.timeSpentSeconds)}</Typography></Box></Stack>
+          <Stack direction="row" spacing={3} flexWrap="wrap"><Box><Typography variant="body2" color="text.secondary">Completion</Typography><Typography sx={{ fontWeight: 700 }}>{student.progressPercentage}%</Typography></Box><Box><Typography variant="body2" color="text.secondary">Overall grade</Typography><Stack direction="row" spacing={0.75} alignItems="center"><Typography sx={{ fontWeight: 700 }}>{getOverallGrade(student).percentage}%</Typography><Chip label={getOverallGrade(student).letter} size="small" color={getOverallGrade(student).letter === 'F' ? 'error' : getOverallGrade(student).letter === 'D' ? 'warning' : 'success'} /></Stack></Box><Box><Typography variant="body2" color="text.secondary">Time learning</Typography><Typography sx={{ fontWeight: 700 }}>{formatLearningTime(student.timeSpentSeconds)}</Typography></Box></Stack>
         </Stack>
         {target.type === 'class' && <Typography variant="body2" sx={{ mb: quizzes.length ? 2 : 0, fontWeight: 600 }}>{liveLessons.filter((lesson) => student.attendance[lesson.id] === 'Present').length}/{liveLessons.length} sessions attended</Typography>}
         {quizzes.length > 0 && <><Divider sx={{ mb: 1.5 }} /><Typography variant="subtitle2" sx={{ mb: 1 }}>Quiz results</Typography><Stack spacing={1}>{quizzes.map((quiz) => {
@@ -204,19 +213,27 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     return () => window.clearInterval(timer)
   }, [])
   useEffect(() => {
-    const request = view === 'students' && selectedClassId !== ''
-      ? getTutorClassStudents(selectedClassId)
-      : progressTarget
-        ? progressTarget.type === 'course' ? getTutorCourseStudents(progressTarget.id) : getTutorClassStudents(progressTarget.id)
-        : null
-    if (!request) return
-    setStudentsLoading(true)
-    setStudents([])
-    void request.then(setStudents).catch((loadError) => {
-      const message = loadError instanceof Error ? loadError.message : 'Unable to load students.'
-      setError(message)
-      toast.add({ type: 'error', title: 'Unable to load students', description: message })
-    }).finally(() => setStudentsLoading(false))
+    const loadStudents = async () => {
+      const request = view === 'students' && selectedClassId !== ''
+        ? getTutorClassStudents(selectedClassId)
+        : progressTarget
+          ? progressTarget.type === 'course' ? getTutorCourseStudents(progressTarget.id) : getTutorClassStudents(progressTarget.id)
+          : null
+      if (!request) return
+      setStudentsLoading(true)
+      try {
+        setStudents(await request)
+      } catch (loadError) {
+        const message = loadError instanceof Error ? loadError.message : 'Unable to load students.'
+        setError(message)
+        toast.add({ type: 'error', title: 'Unable to load students', description: message })
+      } finally {
+        setStudentsLoading(false)
+      }
+    }
+    void loadStudents()
+    const timer = window.setInterval(() => { void loadStudents() }, 30000)
+    return () => window.clearInterval(timer)
   }, [view, selectedClassId, progressTarget])
 
   const selectedClass = classes.find((classRecord) => classRecord.id === selectedClassId)
