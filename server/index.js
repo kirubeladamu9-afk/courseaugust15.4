@@ -1282,7 +1282,10 @@ app.get('/api/gamification', requireAuthenticated, async (request, response) => 
     SELECT enrollments.class_id AS "classId", classes.title AS "classTitle"
     FROM enrollments
     INNER JOIN classes ON classes.id = enrollments.class_id
-    WHERE enrollments.user_id = ${request.userId} AND enrollments.class_id IS NOT NULL
+    WHERE enrollments.user_id = ${request.userId}
+      AND enrollments.class_id IS NOT NULL
+      AND enrollments.class_status = 'enrolled'
+      AND classes.published = true
     ORDER BY enrollments.created_at DESC
     LIMIT 1
   `
@@ -1293,7 +1296,9 @@ app.get('/api/gamification', requireAuthenticated, async (request, response) => 
              COALESCE(NULLIF(users.name, ''), users.email) AS name
       FROM enrollments
       INNER JOIN users ON users.id = enrollments.user_id
+      INNER JOIN classes ON classes.id = enrollments.class_id AND classes.published = true
       WHERE enrollments.class_id IS NOT NULL
+        AND enrollments.class_status = 'enrolled'
     ), class_scores AS (
       SELECT class_users.class_id,
              class_users.user_id,
@@ -1321,7 +1326,9 @@ app.get('/api/gamification', requireAuthenticated, async (request, response) => 
     WITH cohort_users AS (
       SELECT DISTINCT enrollments.user_id
       FROM enrollments
+      INNER JOIN classes ON classes.id = enrollments.class_id AND classes.published = true
       WHERE enrollments.class_id = ${classContext?.classId ?? null}
+        AND enrollments.class_status = 'enrolled'
     ), cohort_scores AS (
       SELECT users.id::INTEGER AS id,
              COALESCE(NULLIF(users.name, ''), users.email) AS name,
@@ -1443,6 +1450,7 @@ app.get('/api/enrollments', requireAuthenticated, async (request, response) => {
       WHERE enrollment_id = enrollments.id
     ) AS session_join_summary ON true
     WHERE enrollments.user_id = ${request.userId}
+      AND ((enrollments.class_id IS NULL AND enrollments.course_id IS NOT NULL) OR classes.published = true)
     ORDER BY lesson_summary."lastActivityAt" DESC NULLS LAST, enrollments.created_at DESC
   `
   response.json(enrollments.map(serializeEnrollment))
@@ -2030,7 +2038,7 @@ app.get('/api/practice-purchases', requireAuthenticated, async (request, respons
 app.get('/api/payments', requireAuthenticated, async (request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,
-           COALESCE(classes.title, courses.title, 'Class enrollment') AS "itemName",
+           COALESCE(CASE WHEN classes.published = true THEN classes.title END, courses.title, 'Class enrollment') AS "itemName",
            CASE WHEN payments.class_id IS NULL THEN 'course' ELSE 'class' END AS type,
            payments.amount::FLOAT AS amount,
            payments.currency,
@@ -2089,18 +2097,20 @@ app.get('/api/tutor/overview', requireTutor, async (request, response) => {
   const [overview] = await sql`
     SELECT
       (SELECT COUNT(*) FROM courses WHERE tutor_id = ${request.tutorId})::INTEGER AS "totalCourses",
-      (SELECT COUNT(*) FROM classes WHERE tutor_id = ${request.tutorId})::INTEGER AS "totalClasses",
+      (SELECT COUNT(*) FROM classes WHERE tutor_id = ${request.tutorId} AND published = true)::INTEGER AS "totalClasses",
       (SELECT COUNT(DISTINCT enrollments.student_id)
        FROM enrollments
        LEFT JOIN courses ON courses.id = enrollments.course_id
        LEFT JOIN classes ON classes.id = enrollments.class_id
        WHERE enrollments.class_status IS DISTINCT FROM 'waitlisted'
+         AND ((classes.id IS NULL AND enrollments.course_id IS NOT NULL) OR classes.published = true)
          AND (courses.tutor_id = ${request.tutorId} OR classes.tutor_id = ${request.tutorId}))::INTEGER AS "totalStudents",
       (SELECT COALESCE(SUM(payments.amount), 0)
        FROM payments
        LEFT JOIN courses ON courses.id = payments.course_id
        LEFT JOIN classes ON classes.id = payments.class_id
        WHERE payments.status = 'paid'
+         AND ((classes.id IS NULL AND payments.course_id IS NOT NULL) OR classes.published = true)
          AND (courses.tutor_id = ${request.tutorId} OR classes.tutor_id = ${request.tutorId}))::FLOAT AS "totalRevenue"
   `
   const [upcoming] = await sql`
@@ -2152,6 +2162,7 @@ app.get('/api/tutor/classes', requireTutor, async (request, response) => {
       GROUP BY class_id
     ) AS enrollment_counts ON enrollment_counts.class_id = classes.id
     WHERE classes.tutor_id = ${request.tutorId}
+      AND classes.published = true
     ORDER BY classes.created_at DESC, classes.id DESC
   `
   return response.json(classes.map((classRecord) => ({
@@ -2283,7 +2294,8 @@ const getAtRiskStudents = async ({ tutorId = null } = {}) => {
       FROM class_attendance
       WHERE enrollment_id = enrollments.id
     ) attendance_summary ON true
-    WHERE (enrollments.class_id IS NULL OR enrollments.class_status = 'enrolled')
+    WHERE ((enrollments.class_id IS NULL AND enrollments.course_id IS NOT NULL) OR classes.published = true)
+      AND (enrollments.class_id IS NULL OR enrollments.class_status = 'enrolled')
       ${tutorCondition}
     ORDER BY students.full_name, enrollments.created_at DESC
   `
@@ -2295,7 +2307,7 @@ app.get('/api/tutor/at-risk-students', requireTutor, async (request, response) =
 
 const getTutorStudentProgress = async (contentType, contentId) => {
   const contentCondition = contentType === 'class'
-    ? sql`enrollments.class_id = ${contentId} AND enrollments.class_status = 'enrolled'`
+    ? sql`enrollments.class_id = ${contentId} AND enrollments.class_status = 'enrolled' AND classes.published = true`
     : sql`enrollments.course_id = ${contentId} AND enrollments.class_id IS NULL`
   const students = await sql`
     SELECT enrollments.id::INTEGER AS id,
@@ -2365,7 +2377,7 @@ app.get('/api/tutor/courses/:id/students', requireTutor, async (request, respons
 app.get('/api/tutor/classes/:id/students', requireTutor, async (request, response) => {
   const classId = parseCourseId(request.params.id)
   if (classId === null) return response.status(400).json({ message: 'Invalid class id.' })
-  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} AND tutor_id = ${request.tutorId}`
+  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} AND tutor_id = ${request.tutorId} AND published = true`
   if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
   return response.json(await getTutorStudentProgress('class', classId))
 })
@@ -2894,7 +2906,7 @@ app.get('/api/admin/classes/:id/leaderboard', requireAdminOrTutor, async (reques
     : [null]
   if (request.userRole === 'tutor' && !tutor) return response.status(403).json({ message: 'Tutor profile not found.' })
   const tutorCondition = tutor ? sql`AND classes.tutor_id = ${tutor.id}` : sql``
-  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} ${tutorCondition}`
+  const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} AND published = true ${tutorCondition}`
   if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
   const leaderboard = await sql`
     SELECT ROW_NUMBER() OVER (ORDER BY (COALESCE(lesson_totals.completed, 0) * 25 + COALESCE(quiz_totals.passed, 0) * 50 + COALESCE(attendance_totals.present, 0) * 40) DESC, students.full_name, students.id)::INTEGER AS rank,
