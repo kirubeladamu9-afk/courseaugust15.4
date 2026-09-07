@@ -698,6 +698,13 @@ const parseCoursePayload = (body) => {
 
 const deserializeJson = (value) => typeof value === 'string' ? JSON.parse(value) : value
 
+const isClassEnrollmentClosed = (schedule) => {
+  const startDate = typeof schedule?.startDate === 'string' ? schedule.startDate.trim() : ''
+  if (!startDate) return false
+  const timestamp = Date.parse(/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) ? `${startDate}T00:00:00` : startDate)
+  return Number.isFinite(timestamp) && timestamp < Date.now()
+}
+
 const deserializeCourse = (course) => course ? {
   ...course,
   learningOutcomes: deserializeJson(course.learningOutcomes),
@@ -1117,6 +1124,17 @@ const updatePaymentStatus = async (reference, status, verification = {}) => sql.
   `
   if (!payment || payment.status === status || payment.status === 'paid') return payment?.status ?? null
   if (status === 'paid' && !isTestChapa && (Number(verification.amount) !== payment.amount || String(verification.currency).toUpperCase() !== payment.currency.toUpperCase() || verification.merchant_reference !== payment.reference)) return payment.status
+  if (status === 'paid' && payment.classId !== null) {
+    const [classRecord] = await transaction`
+      SELECT schedule
+      FROM classes
+      WHERE id = ${payment.classId}
+    `
+    if (!classRecord || isClassEnrollmentClosed(deserializeJson(classRecord.schedule))) {
+      await transaction`UPDATE payments SET status = 'failed', paid_at = NULL WHERE id = ${payment.id}`
+      return 'failed'
+    }
+  }
 
   await transaction`
     UPDATE payments
@@ -1822,6 +1840,7 @@ app.post('/api/payments/chapa/class', requireAuthenticated, async (request, resp
   const [classRecord] = await sql`
     SELECT classes.id,
            classes.title,
+           classes.schedule,
            classes.price::FLOAT AS price,
            users.name,
            users.email,
@@ -1833,6 +1852,9 @@ app.post('/api/payments/chapa/class', requireAuthenticated, async (request, resp
       AND classes.status IN ('open', 'full')
   `
   if (!classRecord) return response.status(404).json({ message: 'This batch is not available for enrollment.' })
+  if (isClassEnrollmentClosed(deserializeJson(classRecord.schedule))) {
+    return response.status(409).json({ message: 'This batch has already started. Enrollment is closed.' })
+  }
 
   const students = [{
     fullName: classRecord.name.trim() || 'Student',
@@ -2022,7 +2044,10 @@ app.get('/api/classes', async (_request, response) => {
       AND classes.status <> 'closed'
     ORDER BY classes.created_at DESC, classes.id DESC
   `
-  return response.json(classes.map((classRecord) => ({ ...classRecord, schedule: deserializeJson(classRecord.schedule) })))
+  return response.json(classes.map((classRecord) => {
+    const schedule = deserializeJson(classRecord.schedule)
+    return { ...classRecord, schedule, enrollmentClosed: isClassEnrollmentClosed(schedule) }
+  }))
 })
 
 app.get('/api/tutor/overview', requireTutor, async (request, response) => {

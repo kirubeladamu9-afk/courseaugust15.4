@@ -205,6 +205,7 @@ export interface PublicClass {
   capacity: number
   enrolledCount: number
   published: boolean
+  enrollmentClosed: boolean
   moduleCount: number | null
   lessonCount: number | null
 }

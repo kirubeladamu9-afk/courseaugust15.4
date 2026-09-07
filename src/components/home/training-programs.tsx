@@ -100,8 +100,8 @@ const findCourse = (courses: Course[], classRecord?: PublicClass, preferInternat
 const AvailabilityBadge: FC<{ classRecord: PublicClass }> = ({ classRecord }) => (
   <Chip
     size="small"
-    label={classRecord.status === 'full' ? 'Full · Join waitlist' : `${classRecord.enrolledCount}/${classRecord.capacity} spots`}
-    color={classRecord.status === 'full' ? 'warning' : 'success'}
+    label={classRecord.enrollmentClosed ? 'Enrollment closed' : classRecord.status === 'full' ? 'Full · Join waitlist' : `${classRecord.enrolledCount}/${classRecord.capacity} spots`}
+    color={classRecord.enrollmentClosed ? 'error' : classRecord.status === 'full' ? 'warning' : 'success'}
     variant="outlined"
   />
 )
@@ -126,9 +126,9 @@ const BatchCard: FC<BatchCardProps> = ({ classRecord, curriculum, onEnroll }) =>
       </Stack>
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
         <AvailabilityBadge classRecord={classRecord} />
-        <Button size="small" variant={classRecord.status === 'full' ? 'outlined' : 'contained'} onClick={() => onEnroll(classRecord)} disabled={classRecord.status !== 'open' && classRecord.status !== 'full'}>
+        {classRecord.enrollmentClosed ? <Typography color="error.main" variant="caption" sx={{ fontWeight: 700 }}>This batch has already started</Typography> : <Button size="small" variant={classRecord.status === 'full' ? 'outlined' : 'contained'} onClick={() => onEnroll(classRecord)} disabled={classRecord.status !== 'open' && classRecord.status !== 'full'}>
           {classRecord.status === 'full' ? 'Join Waitlist' : 'Join'}
-        </Button>
+        </Button>}
       </Stack>
     </CardContent>
   </Card>
