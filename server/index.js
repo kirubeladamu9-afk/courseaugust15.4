@@ -2003,8 +2003,25 @@ app.get('/api/admin/overview', requireAdmin, async (_request, response) => {
     ORDER BY value DESC, label
     LIMIT 5
   `
+  const revenueByCategory = await sql`
+    SELECT category AS label, SUM(price * students)::FLOAT AS value
+    FROM courses
+    WHERE status = 'Published'
+      AND students > 0
+    GROUP BY category
+    ORDER BY value DESC, label
+    LIMIT 5
+  `
+  const topCourses = await sql`
+    SELECT title AS label, students::INTEGER AS value
+    FROM courses
+    WHERE status = 'Published'
+      AND students > 0
+    ORDER BY students DESC, title
+    LIMIT 5
+  `
 
-  response.json({ ...totals, revenueByMonth, enrollmentsByCategory })
+  response.json({ ...totals, revenueByMonth, enrollmentsByCategory, revenueByCategory, topCourses })
 })
 
 app.get('/api/admin/courses', requireAdminOrTutor, async (_request, response) => {

@@ -281,6 +281,8 @@ export interface AdminDashboardOverview {
   inactiveTutors: number
   revenueByMonth: Array<{ label: string; value: number }>
   enrollmentsByCategory: Array<{ label: string; value: number }>
+  revenueByCategory: Array<{ label: string; value: number }>
+  topCourses: Array<{ label: string; value: number }>
 }
 
 export interface AdminQuizViolation {
