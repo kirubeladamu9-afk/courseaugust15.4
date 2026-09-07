@@ -375,6 +375,14 @@ const requestTutor = async (url: string, init?: RequestInit): Promise<AdminTutor
 
 export type AdminTutorPayload = Pick<AdminTutor, 'name' | 'email' | 'phone' | 'bio'> & Partial<Pick<AdminTutor, 'status'>> & { assignedCourseIds?: number[] }
 
+export interface AdminWeakArea {
+  topic: string
+  correct: number
+  total: number
+  accuracy: number
+  affectedStudents: number
+}
+
 export interface AdminDashboardOverview {
   totalRevenue: number
   activeStudents: number
@@ -386,6 +394,7 @@ export interface AdminDashboardOverview {
   enrollmentsByCategory: Array<{ label: string; value: number }>
   revenueByCategory: Array<{ label: string; value: number }>
   topCourses: Array<{ label: string; value: number }>
+  weakAreas: AdminWeakArea[]
 }
 
 export interface AdminQuizViolation {

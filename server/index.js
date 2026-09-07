@@ -811,7 +811,7 @@ const getQuestionResults = (modules, attempt) => {
   })
 }
 
-const getWeakAreas = (modules, quizAttempts, practiceAnswers) => {
+const getTopicPerformance = (modules, quizAttempts, practiceAnswers) => {
   const topics = new Map()
   const addAnswer = (topic, correct) => {
     const label = typeof topic === 'string' ? topic.trim() : ''
@@ -834,7 +834,57 @@ const getWeakAreas = (modules, quizAttempts, practiceAnswers) => {
     ...area,
     accuracy: Math.round((area.correct / area.total) * 100),
     practiceLessons: lessons.filter((lesson) => lesson.type === 'practice' && (lesson.practiceQuestions ?? []).some((question) => question.topic?.trim().toLocaleLowerCase() === area.topic.toLocaleLowerCase())).map((lesson) => ({ lessonId: Number(lesson.id), lessonTitle: lesson.title })),
-  })).filter((area) => area.accuracy < 60).sort((first, second) => first.accuracy - second.accuracy || first.topic.localeCompare(second.topic))
+  }))
+}
+
+const getWeakAreas = (modules, quizAttempts, practiceAnswers) => getTopicPerformance(modules, quizAttempts, practiceAnswers)
+  .filter((area) => area.accuracy < 60)
+  .sort((first, second) => first.accuracy - second.accuracy || first.topic.localeCompare(second.topic))
+
+const getAdminWeakAreas = async () => {
+  const records = await sql`
+    SELECT enrollments.student_id AS "studentId",
+           CASE WHEN classes.id IS NULL THEN courses.modules ELSE classes.modules END AS modules,
+           quiz_summary."quizAttempts",
+           practice_summary."practiceAnswers"
+    FROM enrollments
+    INNER JOIN payments ON payments.id = enrollments.payment_id AND payments.status = 'paid'
+    LEFT JOIN courses ON courses.id = enrollments.course_id
+    LEFT JOIN classes ON classes.id = enrollments.class_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'lessonId', lesson_id,
+               'answers', COALESCE(answers, '{}'::jsonb),
+               'submittedAt', submitted_at
+             )), '[]'::jsonb) AS "quizAttempts"
+      FROM quiz_attempts
+      WHERE enrollment_id = enrollments.id
+    ) AS quiz_summary ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object('topic', topic, 'correct', correct)), '[]'::jsonb) AS "practiceAnswers"
+      FROM practice_answers
+      WHERE enrollment_id = enrollments.id
+    ) AS practice_summary ON true
+    WHERE ((enrollments.class_id IS NULL AND enrollments.course_id IS NOT NULL) OR classes.published = true)
+      AND (enrollments.class_id IS NULL OR enrollments.class_status = 'enrolled')
+  `
+  const topics = new Map()
+  for (const record of records) {
+    const areas = getTopicPerformance(deserializeJson(record.modules) ?? [], deserializeJson(record.quizAttempts) ?? [], deserializeJson(record.practiceAnswers) ?? [])
+    for (const area of areas) {
+      const key = area.topic.toLocaleLowerCase()
+      const current = topics.get(key) ?? { topic: area.topic, correct: 0, total: 0, affectedStudentIds: new Set() }
+      current.correct += area.correct
+      current.total += area.total
+      if (area.accuracy < 60) current.affectedStudentIds.add(Number(record.studentId))
+      topics.set(key, current)
+    }
+  }
+  return [...topics.values()]
+    .map(({ affectedStudentIds, ...area }) => ({ ...area, accuracy: Math.round((area.correct / area.total) * 100), affectedStudents: affectedStudentIds.size }))
+    .filter((area) => area.accuracy < 60)
+    .sort((first, second) => first.accuracy - second.accuracy || second.affectedStudents - first.affectedStudents || first.topic.localeCompare(second.topic))
+    .slice(0, 5)
 }
 
 const serializeEnrollment = (enrollment) => {
@@ -2731,7 +2781,9 @@ app.get('/api/admin/overview', requireAdmin, async (_request, response) => {
     LIMIT 5
   `
 
-  response.json({ ...totals, revenueByMonth, enrollmentsByCategory, revenueByCategory, topCourses })
+  const weakAreas = await getAdminWeakAreas()
+
+  response.json({ ...totals, revenueByMonth, enrollmentsByCategory, revenueByCategory, topCourses, weakAreas })
 })
 
 app.get('/api/admin/courses', requireAdminOrTutor, async (_request, response) => {

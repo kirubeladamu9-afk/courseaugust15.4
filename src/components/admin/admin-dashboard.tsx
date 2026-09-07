@@ -70,7 +70,7 @@ import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
-import { approveAdminQuizRetake, changePassword, type AdminDashboardOverview, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminQuizViolations, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AdminQuizViolation, type AtRiskStudent, type AuthUser } from '@/services/api'
+import { approveAdminQuizRetake, changePassword, type AdminDashboardOverview, type AdminWeakArea, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminQuizViolations, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AdminQuizViolation, type AtRiskStudent, type AuthUser } from '@/services/api'
 import AtRiskStudentsPanel from '@/components/at-risk-students-panel'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
@@ -567,6 +567,24 @@ const DashboardCharts: FC<Pick<AdminDashboardOverview, 'revenueByMonth' | 'enrol
   )
 }
 
+const WeakAreasPanel: FC<{ weakAreas: AdminWeakArea[] }> = ({ weakAreas }) => <Paper elevation={0} sx={{ p: 2.5, mb: 2, border: 1, borderColor: weakAreas.length ? 'warning.main' : 'divider' }}>
+  <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 2 }}>
+    <Box>
+      <Typography component="h2" variant="h6">Topics needing attention</Typography>
+      <Typography color="text.secondary" variant="body2">Topics below 60% accuracy across completed quiz and practice responses.</Typography>
+    </Box>
+    <Chip size="small" color={weakAreas.length ? 'warning' : 'success'} label={weakAreas.length ? `${weakAreas.length} weak topic${weakAreas.length === 1 ? '' : 's'}` : 'No weak topics'} />
+  </Stack>
+  {weakAreas.length === 0 ? <Typography color="text.secondary" variant="body2">Topic performance is on track. Weak areas will appear here as learner responses are recorded.</Typography> : <Stack spacing={1.25}>{weakAreas.map((area) => <Box key={area.topic} sx={{ p: 1.5, borderRadius: 1.5, backgroundColor: 'warning.lighter' }}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
+      <Typography sx={{ fontWeight: 700 }}>{area.topic}</Typography>
+      <Chip size="small" color="warning" label={`${area.accuracy}% accuracy`} sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }} />
+    </Stack>
+    <LinearProgress color="warning" variant="determinate" value={area.accuracy} aria-label={`${area.topic}: ${area.accuracy}% accuracy`} sx={{ height: 7, borderRadius: 4, mb: 0.75 }} />
+    <Typography color="text.secondary" variant="body2">{area.correct} of {area.total} answers correct · {area.affectedStudents} learner{area.affectedStudents === 1 ? '' : 's'} below the target</Typography>
+  </Box>)}</Stack>}
+</Paper>
+
 const OverviewPage: FC = () => {
   const [overview, setOverview] = useState<AdminDashboardOverview | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -609,6 +627,7 @@ const OverviewPage: FC = () => {
       <StatCard label="Published courses" value={new Intl.NumberFormat('en-US').format(overview.publishedCourses)} detail={`${overview.draftCourses} course${overview.draftCourses === 1 ? '' : 's'} in draft`} icon={<SchoolOutlinedIcon />} />
       <StatCard label="Active tutors" value={new Intl.NumberFormat('en-US').format(overview.activeTutors)} detail={`${overview.inactiveTutors} inactive tutor${overview.inactiveTutors === 1 ? '' : 's'}`} icon={<PersonOutlineIcon />} />
     </Stack>
+    <WeakAreasPanel weakAreas={overview.weakAreas} />
     <DashboardCharts revenueByMonth={overview.revenueByMonth} enrollmentsByCategory={overview.enrollmentsByCategory} revenueByCategory={overview.revenueByCategory} topCourses={overview.topCourses} /></>}
   </>
 }
