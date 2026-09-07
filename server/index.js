@@ -140,6 +140,29 @@ const initializeDatabase = async () => {
   await sql`ALTER TABLE courses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
 
   await sql`
+    CREATE TABLE IF NOT EXISTS practice_exams (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      title TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      grade TEXT NOT NULL,
+      price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
+      published BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS practice_questions (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      exam_id BIGINT NOT NULL REFERENCES practice_exams(id) ON DELETE CASCADE,
+      question_text TEXT NOT NULL,
+      options JSONB NOT NULL DEFAULT '[]'::jsonb,
+      correct_answer TEXT NOT NULL,
+      explanation TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS payments (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       reference TEXT NOT NULL UNIQUE,
@@ -154,9 +177,21 @@ const initializeDatabase = async () => {
       paid_at TIMESTAMPTZ
     )
   `
+  await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS practice_exam_id BIGINT REFERENCES practice_exams(id) ON DELETE RESTRICT`
   await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'ETB'`
   await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS chapa_reference TEXT`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS payments_chapa_reference_idx ON payments(chapa_reference) WHERE chapa_reference IS NOT NULL`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS practice_purchases (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      exam_id BIGINT NOT NULL REFERENCES practice_exams(id) ON DELETE RESTRICT,
+      payment_id BIGINT UNIQUE REFERENCES payments(id) ON DELETE RESTRICT,
+      purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, exam_id)
+    )
+  `
 
   await sql`
     CREATE TABLE IF NOT EXISTS enrollments (
@@ -672,7 +707,7 @@ const verifyChapaTransaction = async (reference) => {
 
 const updatePaymentStatus = async (reference, status, verification = {}) => sql.begin(async (transaction) => {
   const [payment] = await transaction`
-    SELECT id, user_id AS "userId", course_id AS "courseId", class_id AS "classId", student_data AS "studentData", amount::FLOAT AS amount, currency, status
+    SELECT id, user_id AS "userId", course_id AS "courseId", class_id AS "classId", practice_exam_id AS "practiceExamId", student_data AS "studentData", amount::FLOAT AS amount, currency, status
     FROM payments
     WHERE reference = ${reference}
     FOR UPDATE
@@ -686,6 +721,13 @@ const updatePaymentStatus = async (reference, status, verification = {}) => sql.
     WHERE id = ${payment.id}
   `
   if (status !== 'paid') return status
+  if (payment.practiceExamId !== null) {
+    await transaction`
+      INSERT INTO practice_purchases ${transaction({ user_id: payment.userId, exam_id: payment.practiceExamId, payment_id: payment.id })}
+      ON CONFLICT (user_id, exam_id) DO NOTHING
+    `
+    return 'paid'
+  }
 
   const students = typeof payment.studentData === 'string' ? JSON.parse(payment.studentData) : payment.studentData
   for (const student of students) {
@@ -746,6 +788,35 @@ app.get('/api/courses', async (_request, response) => {
     ORDER BY id
   `
   response.json(courses.map(deserializeCourse).map(sanitizeCourseForLearner))
+})
+
+app.get('/api/practice-exams', async (_request, response) => {
+  const exams = await sql`
+    SELECT id::INTEGER AS id, title, subject, grade, price::FLOAT AS price, published
+    FROM practice_exams
+    WHERE published = true
+    ORDER BY created_at DESC, id DESC
+  `
+  return response.json(exams)
+})
+
+app.get('/api/practice-exams/:id', requireAuthenticated, async (request, response) => {
+  const examId = parseCourseId(request.params.id)
+  if (examId === null) return response.status(400).json({ message: 'Invalid practice exam id.' })
+  const [exam] = await sql`
+    SELECT practice_exams.id::INTEGER AS id, practice_exams.title, practice_exams.subject, practice_exams.grade, practice_exams.price::FLOAT AS price, practice_exams.published
+    FROM practice_exams
+    INNER JOIN practice_purchases ON practice_purchases.exam_id = practice_exams.id AND practice_purchases.user_id = ${request.userId}
+    WHERE practice_exams.id = ${examId} AND practice_exams.published = true
+  `
+  if (!exam) return response.status(403).json({ message: 'Purchase this practice exam to access its questions.' })
+  const questions = await sql`
+    SELECT id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, options, correct_answer, explanation
+    FROM practice_questions
+    WHERE exam_id = ${examId}
+    ORDER BY id
+  `
+  return response.json({ ...exam, questions: questions.map((question) => ({ ...question, options: deserializeJson(question.options) })) })
 })
 
 app.get('/api/courses/:id', async (request, response) => {
@@ -1197,39 +1268,49 @@ app.post('/api/admin/quiz-attempts/:attemptId/retake-approval', requireAdmin, as
 
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
   const courseId = parseCourseId(String(request.body?.courseId ?? ''))
-  if (courseId === null) return response.status(400).json({ message: 'Choose a valid course.' })
+  const practiceExamId = parseCourseId(String(request.body?.practiceExamId ?? ''))
+  if (courseId === null && practiceExamId === null) return response.status(400).json({ message: 'Choose a valid course or practice exam.' })
+  if (courseId !== null && practiceExamId !== null) return response.status(400).json({ message: 'Choose only one item.' })
   if (!isTestChapa && !process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
 
-  const [course] = await sql`
+  const [course] = courseId === null ? [null] : await sql`
     SELECT courses.id, courses.title, courses.price::FLOAT AS price, users.name, users.email, users.phone
     FROM courses
     INNER JOIN users ON users.id = ${request.userId}
     WHERE courses.id = ${courseId}
       AND courses.status = 'Published'
   `
-  if (!course) return response.status(404).json({ message: 'This course is not available for enrollment.' })
+  const [practiceExam] = practiceExamId === null ? [null] : await sql`
+    SELECT practice_exams.id, practice_exams.title, practice_exams.price::FLOAT AS price, users.name, users.email, users.phone
+    FROM practice_exams
+    INNER JOIN users ON users.id = ${request.userId}
+    WHERE practice_exams.id = ${practiceExamId}
+      AND practice_exams.published = true
+  `
+  const item = course ?? practiceExam
+  if (!item) return response.status(404).json({ message: 'This item is not available for purchase.' })
 
   const students = [{
-    fullName: course.name.trim() || 'Student',
+    fullName: item.name.trim() || 'Student',
     ageOrGrade: 'Not provided',
     relationship: 'Self',
     preferredLanguage: 'Not provided',
     emergencyPhone: '',
     notes: '',
   }]
-  const referencePrefix = isTestChapa ? 'test-course' : 'course'
-  const reference = `${referencePrefix}-${course.id}-${randomBytes(12).toString('hex')}`
+  const referencePrefix = isTestChapa ? (practiceExam ? 'test-practice' : 'test-course') : (practiceExam ? 'practice' : 'course')
+  const reference = `${referencePrefix}-${item.id}-${randomBytes(12).toString('hex')}`
   const currency = process.env.CHAPA_CURRENCY ?? 'ETB'
-  const amount = course.price * students.length
+  const amount = item.price * students.length
   const [payment] = await sql`
-    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course.id, student_data: JSON.stringify(students), amount, currency })}
+    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course?.id ?? null, practice_exam_id: practiceExam?.id ?? null, student_data: JSON.stringify(students), amount, currency })}
     RETURNING id
   `
 
   if (isTestChapa) return response.status(201).json({ checkoutUrl: '', paymentReference: reference, mode: 'test' })
 
   const baseUrl = process.env.APP_URL ?? `${request.protocol}://${request.get('host')}`
-  const nameParts = course.name.trim().split(/\s+/)
+  const nameParts = item.name.trim().split(/\s+/)
   try {
     const chapaResponse = await fetch('https://api.chapa.global/v2/payments/hosted', {
       method: 'POST',
@@ -1244,11 +1325,11 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
         customer: {
           first_name: nameParts[0] || 'Student',
           last_name: nameParts.slice(1).join(' '),
-          email: course.email,
-          phone_number: course.phone || undefined,
+          email: item.email,
+          phone_number: item.phone || undefined,
         },
-        meta: { order_id: reference, course_id: course.id },
-        return_url: `${baseUrl}/courses/${course.id}?payment=${reference}`,
+        meta: practiceExam ? { order_id: reference, practice_exam_id: practiceExam.id } : { order_id: reference, course_id: course.id },
+        return_url: practiceExam ? `${baseUrl}/practice-exams/${practiceExam.id}?payment=${reference}` : `${baseUrl}/courses/${course.id}?payment=${reference}`,
         callback_url: `${baseUrl}/api/payments/chapa/webhook`,
       }),
     })
@@ -1363,7 +1444,7 @@ app.post('/api/payments/chapa/:reference/test-complete', requireAuthenticated, a
 
   const reference = request.params.reference
   const status = request.body?.status
-  if (!/^test-(?:course|class)-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
+  if (!/^test-(?:course|class|practice)-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
 
   const [payment] = await sql`
     SELECT reference, amount::FLOAT AS amount, currency, status
@@ -1404,6 +1485,20 @@ app.post('/api/payments/chapa/webhook', async (request, response, next) => {
   } catch (error) {
     return next(error)
   }
+})
+
+app.get('/api/practice-purchases', requireAuthenticated, async (request, response) => {
+  const purchases = await sql`
+    SELECT practice_purchases.id::INTEGER AS id,
+           practice_purchases.user_id::INTEGER AS user_id,
+           practice_purchases.exam_id::INTEGER AS exam_id,
+           practice_purchases.purchased_at
+    FROM practice_purchases
+    INNER JOIN practice_exams ON practice_exams.id = practice_purchases.exam_id
+    WHERE practice_purchases.user_id = ${request.userId}
+    ORDER BY practice_purchases.purchased_at DESC, practice_purchases.id DESC
+  `
+  return response.json(purchases)
 })
 
 app.get('/api/payments', requireAuthenticated, async (request, response) => {
@@ -1701,6 +1796,59 @@ app.patch('/api/tutor/profile', requireTutor, async (request, response) => {
     if (error.code === '23505') return response.status(409).json({ message: 'A tutor with this email already exists.' })
     throw error
   }
+})
+
+app.get('/api/admin/practice-exams', requireAdmin, async (_request, response) => {
+  const exams = await sql`
+    SELECT id::INTEGER AS id, title, subject, grade, price::FLOAT AS price, published
+    FROM practice_exams
+    ORDER BY created_at DESC, id DESC
+  `
+  return response.json(exams)
+})
+
+app.post('/api/admin/practice-exams', requireAdmin, async (request, response) => {
+  const body = request.body ?? {}
+  const title = typeof body.title === 'string' ? body.title.trim() : ''
+  const subject = typeof body.subject === 'string' ? body.subject.trim() : ''
+  const grade = typeof body.grade === 'string' ? body.grade.trim() : ''
+  const price = Number(body.price)
+  const published = body.published === true
+  if (!title || !subject || !grade || !Number.isFinite(price) || price < 0) return response.status(400).json({ message: 'Title, subject, grade, and a valid price are required.' })
+  const [exam] = await sql`
+    INSERT INTO practice_exams ${sql({ title, subject, grade, price, published })}
+    RETURNING id::INTEGER AS id, title, subject, grade, price::FLOAT AS price, published
+  `
+  return response.status(201).json(exam)
+})
+
+app.get('/api/admin/practice-exams/:id/questions', requireAdmin, async (request, response) => {
+  const examId = parseCourseId(request.params.id)
+  if (examId === null) return response.status(400).json({ message: 'Invalid practice exam id.' })
+  const questions = await sql`
+    SELECT id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, options, correct_answer, explanation
+    FROM practice_questions
+    WHERE exam_id = ${examId}
+    ORDER BY id
+  `
+  return response.json(questions.map((question) => ({ ...question, options: deserializeJson(question.options) })))
+})
+
+app.post('/api/admin/practice-exams/:id/questions', requireAdmin, async (request, response) => {
+  const examId = parseCourseId(request.params.id)
+  const body = request.body ?? {}
+  const questionText = typeof body.questionText === 'string' ? body.questionText.trim() : ''
+  const options = Array.isArray(body.options) ? body.options.filter((option) => typeof option === 'string').map((option) => option.trim()).filter(Boolean) : []
+  const correctAnswer = typeof body.correctAnswer === 'string' ? body.correctAnswer.trim() : ''
+  const explanation = typeof body.explanation === 'string' ? body.explanation.trim() : ''
+  if (examId === null || !questionText || options.length < 2 || !options.includes(correctAnswer) || !explanation) return response.status(400).json({ message: 'Question text, at least two options, a matching correct answer, and an explanation are required.' })
+  const [exam] = await sql`SELECT id FROM practice_exams WHERE id = ${examId}`
+  if (!exam) return response.status(404).json({ message: 'Practice exam not found.' })
+  const [question] = await sql`
+    INSERT INTO practice_questions ${sql({ exam_id: examId, question_text: questionText, options: JSON.stringify(options), correct_answer: correctAnswer, explanation })}
+    RETURNING id::INTEGER AS id, exam_id::INTEGER AS exam_id, question_text, options, correct_answer, explanation
+  `
+  return response.status(201).json({ ...question, options: deserializeJson(question.options) })
 })
 
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {

@@ -23,6 +23,7 @@ type PaymentState = 'ready' | 'processing' | 'success' | 'failed'
 interface EnrollmentModalProps {
   course: Pick<AdminCourse, 'id' | 'title' | 'price'>
   classId?: number | null
+  practiceExamId?: number
   open: boolean
   paymentReference?: string | null
   onClose: () => void
@@ -30,7 +31,7 @@ interface EnrollmentModalProps {
 
 const steps = ['Account', 'Payment']
 
-const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, classId = null, open, paymentReference, onClose }) => {
+const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, classId = null, practiceExamId, open, paymentReference, onClose }) => {
   const [activeStep, setActiveStep] = useState(0)
   const [accountError, setAccountError] = useState<string | null>(null)
   const [isSubmittingAccount, setIsSubmittingAccount] = useState(false)
@@ -48,7 +49,7 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, classId = null, ope
     setTestCheckoutReference(null)
     setPaymentState(paymentReference ? 'processing' : 'ready')
     setActiveStep(paymentReference || getAuthenticatedUser() ? 1 : 0)
-  }, [classId, open, paymentReference])
+  }, [classId, open, paymentReference, practiceExamId])
 
   useEffect(() => {
     if (!open || !paymentReference || paymentState !== 'processing') return
@@ -110,7 +111,7 @@ const EnrollmentModal: FC<EnrollmentModalProps> = ({ course, classId = null, ope
     setPaymentError(null)
     setIsStartingCheckout(true)
     try {
-      const checkout = classId === null ? await createChapaCheckout(course.id) : await createClassChapaCheckout(classId)
+      const checkout = classId === null ? await createChapaCheckout(course.id, practiceExamId) : await createClassChapaCheckout(classId)
       if (checkout.mode === 'test') {
         setTestCheckoutReference(checkout.paymentReference)
         return

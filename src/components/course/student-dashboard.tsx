@@ -58,7 +58,7 @@ import { Logo } from '@/components/logo'
 import EnrollmentModal from './enrollment-modal'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
 import { toast } from '@/components/toast'
-import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPublicClasses, logLiveSessionJoin, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType } from '@/services/api'
+import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getCourses, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
  type DashboardView = 'overview' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
@@ -171,7 +171,6 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
 const drawerWidth = 272
 const purchases: DashboardPurchase[] = [
   { id: 1, item_name: 'The Practical React Workbook', type: 'Book', download_url: '#react-workbook' },
-  { id: 2, item_name: 'Grade 8 Mathematics Foundations', type: 'Exam', download_url: '/practice-exams/1', exam_id: 1 },
 ]
 
 const formatDuration = (seconds: number) => {
@@ -532,10 +531,31 @@ const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
   </>
 }
 
-const PurchasesView: FC = () => <>
-  <ViewHeading title="My Purchases" description="Access your bookstore items and standalone exam purchases." />
-  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>{purchases.map((purchase) => <Card key={purchase.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}>{purchase.type === 'Book' ? <MenuBookOutlinedIcon /> : <SchoolOutlinedIcon />}</Box><Box sx={{ flex: 1 }}><Chip label={purchase.type} size="small" variant="outlined" sx={{ mb: 1 }} /><Typography variant="h6" sx={{ mb: 2 }}>{purchase.item_name}</Typography><Button variant="outlined" size="small" component="a" href={purchase.download_url} onClick={(event) => { if (purchase.exam_id) { event.preventDefault(); navigateTo(purchase.download_url) } }} startIcon={<DownloadOutlinedIcon />}>{purchase.type === 'Book' ? 'Download item' : 'Practice exam'}</Button></Box></Stack></CardContent></Card>)}</Box>
-</>
+const PurchasesView: FC = () => {
+  const [practicePurchases, setPracticePurchases] = useState<Array<{ id: number; exam_id: number }>>([])
+  const [practiceExams, setPracticeExams] = useState<Record<number, Awaited<ReturnType<typeof getPracticeExam>>>>({})
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    getPracticePurchases().then(async (records) => {
+      const exams = await Promise.all(records.map(async (record) => [record.exam_id, await getPracticeExam(record.exam_id)] as const))
+      if (!active) return
+      setPracticePurchases(records)
+      setPracticeExams(Object.fromEntries(exams))
+    }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load practice purchases.') })
+    return () => { active = false }
+  }, [])
+
+  return <>
+    <ViewHeading title="My Purchases" description="Access your bookstore items and purchased practice exams." />
+    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+      {purchases.map((purchase) => <Card key={purchase.id} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><MenuBookOutlinedIcon /></Box><Box sx={{ flex: 1 }}><Chip label={purchase.type} size="small" variant="outlined" sx={{ mb: 1 }} /><Typography variant="h6" sx={{ mb: 2 }}>{purchase.item_name}</Typography><Button variant="outlined" size="small" component="a" href={purchase.download_url} startIcon={<DownloadOutlinedIcon />}>Download item</Button></Box></Stack></CardContent></Card>)}
+      {practicePurchases.map((purchase) => { const exam = practiceExams[purchase.exam_id]; return <Card key={`practice-${purchase.id}`} elevation={0} sx={{ border: 1, borderColor: 'divider' }}><CardContent><Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1.25, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><SchoolOutlinedIcon /></Box><Box sx={{ flex: 1 }}><Chip label="Practice exam" size="small" variant="outlined" sx={{ mb: 1 }} /><Typography variant="h6" sx={{ mb: 2 }}>{exam?.title ?? 'Practice exam'}</Typography><Button variant="outlined" size="small" disabled={!exam} onClick={() => navigateTo(`/practice-exams/${purchase.exam_id}`)}>Practice exam</Button></Box></Stack></CardContent></Card> })}
+    </Box>
+  </>
+}
 
 const catalogPageSize = 6
 const OtherCoursesView: FC<{ courses: Course[]; enrolledCourseIds: Set<string>; isLoading: boolean; error: string | null }> = ({ courses, enrolledCourseIds, isLoading, error }) => {

@@ -1,5 +1,6 @@
 import { type AdminCourse, type AdminModule, type AdminTutor, type AdminUser } from '@/components/admin/admin-data'
 import { type Course } from '@/interfaces/course'
+import { type PracticeExam, type PracticeExamWithQuestions, type PracticePurchase, type PracticeQuestion } from '@/components/practice/practice-data'
 
 export interface AuthUser {
   id: number | string
@@ -204,6 +205,48 @@ const fetchApi = async (url: string, init?: RequestInit) => {
 
 export const getCourses = async (): Promise<Array<Course>> => {
   const response = await fetchApi('/api/courses')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getPracticeExams = async (): Promise<PracticeExam[]> => {
+  const response = await fetchApi('/api/practice-exams')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getPracticeExam = async (examId: number): Promise<PracticeExamWithQuestions> => {
+  const response = await requestApi(`/api/practice-exams/${examId}`)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getPracticePurchases = async (): Promise<PracticePurchase[]> => {
+  const response = await requestApi('/api/practice-purchases')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getAdminPracticeExams = async (): Promise<PracticeExam[]> => {
+  const response = await requestApi('/api/admin/practice-exams')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const createAdminPracticeExam = async (payload: Omit<PracticeExam, 'id'>): Promise<PracticeExam> => {
+  const response = await requestApi('/api/admin/practice-exams', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getAdminPracticeQuestions = async (examId: number): Promise<PracticeQuestion[]> => {
+  const response = await requestApi(`/api/admin/practice-exams/${examId}/questions`)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const createAdminPracticeQuestion = async (examId: number, payload: Omit<PracticeQuestion, 'id' | 'exam_id'>): Promise<PracticeQuestion> => {
+  const response = await requestApi(`/api/admin/practice-exams/${examId}/questions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionText: payload.question_text, options: payload.options, correctAnswer: payload.correct_answer, explanation: payload.explanation }) })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }
@@ -637,11 +680,11 @@ interface ChapaCheckout {
   mode: 'test' | 'live'
 }
 
-export const createChapaCheckout = async (courseId: AdminCourse['id']): Promise<ChapaCheckout> => {
+export const createChapaCheckout = async (courseId: AdminCourse['id'], practiceExamId?: number): Promise<ChapaCheckout> => {
   const response = await requestApi('/api/payments/chapa', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ courseId }),
+    body: JSON.stringify(practiceExamId === undefined ? { courseId } : { practiceExamId }),
   })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
