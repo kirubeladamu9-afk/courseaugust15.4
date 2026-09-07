@@ -46,6 +46,9 @@ type ClassesView = 'pending' | 'active' | 'new' | 'detail'
 interface ClassSchedule {
   startDate: string
   endDate: string
+  days: string[]
+  time: string
+  duration: number
 }
 
 interface AdminClass {
@@ -131,11 +134,14 @@ const formatTime = (time: string) => {
 
 const normalizeSchedule = (schedule: unknown): ClassSchedule => {
   const parsed = typeof schedule === 'string' ? (() => { try { return JSON.parse(schedule) } catch { return null } })() : schedule
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { startDate: '', endDate: '' }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { startDate: '', endDate: '', days: [], time: '', duration: 60 }
   const candidate = parsed as Partial<ClassSchedule>
   return {
     startDate: typeof candidate.startDate === 'string' ? candidate.startDate : '',
     endDate: typeof candidate.endDate === 'string' ? candidate.endDate : '',
+    days: Array.isArray(candidate.days) ? candidate.days.filter((day): day is string => typeof day === 'string') : [],
+    time: typeof candidate.time === 'string' ? candidate.time : '',
+    duration: typeof candidate.duration === 'number' && candidate.duration > 0 ? candidate.duration : 60,
   }
 }
 
@@ -169,10 +175,10 @@ const ScheduleFields: FC<{ schedule: ClassSchedule; onChange: (schedule: ClassSc
 }
 
 const AssignScheduleDialog: FC<{ student: PendingStudent | null; onClose: () => void; onSave: (student: PendingStudent, values: PendingAssignmentValue) => void }> = ({ student, onClose, onSave }) => {
-  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: 0, capacity: 1, schedule: { startDate: '', endDate: '' }, meeting_link: '' })
+  const [values, setValues] = useState<PendingAssignmentValue>({ tutor_id: 0, capacity: 1, schedule: { startDate: '', endDate: '', days: [], time: '', duration: 60 }, meeting_link: '' })
 
   useEffect(() => {
-    if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { startDate: '', endDate: '' }, meeting_link: '' })
+    if (student) setValues({ tutor_id: tutors[0]?.id ?? 0, capacity: 1, schedule: { startDate: '', endDate: '', days: [], time: '', duration: 60 }, meeting_link: '' })
   }, [student])
 
   const assignmentDateValidation = getDateValidation(values.schedule)
@@ -206,7 +212,7 @@ const emptyClassForm = (): ClassFormValue => ({
   program_id: 'summer-camp',
   tutor_id: tutors[0]?.id ?? 0,
   capacity: 12,
-  schedule: { startDate: '', endDate: '' },
+  schedule: { startDate: '', endDate: '', days: [], time: '', duration: 60 },
   meeting_link: '',
   modules: [],
   price: 0,
@@ -257,7 +263,7 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
             <TextField required fullWidth label="Price" type="number" value={values.price} onChange={(event) => setValues({ ...values, price: Math.max(0, Number(event.target.value)) })} inputProps={{ min: 0, step: 0.01 }} />
           </Stack>
           <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class availability</Typography><ScheduleFields schedule={values.schedule} allowedPastStartDate={allowedPastStartDate} onChange={(schedule) => setValues({ ...values, schedule })} /></Box>
-          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class curriculum</Typography><CourseEditor curriculumOnly course={{ id: classRecord?.id ?? 0, title: values.title, category: 'Class', level: '', tutor: '', status: 'Draft', students: 0, price: values.price, cover: '', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: normalizeModules(values.modules) }} onChange={(course) => setValues({ ...values, modules: course.modules })} /></Box>
+          <Box><Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Class curriculum</Typography><CourseEditor curriculumOnly classSchedule={values.schedule} classMeetingLink={values.meeting_link} course={{ id: classRecord?.id ?? 0, title: values.title, category: 'Class', level: '', tutor: '', status: 'Draft', students: 0, price: values.price, cover: '', description: '', longDescription: '', learningOutcomes: [], requirements: [], certificate: false, updatedAt: '', modules: normalizeModules(values.modules) }} onChange={(course) => setValues({ ...values, modules: course.modules })} /></Box>
           <Box sx={{ display: 'flex\',, alignItems: \'center\', justifyContent: \'space-between\', gap: 2, p: 2, border: 1, borderColor: \'divider\', borderRadius: 1, backgroundColor: \'background.default' }}><Box><Typography variant="body2" sx={{ fontWeight: 600 }}>{values.published ? 'Published class' : 'Unpublished class'}</Typography><Typography color="text.secondary" variant="caption">Only published classes appear in Active Classes.</Typography></Box><Switch checked={values.published} onChange={(event) => setValues({ ...values, published: event.target.checked })} inputProps={{ 'aria-label': 'Publish class' }} /></Box>
         </Stack>
       </DialogContent>
@@ -367,8 +373,8 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
     const editingClass = classes.find((classRecord) => classRecord.id === editingClassId)
     try {
       const classRecord = editingClass
-        ? await updateAdminClass({ ...editingClass, ...values, title: values.title.trim(), meeting_link: '', modules: values.modules })
-        : await createAdminClass({ ...values, title: values.title.trim(), meeting_link: '', modules: values.modules })
+        ? await updateAdminClass({ ...editingClass, ...values, title: values.title.trim(), modules: values.modules })
+        : await createAdminClass({ ...values, title: values.title.trim(), modules: values.modules })
       setEditingClassId(null)
       await loadWorkspace()
       toast.add({ title: editingClass ? 'Class saved' : 'Class created', description: `${classRecord.title} is ready to manage.`, type: 'success' })
