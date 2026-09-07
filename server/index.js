@@ -800,7 +800,7 @@ app.get('/api/practice-exams', async (_request, response) => {
   return response.json(exams)
 })
 
-app.get('/api/practice-exams/:id', requireAuthenticated, async (request, response) => {
+app.get('/api/practice-exams/:id', async (request, response) => {
   const examId = parseCourseId(request.params.id)
   if (examId === null) return response.status(400).json({ message: 'Invalid practice exam id.' })
   const [exam] = await sql`
