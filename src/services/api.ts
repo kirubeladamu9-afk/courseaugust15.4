@@ -180,6 +180,7 @@ export interface GamificationLeaderboardEntry {
   name: string
   avatar: string
   xp: number
+  rank: number
   isCurrentStudent: boolean
 }
 
@@ -189,6 +190,7 @@ export interface GamificationData {
   achievements: GamificationAchievement[]
   challenges: GamificationChallenge[]
   leaderboard: GamificationLeaderboardEntry[]
+  classId: number | null
   classTitle: string | null
 }
 

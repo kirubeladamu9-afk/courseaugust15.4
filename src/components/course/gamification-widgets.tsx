@@ -118,11 +118,11 @@ const BadgesPanel: FC<{ badges: Badge[]; achievements: Achievement[] }> = ({ bad
 }
 
 const LeaderboardPanel: FC<{ entries: LeaderboardEntry[]; classTitle: string }> = ({ entries, classTitle }) => {
-  const rankedEntries = [...entries].sort((first, second) => second.xp - first.xp)
+  const rankedEntries = [...entries].sort((first, second) => first.rank - second.rank)
   return <GamificationCard title="Class leaderboard" description={`XP ranking for ${classTitle}`} icon={<GroupOutlinedIcon />}>
     <Stack spacing={0.5}>
-      {rankedEntries.map((entry, index) => <Stack key={entry.id} direction="row" spacing={1} alignItems="center" sx={{ p: 1, borderRadius: 1.5, backgroundColor: entry.isCurrentStudent ? 'action.hover' : 'transparent' }}>
-        <Typography color="text.secondary" variant="body2" sx={{ width: 20, fontWeight: 700 }}>{index + 1}</Typography>
+      {rankedEntries.map((entry) => <Stack key={entry.id} direction="row" spacing={1} alignItems="center" sx={{ p: 1, borderRadius: 1.5, backgroundColor: entry.isCurrentStudent ? 'action.hover' : 'transparent' }}>
+        <Typography color="text.secondary" variant="body2" sx={{ width: 20, fontWeight: 700 }}>{entry.rank}</Typography>
         <Avatar sx={{ width: 30, height: 30, fontSize: 12, backgroundColor: entry.isCurrentStudent ? 'primary.main' : 'secondary.main' }}>{entry.avatar}</Avatar>
         <Typography variant="body2" sx={{ flex: 1, fontWeight: entry.isCurrentStudent ? 700 : 500 }}>{entry.name}{entry.isCurrentStudent ? ' (You)' : ''}</Typography>
         <Typography color="primary.main" variant="body2" sx={{ fontWeight: 700 }}>{entry.xp} XP</Typography>

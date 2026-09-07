@@ -1291,27 +1291,29 @@ app.get('/api/gamification', requireAuthenticated, async (request, response) => 
       SELECT DISTINCT enrollments.user_id
       FROM enrollments
       WHERE enrollments.class_id = ${classContext?.classId ?? null}
+    ), cohort_scores AS (
+      SELECT users.id::INTEGER AS id,
+             COALESCE(NULLIF(users.name, ''), users.email) AS name,
+             LEFT(COALESCE(NULLIF(users.name, ''), users.email), 1) AS avatar,
+             (COALESCE(activity_totals.xp, 0) + COALESCE(challenge_totals.xp, 0))::INTEGER AS xp,
+             users.id = ${request.userId} AS "isCurrentStudent"
+      FROM cohort_users
+      INNER JOIN users ON users.id = cohort_users.user_id
+      LEFT JOIN (
+        SELECT user_id, SUM(xp)::INTEGER AS xp
+        FROM gamification_activity_rewards
+        GROUP BY user_id
+      ) activity_totals ON activity_totals.user_id = users.id
+      LEFT JOIN (
+        SELECT completions.user_id, SUM(challenges.xp_reward)::INTEGER AS xp
+        FROM gamification_challenge_completions completions
+        INNER JOIN gamification_challenges challenges ON challenges.id = completions.challenge_id
+        GROUP BY completions.user_id
+      ) challenge_totals ON challenge_totals.user_id = users.id
     )
-    SELECT users.id::INTEGER AS id,
-           COALESCE(NULLIF(users.name, ''), users.email) AS name,
-           LEFT(COALESCE(NULLIF(users.name, ''), users.email), 1) AS avatar,
-           (COALESCE(activity_totals.xp, 0) + COALESCE(challenge_totals.xp, 0))::INTEGER AS xp,
-           users.id = ${request.userId} AS "isCurrentStudent"
-    FROM cohort_users
-    INNER JOIN users ON users.id = cohort_users.user_id
-    LEFT JOIN (
-      SELECT user_id, SUM(xp)::INTEGER AS xp
-      FROM gamification_activity_rewards
-      GROUP BY user_id
-    ) activity_totals ON activity_totals.user_id = users.id
-    LEFT JOIN (
-      SELECT completions.user_id, SUM(challenges.xp_reward)::INTEGER AS xp
-      FROM gamification_challenge_completions completions
-      INNER JOIN gamification_challenges challenges ON challenges.id = completions.challenge_id
-      GROUP BY completions.user_id
-    ) challenge_totals ON challenge_totals.user_id = users.id
-    ORDER BY xp DESC, name
-    LIMIT 20
+    SELECT *, ROW_NUMBER() OVER (ORDER BY xp DESC, name)::INTEGER AS rank
+    FROM cohort_scores
+    ORDER BY rank
   `
   return response.json({
     stats,
@@ -1327,6 +1329,7 @@ app.get('/api/gamification', requireAuthenticated, async (request, response) => 
       completed_at: challenge.completedAt,
     })),
     leaderboard,
+    classId: classContext?.classId ?? null,
     classTitle: classContext?.classTitle ?? null,
   })
 })

@@ -327,7 +327,7 @@ const getEnrollmentOverallGrade = (enrollment: DashboardEnrollment, completionPe
     now,
   })
 }
-const OverallGradeValue: FC<{ grade: ReturnType<typeof getEnrollmentOverallGrade> }> = ({ grade }) => <Stack direction="row" spacing={0.75} alignItems="center"><Typography variant="body2" color="text.secondary">Overall grade</Typography><Typography variant="body2" sx={{ fontWeight: 700 }}>{grade.percentage}%</Typography><Chip label={grade.letter} size="small" color={grade.letter === 'F' ? 'error' : grade.letter === 'D' ? 'warning' : 'success'} /></Stack>
+const OverallGradeValue: FC<{ grade: ReturnType<typeof getEnrollmentOverallGrade>; rank?: number }> = ({ grade, rank }) => <Stack direction="row" spacing={1.25} alignItems="center"><Typography variant="body2" color="text.secondary">Overall grade</Typography>{rank !== undefined && <Typography variant="body2" color="primary.main" sx={{ fontWeight: 700 }}>Rank {rank}</Typography>}<Typography variant="body2" sx={{ fontWeight: 700 }}>{grade.percentage}%</Typography><Chip label={grade.letter} size="small" color={grade.letter === 'F' ? 'error' : grade.letter === 'D' ? 'warning' : 'success'} /></Stack>
 const iconForLesson = (type: DashboardLesson['type']) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize="small" />
   if (type === 'quiz') return <QuizOutlinedIcon fontSize="small" />
@@ -481,7 +481,8 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelect
       <Stack spacing={1.25}>{enrollments.map((enrollment) => {
         const course = getEnrollmentCourse(enrollment)
         if (!course) return null
-        return <Stack key={`${enrollment.type}-${enrollment.id}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box><Typography sx={{ fontWeight: 600 }}>{enrollment.type === 'class' ? enrollment.classRecord?.title : course.title}</Typography><Typography variant="body2" color="text.secondary">{enrollment.type === 'class' ? 'Class' : 'Course'}</Typography></Box><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, enrollment.progress, now)} /></Stack>
+        const classRank = enrollment.type === 'class' && gamificationData.classId === enrollment.classRecord?.id ? gamificationData.leaderboard.find((entry) => entry.isCurrentStudent)?.rank : undefined
+        return <Stack key={`${enrollment.type}-${enrollment.id}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box><Typography sx={{ fontWeight: 600 }}>{enrollment.type === 'class' ? enrollment.classRecord?.title : course.title}</Typography><Typography variant="body2" color="text.secondary">{enrollment.type === 'class' ? 'Class' : 'Course'}</Typography></Box><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, enrollment.progress, now)} rank={classRank} /></Stack>
       })}</Stack>
     </Paper>
     <GamificationWidgets data={gamificationData} />
