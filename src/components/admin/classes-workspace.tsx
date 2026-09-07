@@ -32,7 +32,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { type FC, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { navigateTo } from '@/lib/navigation'
-import { assignAdminClass, createAdminClass, deleteAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassAttendance, updateAdminClassEnrollment } from '@/services/api'
+import { assignAdminClass, createAdminClass, deleteAdminClass, getAdminClassesWorkspace, removeAdminClassEnrollment, updateAdminClass, updateAdminClassEnrollment } from '@/services/api'
 import { type AdminCourse, type AdminLesson, type AdminModule, type LessonType } from './admin-data'
 import { CourseEditor } from './admin-dashboard'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
@@ -67,6 +67,7 @@ interface ClassEnrollment {
   student_name: string
   enrolled_date: string
   status: EnrollmentStatus
+  attendance: Record<number, 'Present' | 'Absent'>
 }
 
 interface PendingStudent {
@@ -263,9 +264,8 @@ const ClassEditorDialog: FC<{ classRecord: AdminClass | null; open: boolean; onC
   )
 }
 
-const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassEnrollment[]; onBack: () => void; onEdit: () => void; onRemoveEnrollment: (enrollment: ClassEnrollment) => void; onPromote: (enrollment: ClassEnrollment) => void; onAttendance: (enrollmentId: number, lessonId: number, status: 'Present' | 'Absent') => Promise<void> }> = ({ classRecord, enrollments, onBack, onEdit, onRemoveEnrollment, onPromote, onAttendance }) => {
+const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassEnrollment[]; onBack: () => void; onEdit: () => void; onRemoveEnrollment: (enrollment: ClassEnrollment) => void; onPromote: (enrollment: ClassEnrollment) => void }> = ({ classRecord, enrollments, onBack, onEdit, onRemoveEnrollment, onPromote }) => {
   const [tab, setTab] = useState('roster')
-  const [attendance, setAttendance] = useState<Record<string, 'Present' | 'Absent'>>({})
 
   if (!classRecord) return <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography variant="h6" sx={{ mb: 1 }}>Class not found</Typography><Typography color="text.secondary" sx={{ mb: 2 }}>This class is no longer available in the workspace.</Typography><Button startIcon={<ArrowBackIcon />} onClick={onBack}>Back to Active Classes</Button></Paper>
 
@@ -276,7 +276,7 @@ const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassE
   const rosterColumns: DataColumn<ClassEnrollment>[] = [
     { key: 'student_name', label: 'Student Name' },
     { key: 'enrolled_date', label: 'Enrolled Date' },
-    { key: 'status', label: 'Attendance Summary', render: (_, enrollment) => <Typography color="text.secondary" variant="body2">{enrollment.id % 2 === 0 ? '4 of 4 sessions' : '3 of 4 sessions'}</Typography> },
+    { key: 'attendance', label: 'Live session attendance', render: (_, enrollment) => liveLessons.length ? <Stack spacing={0.5}>{liveLessons.map((lesson) => <Typography key={lesson.id} variant="body2"><strong>{lesson.title}</strong>: {enrollment.attendance[lesson.id] ?? 'Not marked'}</Typography>)}</Stack> : <Typography variant="body2" color="text.secondary">No live sessions</Typography> },
   ]
   const waitlistColumns: DataColumn<ClassEnrollment>[] = [
     { key: 'student_name', label: 'Student Name' },
@@ -293,7 +293,7 @@ const ClassDetail: FC<{ classRecord: AdminClass | undefined; enrollments: ClassE
       </Stack>
       <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', mb: 3 }}>
         <Box sx={{ px: 2, borderBottom: 1, borderColor: 'divider' }}><Tabs value={tab} onChange={(_, nextTab) => setTab(nextTab)} aria-label="Class detail tabs"><Tab value="roster" label={`Roster (${enrolled.length})`} /></Tabs></Box>
-        {tab === 'roster' && <Box sx={{ p: 2 }}><AdminDataTable rows={enrolled} columns={rosterColumns} searchPlaceholder="Search roster" searchKeys={['student_name']} actions={(enrollment) => <Stack direction="row" spacing={1} alignItems="center"><Stack direction="row" spacing={1}>{liveLessons.map((lesson) => { const key = `${enrollment.id}-${lesson.id}`; return <FormControl key={key} size="small" sx={{ minWidth: 120 }}><InputLabel>{lesson.title}</InputLabel><Select label={lesson.title} value={attendance[key] ?? ''} onChange={async (event) => { const status = event.target.value as 'Present' | 'Absent'; await onAttendance(enrollment.id, lesson.id, status); setAttendance((current) => ({ ...current, [key]: status })) }}><MenuItem value="Present">Present</MenuItem><MenuItem value="Absent">Absent</MenuItem></Select></FormControl> })}</Stack><Tooltip title={`Remove ${enrollment.student_name} from the roster`}><IconButton size="small" color="error" onClick={() => onRemoveEnrollment(enrollment)} aria-label={`Remove ${enrollment.student_name}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip></Stack>} /></Box>}
+        {tab === 'roster' && <Box sx={{ p: 2 }}><AdminDataTable rows={enrolled} columns={rosterColumns} searchPlaceholder="Search roster" searchKeys={['student_name']} actions={(enrollment) => <Tooltip title={`Remove ${enrollment.student_name} from the roster`}><IconButton size="small" color="error" onClick={() => onRemoveEnrollment(enrollment)} aria-label={`Remove ${enrollment.student_name}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>} /></Box>}
       </Paper>
       {waitlisted.length > 0 && <Paper elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 1.5, p: 2.5, flexDirection: { xs: 'column', sm: 'row' } }}><Box><Typography variant="h6">Waitlist</Typography><Typography color="text.secondary" variant="body2">{isAtCapacity ? 'This class is full. Remove a roster student before promoting someone.' : 'A seat is available. Promote a waitlisted student to the roster.'}</Typography></Box><Chip label={`${waitlisted.length} waiting`} size="small" color="warning" /></Box>
@@ -385,16 +385,6 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
     }
   }
 
-  const handleAttendance = async (enrollmentId: number, lessonId: number, status: 'Present' | 'Absent') => {
-    try {
-      await updateAdminClassAttendance(enrollmentId, lessonId, status)
-      toast.add({ title: 'Attendance saved', description: `Student marked ${status}.`, type: 'success' })
-    } catch (error) {
-      toast.add({ title: 'Unable to save attendance', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
-      throw error
-    }
-  }
-
   const handlePromoteEnrollment = async (enrollment: ClassEnrollment) => {
     const classRecord = classes.find((currentClass) => currentClass.id === enrollment.class_id)
     if (!classRecord || enrolledCount(classRecord.id) >= classRecord.capacity) return
@@ -424,7 +414,7 @@ const ClassesWorkspace: FC<ClassesWorkspaceProps> = ({ view, classId }) => {
     { key: 'status', label: 'Status', render: (value) => <ClassStatusChip status={value as ClassStatus} /> },
   ]
 
-  if (view === 'detail') return <><ClassDetail classRecord={selectedClass} enrollments={selectedEnrollments} onBack={() => navigateTo('/admin/classes/active')} onEdit={() => setEditingClassId(selectedClass?.id ?? null)} onRemoveEnrollment={handleRemoveEnrollment} onPromote={handlePromoteEnrollment} onAttendance={handleAttendance} /><ClassEditorDialog classRecord={classes.find((classRecord) => classRecord.id === editingClassId) ?? null} open={editingClassId !== null} onClose={() => setEditingClassId(null)} onSave={handleSaveClass} /></>
+  if (view === 'detail') return <><ClassDetail classRecord={selectedClass} enrollments={selectedEnrollments} onBack={() => navigateTo('/admin/classes/active')} onEdit={() => setEditingClassId(selectedClass?.id ?? null)} onRemoveEnrollment={handleRemoveEnrollment} onPromote={handlePromoteEnrollment} /><ClassEditorDialog classRecord={classes.find((classRecord) => classRecord.id === editingClassId) ?? null} open={editingClassId !== null} onClose={() => setEditingClassId(null)} onSave={handleSaveClass} /></>
 
   if (view === 'pending') return <>
     <WorkspaceHeading title="Pending Scheduling" description="Paid International Online Interactive enrollees who still need a class assignment." />

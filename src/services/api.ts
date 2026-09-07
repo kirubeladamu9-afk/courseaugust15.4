@@ -611,6 +611,7 @@ export interface AdminClassEnrollment {
   student_name: string
   enrolled_date: string
   status: 'enrolled' | 'waitlisted'
+  attendance: Record<number, 'Present' | 'Absent'>
 }
 
 export interface PendingClassStudent {
