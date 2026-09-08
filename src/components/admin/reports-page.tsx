@@ -23,8 +23,8 @@ import AttachMoneyOutlinedIcon from '@mui/icons-material/AttachMoneyOutlined'
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined'
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import { type FC, useEffect, useMemo, useState } from 'react'
-import { getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminPayments, getAdminQuizViolations, getAdminTutors, getAdminUsers, type AdminClass, type AdminClassEnrollment, type AdminPayment, type AdminQuizViolation, type AtRiskStudent } from '@/services/api'
-import { type AdminTutor, type AdminUser } from './admin-data'
+import { getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminPayments, getAdminQuizViolations, type AdminClass, type AdminClassEnrollment, type AdminPayment, type AdminQuizViolation, type AtRiskStudent } from '@/services/api'
+import { type AdminTutor } from './admin-data'
 
 type ReportType = 'enrollment' | 'revenue' | 'attendance' | 'academic' | 'tutor' | 'progress'
 type FilterValues = Record<string, string>
@@ -51,7 +51,6 @@ const ReportsPage: FC = () => {
   const [enrollments, setEnrollments] = useState<AdminClassEnrollment[]>([])
   const [payments, setPayments] = useState<AdminPayment[]>([])
   const [tutors, setTutors] = useState<AdminTutor[]>([])
-  const [users, setUsers] = useState<AdminUser[]>([])
   const [violations, setViolations] = useState<AdminQuizViolation[]>([])
   const [atRiskStudents, setAtRiskStudents] = useState<AtRiskStudent[]>([])
   const [reportType, setReportType] = useState<ReportType | ''>('')
@@ -61,13 +60,12 @@ const ReportsPage: FC = () => {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([getAdminClassesWorkspace(), getAdminPayments(), getAdminTutors(), getAdminUsers(), getAdminQuizViolations(), getAdminAtRiskStudents()])
-      .then(([classWorkspace, paymentRecords, tutorRecords, userRecords, quizRecords, progressRecords]) => {
+    Promise.all([getAdminClassesWorkspace(), getAdminPayments(), getAdminQuizViolations(), getAdminAtRiskStudents()])
+      .then(([classWorkspace, paymentRecords, quizRecords, progressRecords]) => {
         setClasses(classWorkspace.classes)
         setEnrollments(classWorkspace.enrollments)
         setPayments(paymentRecords)
-        setTutors(tutorRecords)
-        setUsers(userRecords)
+        setTutors(classWorkspace.tutors.map((tutor) => ({ id: tutor.id, name: tutor.name, email: '', phone: '', bio: '', status: 'Active', createdAt: '', assignedCourses: [], assignedClasses: [] })))
         setViolations(quizRecords)
         setAtRiskStudents(progressRecords)
       })
@@ -75,7 +73,7 @@ const ReportsPage: FC = () => {
       .finally(() => setIsLoading(false))
   }, [])
 
-  const studentNames = useMemo(() => Array.from(new Set([...users.filter((user) => user.role === 'Student').map((user) => user.name), ...enrollments.map((enrollment) => enrollment.student_name), ...atRiskStudents.map((student) => student.studentName)])).sort(), [atRiskStudents, enrollments, users])
+  const studentNames = useMemo(() => Array.from(new Set([...enrollments.map((enrollment) => enrollment.student_name), ...atRiskStudents.map((student) => student.studentName)])).sort(), [atRiskStudents, enrollments])
   const programOptions = useMemo(() => Array.from(new Set(classes.map((item) => item.program_id))).sort(), [classes])
   const updateFilter = (name: string, value: string) => setFilters((current) => ({ ...current, [name]: value }))
 
@@ -151,11 +149,11 @@ const ReportsPage: FC = () => {
     const attendanceRecords = enrollments.flatMap((enrollment) => Object.values(enrollment.attendance))
     const presentRecords = attendanceRecords.filter((status) => status === 'Present').length
     return {
-      totalStudents: new Set([...users.filter((user) => user.role === 'Student').map((user) => user.name), ...enrollments.map((enrollment) => enrollment.student_name)]).size,
+      totalStudents: new Set([...enrollments.map((enrollment) => enrollment.student_name), ...atRiskStudents.map((student) => student.studentName)]).size,
       revenueThisMonth: paidThisMonth.reduce((total, payment) => total + payment.amount, 0),
       attendanceRate: attendanceRecords.length ? Math.round((presentRecords / attendanceRecords.length) * 100) : 0,
     }
-  }, [enrollments, payments, users])
+  }, [atRiskStudents, enrollments, payments])
   const generateReport = () => { if (reportType) setGeneratedType(reportType) }
   const applyPreset = (type: ReportType, presetFilters: FilterValues) => {
     setReportType(type)
