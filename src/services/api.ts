@@ -420,6 +420,7 @@ export interface AdminPayment {
   id: number
   student: string
   course: string
+  type: 'Course' | 'Class' | 'Book' | 'Practice exam'
   amount: number
   date: string
   status: 'Paid' | 'Pending' | 'Failed'

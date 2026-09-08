@@ -2962,7 +2962,7 @@ app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
            COALESCE(NULLIF(payments.student_data->0->>'fullName', ''), NULLIF(users.name, ''), 'Unknown student') AS student,
            COALESCE(bookstore_items.title, practice_exams.title, classes.title, courses.title, 'Purchase') AS course,
            CASE
-             WHEN payments.bookstore_item_id IS NOT NULL THEN 'Bookstore'
+             WHEN payments.bookstore_item_id IS NOT NULL OR payments.reference LIKE 'book-%' OR payments.reference LIKE 'test-book-%' THEN 'Book'
              WHEN payments.practice_exam_id IS NOT NULL THEN 'Practice exam'
              WHEN payments.class_id IS NOT NULL THEN 'Class'
              ELSE 'Course'
