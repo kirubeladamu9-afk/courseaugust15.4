@@ -3,8 +3,13 @@ import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import Paper from '@mui/material/Paper'
 import CircularProgress from '@mui/material/CircularProgress'
+import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
+import Link from '@mui/material/Link'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import Visibility from '@mui/icons-material/Visibility'
+import VisibilityOff from '@mui/icons-material/VisibilityOff'
 import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
 import { toast } from '@/components/toast'
@@ -16,6 +21,7 @@ interface SignInPageProps {
 
 const SignInPage: FC<SignInPageProps> = ({ mode }) => {
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const isSignUp = mode === 'sign-up'
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -64,31 +70,30 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
               </Typography>
               <Box sx={{ display: 'grid', gap: 2 }}>
                 <TextField required fullWidth label="Email" name="email" type="email" autoComplete="email" />
-                <TextField required fullWidth label="Password" name="password" type="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} inputProps={isSignUp ? { minLength: 8 } : undefined} />
+                <TextField
+                  required
+                  fullWidth
+                  label="Password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                  inputProps={isSignUp ? { minLength: 8 } : undefined}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowPassword((visible) => !visible)} edge="end" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                {!isSignUp && <Typography variant="body2" color="text.secondary" sx={{ mt: -1 }}>
+                  Forgot your password? <Link href="mailto:support@coursespace.com" underline="hover">Contact support@coursespace.com</Link> for help.
+                </Typography>}
                 <Box sx={{ '& button': { width: '100%', justifyContent: 'center' } }}>
                   <StyledButton type="submit">{isSignUp ? 'Sign Up' : 'Sign In'}</StyledButton>
                 </Box>
-                {!isSignUp && (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                      p: 1.5,
-                      border: 1,
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                      backgroundColor: 'background.default',
-                    }}
-                  >
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Admin User</Typography>
-                      <Typography variant="caption" color="text.secondary">admin@coursespace.com</Typography>
-                    </Box>
-                    <Typography variant="caption" color="primary.main">Administrator</Typography>
-                  </Box>
-                )}
               </Box>
             </>
           )}
