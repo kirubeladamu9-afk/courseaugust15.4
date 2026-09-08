@@ -214,6 +214,27 @@ const initializeDatabase = async () => {
   await ensureColumns('practice_questions', {
     topic: "TEXT NOT NULL DEFAULT ''",
   })
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bookstore_items (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL,
+      price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
+      currency TEXT NOT NULL DEFAULT 'ETB',
+      cover_data TEXT NOT NULL,
+      published BOOLEAN NOT NULL DEFAULT false,
+      download_file BYTEA NOT NULL,
+      download_file_name TEXT NOT NULL,
+      download_mime_type TEXT NOT NULL,
+      download_size_bytes BIGINT NOT NULL CHECK (download_size_bytes > 0),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bookstore_items_published_idx ON bookstore_items (published, created_at DESC)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS payments (
       id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -231,6 +252,7 @@ const initializeDatabase = async () => {
   `
   await ensureColumns('payments', {
     practice_exam_id: 'BIGINT REFERENCES practice_exams(id) ON DELETE RESTRICT',
+    bookstore_item_id: 'BIGINT REFERENCES bookstore_items(id) ON DELETE RESTRICT',
     currency: "TEXT NOT NULL DEFAULT 'ETB'",
     chapa_reference: 'TEXT',
   })
@@ -246,6 +268,18 @@ const initializeDatabase = async () => {
       UNIQUE (user_id, exam_id)
     )
   `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bookstore_purchases (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      bookstore_item_id BIGINT NOT NULL REFERENCES bookstore_items(id) ON DELETE RESTRICT,
+      payment_id BIGINT UNIQUE NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+      purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, bookstore_item_id)
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bookstore_purchases_user_idx ON bookstore_purchases (user_id, purchased_at DESC)`
 
   await sql`
     CREATE TABLE IF NOT EXISTS enrollments (
@@ -679,6 +713,60 @@ const isValidTutorProfile = (body) => {
 }
 
 const isValidCourseCover = (cover) => cover.length <= 10 * 1024 * 1024 && (cover.startsWith('/') || /^https?:\/\//i.test(cover) || /^data:image\/(?:avif|gif|jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(cover))
+
+const bookstoreDownloadMimeTypes = new Set([
+  'application/pdf',
+  'application/epub+zip',
+  'application/zip',
+  'application/x-zip-compressed',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+])
+
+const parseBookstoreFile = (fileData, fileName) => {
+  if (typeof fileData !== 'string' || typeof fileName !== 'string') return null
+  const match = fileData.match(/^data:([A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+);base64,([A-Za-z0-9+/=]+)$/)
+  const safeFileName = fileName.trim().replace(/[\r\n"]/g, '')
+  if (!match || !bookstoreDownloadMimeTypes.has(match[1].toLowerCase()) || !safeFileName || safeFileName.length > 255 || /[\\/]/.test(safeFileName)) return null
+  const content = Buffer.from(match[2], 'base64')
+  if (!content.length || content.length > 20 * 1024 * 1024) return null
+  return { content, fileName: safeFileName, mimeType: match[1].toLowerCase() }
+}
+
+const parseBookstorePayload = (body, requireFile) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+  const title = typeof body.title === 'string' ? body.title.trim() : ''
+  const description = typeof body.description === 'string' ? body.description.trim() : ''
+  const category = typeof body.category === 'string' ? body.category.trim() : ''
+  const coverData = typeof body.coverData === 'string' ? body.coverData.trim() : ''
+  const price = Number(body.price)
+  const published = body.published
+  const hasFileFields = body.fileData !== undefined || body.fileName !== undefined
+  const file = hasFileFields ? parseBookstoreFile(body.fileData, body.fileName) : null
+  if (!title || title.length > 200 || description.length > 5000 || !category || category.length > 100 || !isValidCourseCover(coverData) || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean' || (requireFile && !file) || (hasFileFields && !file)) return null
+  return { title, description, category, price, cover_data: coverData, published, file }
+}
+
+const bookstoreItemColumns = sql.unsafe(`
+  id::INTEGER AS id,
+  title,
+  description,
+  category,
+  price::FLOAT AS price,
+  currency,
+  cover_data AS "coverData",
+  published,
+  download_file_name AS "fileName",
+  download_size_bytes::INTEGER AS "fileSizeBytes",
+  to_char(updated_at, 'Mon DD, YYYY') AS "updatedAt"
+`)
+
+const readBookstoreItem = async (id) => {
+  const [item] = await sql`SELECT ${bookstoreItemColumns} FROM bookstore_items WHERE id = ${id}`
+  return item ?? null
+}
 
 const parseCoursePayload = (body) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null
@@ -1216,7 +1304,7 @@ const verifyChapaTransaction = async (reference) => {
 
 const updatePaymentStatus = async (reference, status, verification = {}) => sql.begin(async (transaction) => {
   const [payment] = await transaction`
-    SELECT id, user_id AS "userId", course_id AS "courseId", class_id AS "classId", practice_exam_id AS "practiceExamId", student_data AS "studentData", amount::FLOAT AS amount, currency, status
+    SELECT id, user_id AS "userId", course_id AS "courseId", class_id AS "classId", practice_exam_id AS "practiceExamId", bookstore_item_id AS "bookstoreItemId", student_data AS "studentData", amount::FLOAT AS amount, currency, status
     FROM payments
     WHERE reference = ${reference}
     FOR UPDATE
@@ -1245,6 +1333,13 @@ const updatePaymentStatus = async (reference, status, verification = {}) => sql.
     await transaction`
       INSERT INTO practice_purchases ${transaction({ user_id: payment.userId, exam_id: payment.practiceExamId, payment_id: payment.id })}
       ON CONFLICT (user_id, exam_id) DO NOTHING
+    `
+    return 'paid'
+  }
+  if (payment.bookstoreItemId !== null) {
+    await transaction`
+      INSERT INTO bookstore_purchases ${transaction({ user_id: payment.userId, bookstore_item_id: payment.bookstoreItemId, payment_id: payment.id })}
+      ON CONFLICT (user_id, bookstore_item_id) DO NOTHING
     `
     return 'paid'
   }
@@ -1293,7 +1388,7 @@ const updatePaymentStatus = async (reference, status, verification = {}) => sql.
   return 'paid'
 })
 
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({ limit: '30mb' }))
 
 app.get('/api/health', async (_request, response) => {
   await sql`SELECT 1`
@@ -1308,6 +1403,39 @@ app.get('/api/courses', async (_request, response) => {
     ORDER BY id
   `
   response.json(courses.map(deserializeCourse).map(sanitizeCourseForLearner))
+})
+
+app.get('/api/bookstore-items', async (_request, response) => {
+  const items = await sql`
+    SELECT ${bookstoreItemColumns}
+    FROM bookstore_items
+    WHERE published = true
+    ORDER BY created_at DESC, id DESC
+  `
+  return response.json(items)
+})
+
+app.get('/api/bookstore-items/:id/download', requireAuthenticated, async (request, response) => {
+  const itemId = parseCourseId(request.params.id)
+  if (itemId === null) return response.status(400).json({ message: 'Invalid bookstore item id.' })
+  const [item] = await sql`
+    SELECT bookstore_items.download_file AS "downloadFile",
+           bookstore_items.download_file_name AS "fileName",
+           bookstore_items.download_mime_type AS "mimeType"
+    FROM bookstore_purchases
+    INNER JOIN payments ON payments.id = bookstore_purchases.payment_id AND payments.status = 'paid'
+    INNER JOIN bookstore_items ON bookstore_items.id = bookstore_purchases.bookstore_item_id
+    WHERE bookstore_purchases.user_id = ${request.userId}
+      AND bookstore_purchases.bookstore_item_id = ${itemId}
+  `
+  if (!item) return response.status(404).json({ message: 'Purchased file not found.' })
+  response.set({
+    'Content-Type': item.mimeType,
+    'Content-Length': String(item.downloadFile.length),
+    'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(item.fileName)}`,
+    'Cache-Control': 'private, no-store',
+  })
+  return response.send(item.downloadFile)
 })
 
 app.get('/api/practice-exams', async (_request, response) => {
@@ -1939,8 +2067,10 @@ app.post('/api/admin/quiz-attempts/:attemptId/retake-approval', requireAdmin, as
 app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
   const courseId = parseCourseId(String(request.body?.courseId ?? ''))
   const practiceExamId = parseCourseId(String(request.body?.practiceExamId ?? ''))
-  if (courseId === null && practiceExamId === null) return response.status(400).json({ message: 'Choose a valid course or practice exam.' })
-  if (courseId !== null && practiceExamId !== null) return response.status(400).json({ message: 'Choose only one item.' })
+  const bookstoreItemId = parseCourseId(String(request.body?.bookstoreItemId ?? ''))
+  const itemCount = [courseId, practiceExamId, bookstoreItemId].filter((id) => id !== null).length
+  if (itemCount === 0) return response.status(400).json({ message: 'Choose a valid item.' })
+  if (itemCount > 1) return response.status(400).json({ message: 'Choose only one item.' })
   if (!isTestChapa && !process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
 
   const [course] = courseId === null ? [null] : await sql`
@@ -1957,7 +2087,14 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
     WHERE practice_exams.id = ${practiceExamId}
       AND practice_exams.published = true
   `
-  const item = course ?? practiceExam
+  const [bookstoreItem] = bookstoreItemId === null ? [null] : await sql`
+    SELECT bookstore_items.id, bookstore_items.title, bookstore_items.price::FLOAT AS price, users.name, users.email, users.phone
+    FROM bookstore_items
+    INNER JOIN users ON users.id = ${request.userId}
+    WHERE bookstore_items.id = ${bookstoreItemId}
+      AND bookstore_items.published = true
+  `
+  const item = course ?? practiceExam ?? bookstoreItem
   if (!item) return response.status(404).json({ message: 'This item is not available for purchase.' })
 
   const students = [{
@@ -1968,12 +2105,14 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
     emergencyPhone: '',
     notes: '',
   }]
-  const referencePrefix = isTestChapa ? (practiceExam ? 'test-practice' : 'test-course') : (practiceExam ? 'practice' : 'course')
+  const referencePrefix = isTestChapa
+    ? (bookstoreItem ? 'test-book' : practiceExam ? 'test-practice' : 'test-course')
+    : (bookstoreItem ? 'book' : practiceExam ? 'practice' : 'course')
   const reference = `${referencePrefix}-${item.id}-${randomBytes(12).toString('hex')}`
   const currency = process.env.CHAPA_CURRENCY ?? 'ETB'
   const amount = item.price * students.length
   const [payment] = await sql`
-    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course?.id ?? null, practice_exam_id: practiceExam?.id ?? null, student_data: JSON.stringify(students), amount, currency })}
+    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course?.id ?? null, practice_exam_id: practiceExam?.id ?? null, bookstore_item_id: bookstoreItem?.id ?? null, student_data: JSON.stringify(students), amount, currency })}
     RETURNING id
   `
 
@@ -1998,8 +2137,8 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
           email: item.email,
           phone_number: item.phone || undefined,
         },
-        meta: practiceExam ? { order_id: reference, practice_exam_id: practiceExam.id } : { order_id: reference, course_id: course.id },
-        return_url: practiceExam ? `${baseUrl}/practice-exams/${practiceExam.id}?payment=${reference}` : `${baseUrl}/courses/${course.id}?payment=${reference}`,
+        meta: bookstoreItem ? { order_id: reference, bookstore_item_id: bookstoreItem.id } : practiceExam ? { order_id: reference, practice_exam_id: practiceExam.id } : { order_id: reference, course_id: course.id },
+        return_url: bookstoreItem ? `${baseUrl}/bookstore?payment=${reference}` : practiceExam ? `${baseUrl}/practice-exams/${practiceExam.id}?payment=${reference}` : `${baseUrl}/courses/${course.id}?payment=${reference}`,
         callback_url: `${baseUrl}/api/payments/chapa/webhook`,
       }),
     })
@@ -2118,7 +2257,7 @@ app.post('/api/payments/chapa/:reference/test-complete', requireAuthenticated, a
 
   const reference = request.params.reference
   const status = request.body?.status
-  if (!/^test-(?:course|class|practice)-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
+  if (!/^test-(?:book|course|class|practice)-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
 
   const [payment] = await sql`
     SELECT reference, amount::FLOAT AS amount, currency, status
@@ -2175,11 +2314,37 @@ app.get('/api/practice-purchases', requireAuthenticated, async (request, respons
   return response.json(purchases)
 })
 
+app.get('/api/bookstore-purchases', requireAuthenticated, async (request, response) => {
+  const purchases = await sql`
+    SELECT bookstore_purchases.id::INTEGER AS id,
+           bookstore_items.id::INTEGER AS "itemId",
+           bookstore_items.title,
+           bookstore_items.category,
+           bookstore_items.price::FLOAT AS price,
+           bookstore_items.currency,
+           bookstore_items.cover_data AS "coverData",
+           bookstore_items.download_file_name AS "fileName",
+           bookstore_items.download_size_bytes::INTEGER AS "fileSizeBytes",
+           to_char(bookstore_purchases.purchased_at, 'Mon DD, YYYY') AS "purchasedAt"
+    FROM bookstore_purchases
+    INNER JOIN payments ON payments.id = bookstore_purchases.payment_id AND payments.status = 'paid'
+    INNER JOIN bookstore_items ON bookstore_items.id = bookstore_purchases.bookstore_item_id
+    WHERE bookstore_purchases.user_id = ${request.userId}
+    ORDER BY bookstore_purchases.purchased_at DESC, bookstore_purchases.id DESC
+  `
+  return response.json(purchases)
+})
+
 app.get('/api/payments', requireAuthenticated, async (request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,
-           COALESCE(CASE WHEN classes.published = true THEN classes.title END, courses.title, 'Class enrollment') AS "itemName",
-           CASE WHEN payments.class_id IS NULL THEN 'course' ELSE 'class' END AS type,
+           COALESCE(bookstore_items.title, practice_exams.title, CASE WHEN classes.published = true THEN classes.title END, courses.title, 'Purchase') AS "itemName",
+           CASE
+             WHEN payments.bookstore_item_id IS NOT NULL THEN 'book'
+             WHEN payments.practice_exam_id IS NOT NULL THEN 'practice_exam'
+             WHEN payments.class_id IS NOT NULL THEN 'class'
+             ELSE 'course'
+           END AS type,
            payments.amount::FLOAT AS amount,
            payments.currency,
            CASE payments.status
@@ -2192,6 +2357,8 @@ app.get('/api/payments', requireAuthenticated, async (request, response) => {
     FROM payments
     LEFT JOIN courses ON courses.id = payments.course_id
     LEFT JOIN classes ON classes.id = payments.class_id
+    LEFT JOIN practice_exams ON practice_exams.id = payments.practice_exam_id
+    LEFT JOIN bookstore_items ON bookstore_items.id = payments.bookstore_item_id
     WHERE payments.user_id = ${request.userId}
     ORDER BY payments.created_at DESC, payments.id DESC
   `
@@ -2577,6 +2744,64 @@ app.patch('/api/tutor/profile', requireTutor, async (request, response) => {
   }
 })
 
+app.get('/api/admin/bookstore-items', requireAdmin, async (_request, response) => {
+  const items = await sql`
+    SELECT ${bookstoreItemColumns}
+    FROM bookstore_items
+    ORDER BY created_at DESC, id DESC
+  `
+  return response.json(items)
+})
+
+app.post('/api/admin/bookstore-items', requireAdmin, async (request, response) => {
+  const item = parseBookstorePayload(request.body, true)
+  if (!item || !item.file) return response.status(400).json({ message: 'Enter the item details, cover image, and a supported download file.' })
+  const [created] = await sql`
+    INSERT INTO bookstore_items ${sql({
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      price: item.price,
+      cover_data: item.cover_data,
+      published: item.published,
+      download_file: item.file.content,
+      download_file_name: item.file.fileName,
+      download_mime_type: item.file.mimeType,
+      download_size_bytes: item.file.content.length,
+    })}
+    RETURNING id
+  `
+  return response.status(201).json(await readBookstoreItem(Number(created.id)))
+})
+
+app.put('/api/admin/bookstore-items/:id', requireAdmin, async (request, response) => {
+  const itemId = parseCourseId(request.params.id)
+  const item = parseBookstorePayload(request.body, false)
+  if (itemId === null || !item) return response.status(400).json({ message: 'Enter valid bookstore item details.' })
+  const update = {
+    title: item.title,
+    description: item.description,
+    category: item.category,
+    price: item.price,
+    cover_data: item.cover_data,
+    published: item.published,
+    ...(item.file ? {
+      download_file: item.file.content,
+      download_file_name: item.file.fileName,
+      download_mime_type: item.file.mimeType,
+      download_size_bytes: item.file.content.length,
+    } : {}),
+  }
+  const [updated] = await sql`
+    UPDATE bookstore_items
+    SET ${sql(update)}, updated_at = NOW()
+    WHERE id = ${itemId}
+    RETURNING id
+  `
+  if (!updated) return response.status(404).json({ message: 'Bookstore item not found.' })
+  return response.json(await readBookstoreItem(itemId))
+})
+
 app.get('/api/admin/practice-exams', requireAdmin, async (_request, response) => {
   const exams = await sql`
     SELECT id::INTEGER AS id, title, subject, grade, price::FLOAT AS price, published
@@ -2655,8 +2880,15 @@ app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,
            COALESCE(NULLIF(payments.student_data->0->>'fullName', ''), NULLIF(users.name, ''), 'Unknown student') AS student,
-           COALESCE(classes.title, courses.title, 'Class enrollment') AS course,
+           COALESCE(bookstore_items.title, practice_exams.title, classes.title, courses.title, 'Purchase') AS item,
+           CASE
+             WHEN payments.bookstore_item_id IS NOT NULL THEN 'Bookstore'
+             WHEN payments.practice_exam_id IS NOT NULL THEN 'Practice exam'
+             WHEN payments.class_id IS NOT NULL THEN 'Class'
+             ELSE 'Course'
+           END AS type,
            payments.amount::FLOAT AS amount,
+           payments.currency,
            to_char(payments.created_at, 'Mon DD, YYYY') AS date,
            CASE payments.status
              WHEN 'paid' THEN 'Paid'
@@ -2667,6 +2899,8 @@ app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
     INNER JOIN users ON users.id = payments.user_id
     LEFT JOIN courses ON courses.id = payments.course_id
     LEFT JOIN classes ON classes.id = payments.class_id
+    LEFT JOIN practice_exams ON practice_exams.id = payments.practice_exam_id
+    LEFT JOIN bookstore_items ON bookstore_items.id = payments.bookstore_item_id
     ORDER BY payments.created_at DESC, payments.id DESC
   `
   return response.json(payments)
