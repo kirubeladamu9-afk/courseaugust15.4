@@ -40,7 +40,7 @@ const SocialLinkItem: FC<SocialLinkItemProps> = ({ item }) => (
     component="li"
     sx={{
       display: 'inline-block',
-      color: 'primary.contrastText',
+      color: 'text.primary',
       mr: 0.5,
     }}
   >
@@ -56,7 +56,7 @@ const SocialLinkItem: FC<SocialLinkItemProps> = ({ item }) => (
         borderRadius: '50%',
         color: 'inherit',
         '&:hover': {
-          backgroundColor: 'secondary.main',
+          backgroundColor: 'action.hover',
         },
         '& img': {
           fill: 'currentColor',
