@@ -233,6 +233,9 @@ const initializeDatabase = async () => {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  await ensureColumns('bookstore_items', {
+    download_count: 'INTEGER NOT NULL DEFAULT 0',
+  })
   await sql`CREATE INDEX IF NOT EXISTS bookstore_items_published_idx ON bookstore_items (published, created_at DESC)`
 
   await sql`
@@ -764,6 +767,7 @@ const bookstoreItemColumns = sql.unsafe(`
   published,
   download_file_name AS "fileName",
   download_size_bytes::INTEGER AS "fileSizeBytes",
+  download_count::INTEGER AS "downloadCount",
   to_char(updated_at, 'Mon DD, YYYY') AS "updatedAt"
 `)
 
@@ -1433,6 +1437,7 @@ app.get('/api/bookstore-items/:id/download', requireAuthenticated, async (reques
       AND bookstore_purchases.bookstore_item_id = ${itemId}
   `
   if (!item) return response.status(404).json({ message: 'Purchased file not found.' })
+  await sql`UPDATE bookstore_items SET download_count = download_count + 1 WHERE id = ${itemId}`
   response.set({
     'Content-Type': item.mimeType,
     'Content-Length': String(item.downloadFile.length),
@@ -2277,6 +2282,7 @@ app.get('/api/payments/chapa/:reference/bookstore-download', async (request, res
     SELECT payments.reference,
            payments.chapa_reference AS "chapaReference",
            payments.status,
+           bookstore_items.id::INTEGER AS "itemId",
            bookstore_items.download_file AS "downloadFile",
            bookstore_items.download_file_name AS "fileName",
            bookstore_items.download_mime_type AS "mimeType"
@@ -2292,6 +2298,7 @@ app.get('/api/payments/chapa/:reference/bookstore-download', async (request, res
   }
   if (payment.status !== 'paid') return response.status(409).json({ message: 'Payment is not complete.' })
   if (!payment.downloadFile || !payment.fileName || !payment.mimeType) return response.status(404).json({ message: 'Purchased file not found.' })
+  await sql`UPDATE bookstore_items SET download_count = download_count + 1 WHERE id = ${payment.itemId}`
   response.set({
     'Content-Type': payment.mimeType,
     'Content-Length': String(payment.downloadFile.length),

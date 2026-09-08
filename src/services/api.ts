@@ -457,6 +457,7 @@ export interface BookstoreItem {
   published: boolean
   fileName: string
   fileSizeBytes: number
+  downloadCount: number
   updatedAt: string
 }
 
@@ -473,7 +474,7 @@ export interface BookstorePurchase {
   purchasedAt: string
 }
 
-export type BookstoreItemPayload = Omit<BookstoreItem, 'id' | 'currency' | 'fileName' | 'fileSizeBytes' | 'updatedAt'> & { fileData?: string; fileName?: string }
+export type BookstoreItemPayload = Omit<BookstoreItem, 'id' | 'currency' | 'fileName' | 'fileSizeBytes' | 'downloadCount' | 'updatedAt'> & { fileData?: string; fileName?: string }
 
 const requestBookstore = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const response = await requestApi(url, init)
