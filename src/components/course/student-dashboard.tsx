@@ -414,12 +414,14 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
     setIsEnrollmentExpanded((current) => !current)
     if (!enrollmentActive) onSelectView('courses')
   }
-  const navItem = (view: DashboardView, label: string, icon: ReactNode, active: boolean, endIcon?: ReactNode, onClick?: () => void, ariaExpanded?: boolean) => <Box component="button" type="button" aria-expanded={ariaExpanded} onClick={onClick ?? (() => onSelectView(view))} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, border: 0, borderRadius: 2.5, px: 1.5, py: 1.05, mb: .45, backgroundColor: active ? '#5d71dc' : 'transparent', color: active ? '#fff' : '#65717f', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all .18s ease', '&:hover': { backgroundColor: active ? '#4e61c9' : '#eef1fa', color: active ? '#fff' : '#4e61c9' } }}><Box sx={{ display: 'flex' }}>{icon}</Box><Typography variant="body2" sx={{ flex: 1, fontWeight: active ? 700 : 500 }}>{label}</Typography>{endIcon}</Box>
+  const user = getAuthenticatedUser()
+  const displayName = user?.name || 'Alex Morgan'
+  const navItem = (view: DashboardView, label: string, icon: ReactNode, active: boolean, endIcon?: ReactNode, onClick?: () => void, ariaExpanded?: boolean) => <Box component="button" type="button" aria-expanded={ariaExpanded} onClick={onClick ?? (() => onSelectView(view))} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, border: 0, borderRadius: 2.5, px: 1.5, py: 1.05, mb: .45, backgroundColor: active ? '#5d71dc' : 'transparent', color: active ? '#fff' : '#65717f', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all .18s ease', boxShadow: active ? '0 7px 16px rgba(93,113,220,.18)' : 'none', '&:hover': { backgroundColor: active ? '#4e61c9' : '#eef1fa', color: active ? '#fff' : '#4e61c9', transform: active ? 'none' : 'translateX(2px)' } }}><Box sx={{ display: 'flex', opacity: active ? 1 : .82 }}>{icon}</Box><Typography variant="body2" sx={{ flex: 1, fontWeight: active ? 700 : 500 }}>{label}</Typography>{endIcon}</Box>
 
   return <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', borderRight: 1, borderColor: 'rgba(41, 75, 91, .08)' }}>
-    <Box sx={{ px: 3, py: 3.25 }}><Logo /></Box>
-    <Box component="nav" aria-label="Student dashboard navigation" sx={{ px: 1.75, pb: 1.5, flex: 1 }}>
-      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Menu</Typography>
+    <Box sx={{ px: 3, pt: 2.5, pb: 2.25, borderBottom: '1px solid #f0f2f5' }}><Box sx={{ transform: 'scale(.82)', transformOrigin: 'left center', width: '122%' }}><Logo /></Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: .2 }}>Your personal learning space</Typography></Box>
+    <Box component="nav" aria-label="Student dashboard navigation" sx={{ px: 1.75, py: 2, flex: 1 }}>
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Overview</Typography>
       {navItem('overview', 'Dashboard', <DashboardOutlinedIcon fontSize="small" />, activeView === 'overview')}
       {navItem('calendar', 'Calendar', <CalendarTodayOutlinedIcon fontSize="small" />, activeView === 'calendar')}
       <Box>
@@ -429,14 +431,19 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
           <Box component="button" type="button" onClick={() => onSelectView('classes')} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1, border: 0, borderLeft: 2, borderColor: activeView === 'classes' ? 'primary.main' : 'divider', py: 0.75, pl: 1.5, pr: 1, backgroundColor: 'transparent', color: activeView === 'classes' ? 'primary.main' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: activeView === 'classes' ? 600 : 400, textAlign: 'left' }}><ClassOutlinedIcon fontSize="small" />My Classes</Box>
         </Box>}
       </Box>
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mt: 2.25, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Learning</Typography>
       {navItem('quizzes', 'Quizzes & Results', <QuizOutlinedIcon fontSize="small" />, activeView === 'quizzes')}
       {navItem('purchases', 'My Purchases', <PaymentsOutlinedIcon fontSize="small" />, activeView === 'purchases')}
       {navItem('other-courses', 'Other Courses', <MenuBookOutlinedIcon fontSize="small" />, activeView === 'other-courses')}
       {navItem('other-classes', 'Other Classes', <ClassOutlinedIcon fontSize="small" />, activeView === 'other-classes')}
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mt: 2.25, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Account</Typography>
       {navItem('profile', 'Profile', <PersonOutlineIcon fontSize="small" />, activeView === 'profile')}
       {navItem('payments', 'Payment History', <PaymentsOutlinedIcon fontSize="small" />, activeView === 'payments')}
     </Box>
-    <Box sx={{ p: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, background: 'linear-gradient(135deg, #edf0ff, #f6f7ff)', borderRadius: 3 }}><SchoolOutlinedIcon sx={{ color: '#5d71dc' }} fontSize="small" /><Typography variant="caption" color="text.secondary">Keep learning at your own pace.</Typography></Box></Box>
+    <Box sx={{ p: 1.75, pt: 1, borderTop: '1px solid #f0f2f5' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, p: 1.25, mb: 1.25, borderRadius: 3, background: 'linear-gradient(135deg, #edf0ff, #f6f7ff)' }}><Box sx={{ position: 'relative' }}><Avatar sx={{ width: 34, height: 34, bgcolor: '#5d71dc', fontSize: 14 }}>{displayName.charAt(0)}</Avatar><Box sx={{ position: 'absolute', right: -1, bottom: 0, width: 9, height: 9, borderRadius: '50%', bgcolor: '#55c58b', border: '2px solid #edf0ff' }} /></Box><Box sx={{ minWidth: 0 }}><Typography variant="body2" noWrap sx={{ fontWeight: 800 }}>{displayName}</Typography><Typography variant="caption" color="text.secondary">Student account</Typography></Box></Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: .7 }}><SchoolOutlinedIcon sx={{ color: '#5d71dc' }} fontSize="small" /><Typography variant="caption" color="text.secondary">Keep learning at your own pace.</Typography></Box>
+    </Box>
   </Box>
 }
 
