@@ -1,11 +1,13 @@
 import React, { FC, useState } from 'react'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
+import Link from '@mui/material/Link'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { Logo } from '@/components/logo'
 import { Navigation, AuthNavigation } from '@/components/navigation'
+import { socialLinks } from '@/components/footer/footer-social-links'
 import { getAuthenticatedUser, signOut } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 import { useTheme } from '@mui/material/styles'
@@ -13,11 +15,12 @@ import { Close, DarkModeOutlined, LightModeOutlined, Menu } from '@mui/icons-mat
 
 interface Props {
   darkMode: boolean
+  showSocialLinks?: boolean
   onSignIn: () => void
   onToggleDarkMode: () => void
 }
 
-const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
+const Header: FC<Props> = ({ darkMode, showSocialLinks = false, onSignIn, onToggleDarkMode }) => {
   const [visibleMenu, setVisibleMenu] = useState<boolean>(false)
   const currentUser = getAuthenticatedUser()
   const isAdmin = currentUser?.role === 'admin'
@@ -63,6 +66,13 @@ const Header: FC<Props> = ({ darkMode, onSignIn, onToggleDarkMode }) => {
             <Box /> {/* Magic space */}
             <Navigation isAdmin={isAdmin} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {showSocialLinks && <Box component="ul" aria-label="Social links" sx={{ display: 'flex', alignItems: 'center', gap: 0.25, m: 0, p: 0, listStyle: 'none' }}>
+                {socialLinks.map((item) => <Box component="li" key={item.name}>
+                  <Link href={item.link} target="_blank" rel="noreferrer" aria-label={item.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', color: 'text.secondary', '&:hover': { backgroundColor: 'action.hover', color: 'primary.main' }, '& img': { width: 18, height: 18 } }}>
+                    <img src={item.icon} alt="" />
+                  </Link>
+                </Box>)}
+              </Box>}
               <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                 <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                   {darkMode ? <LightModeOutlined /> : <DarkModeOutlined />}

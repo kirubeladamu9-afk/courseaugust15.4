@@ -35,8 +35,8 @@ const PracticeExamPlayer: React.FC<PracticeExamPlayerProps> = ({ examId, darkMod
     return () => { active = false }
   }, [examId])
 
-  if (!exam && !error) return <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}><Header darkMode={darkMode} onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} /><Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}><CircularProgress aria-label="Loading practice exam" /></Box></Box>
-  if (error || !exam || exam.questions.length === 0) return <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}><Header darkMode={darkMode} onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} /><Box sx={{ maxWidth: 720, mx: 'auto', px: 2, py: 8 }}><Alert severity="info" sx={{ mb: 3 }}>{error ?? 'This practice exam has no questions yet.'}</Alert><Button variant="contained" onClick={() => navigateTo('/practice-exams')}>Browse practice exams</Button></Box></Box>
+  if (!exam && !error) return <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}><Header darkMode={darkMode} showSocialLinks onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} /><Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}><CircularProgress aria-label="Loading practice exam" /></Box></Box>
+  if (error || !exam || exam.questions.length === 0) return <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}><Header darkMode={darkMode} showSocialLinks onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} /><Box sx={{ maxWidth: 720, mx: 'auto', px: 2, py: 8 }}><Alert severity="info" sx={{ mb: 3 }}>{error ?? 'This practice exam has no questions yet.'}</Alert><Button variant="contained" onClick={() => navigateTo('/practice-exams')}>Browse practice exams</Button></Box></Box>
 
   const question = exam.questions[questionIndex]
   const selectedAnswer = answers[question.id] ?? null
@@ -71,7 +71,7 @@ const PracticeExamPlayer: React.FC<PracticeExamPlayerProps> = ({ examId, darkMod
   }
 
   return <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
-    <Header darkMode={darkMode} onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} />
+    <Header darkMode={darkMode} showSocialLinks onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} />
     <Box component="main" sx={{ maxWidth: 840, mx: 'auto', px: { xs: 2, md: 4 }, py: { xs: 4, md: 6 } }}>
       <Button startIcon={<ArrowBackIcon />} onClick={() => navigateTo('/practice-exams')} sx={{ mb: 3 }}>All practice exams</Button>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 2 }}>
