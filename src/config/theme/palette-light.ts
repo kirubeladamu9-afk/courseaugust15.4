@@ -1,4 +1,3 @@
-import { PaletteOptions } from '@mui/material'
 import { common, grey } from '@mui/material/colors'
 import type { PaletteOptions } from '@mui/material/styles'
 

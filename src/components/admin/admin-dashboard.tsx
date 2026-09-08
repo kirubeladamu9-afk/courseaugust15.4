@@ -1441,7 +1441,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             </Menu>
           </Stack>
         </Box>
-        <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, maxWidth: 1540, minHeight: 'calc(100vh - 82px)', background: (theme) => theme.palette.mode === 'dark' ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, #142420 100%)` : 'linear-gradient(135deg, #f9fcfc 0%, #f2f8f7 100%)' }}>
+        <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, maxWidth: 1540, minHeight: 'calc(100vh - 82px)', background: 'var(--app-content-gradient)' }}>
           {isLoading ? <AdminLoadingState /> : currentPage}
         </Box>
       </Box>

@@ -51,10 +51,10 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
     }
   }
 
-  return <Box sx={{ background: 'radial-gradient(circle at 20% 0%, rgba(16, 125, 111, 0.12), transparent 34%)', backgroundColor: 'background.default', minHeight: 'calc(100vh - 88px)', py: { xs: 4, md: 8 } }}>
+  return <Box sx={{ background: 'var(--app-auth-backdrop)', backgroundColor: 'background.default', minHeight: 'calc(100vh - 88px)', py: { xs: 4, md: 8 } }}>
     <Container maxWidth="lg">
       <Paper elevation={8} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 0.9fr) minmax(0, 1.1fr)' }, maxWidth: 1080, minHeight: { md: 620 }, mx: 'auto', overflow: 'hidden', borderRadius: { xs: 3, md: 5 } }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 3.5, md: 5 }, color: 'common.white', background: 'linear-gradient(145deg, #1f1717 0%, #302323 58%, #163f3c 100%)', minHeight: { xs: 320, md: '100%' } }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 3.5, md: 5 }, color: 'common.white', background: 'var(--app-auth-panel)', minHeight: { xs: 320, md: '100%' } }}>
           <Box>
             <Typography variant="overline" sx={{ letterSpacing: 1.2, color: 'rgba(255,255,255,0.72)' }}>Coursespace learning platform</Typography>
             <Typography component="h2" sx={{ mt: { xs: 7, md: 13 }, fontSize: { xs: '2.7rem', md: '4rem' }, lineHeight: 0.98, letterSpacing: '-0.06em', fontWeight: 700 }}>
@@ -77,7 +77,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
           ) : (
             <>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: { xs: 7, md: 12 } }}>
-                <Typography sx={{ fontSize: '1.25rem', fontWeight: 700 }}>Course<span style={{ color: '#107d6f' }}>space</span></Typography>
+                <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, '& span': { color: 'primary.main' } }}>Course<span>space</span></Typography>
                 <Typography variant="body2" color="text.secondary">{isSignUp ? 'Already learning with us?' : 'Secure account access'}</Typography>
               </Box>
               <Box sx={{ maxWidth: 430, width: '100%', mx: 'auto', flex: 1 }}>

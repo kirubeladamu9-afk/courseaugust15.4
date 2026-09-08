@@ -377,7 +377,7 @@ const DashboardHeader: FC<{ title: string; darkMode: boolean; language: string; 
   return <Box component="header" sx={{ minHeight: 82, px: { xs: 2, md: 3.5 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, backgroundColor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.96 : 0.82), backdropFilter: 'blur(16px)', borderBottom: 1, borderColor: 'divider' }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
       <IconButton onClick={onOpenMenu} sx={{ display: { xs: 'inline-flex', md: 'none' } }} aria-label="Open dashboard navigation"><MenuIcon /></IconButton>
-      <Box sx={{ display: { xs: 'block', sm: 'none' } }}><Typography variant="h6" sx={{ fontWeight: 800 }}>Course<span style={{ color: '#127C71' }}>space</span></Typography></Box>
+      <Box sx={{ display: { xs: 'block', sm: 'none' } }}><Typography variant="h6" sx={{ fontWeight: 800 }}>Course<span style={{ color: 'inherit' }}>space</span></Typography></Box>
       <Box sx={{ display: { xs: 'none', md: 'block' } }}>
         <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: .8, lineHeight: 1 }}>Student portal</Typography>
         <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.35 }}>{title}</Typography>

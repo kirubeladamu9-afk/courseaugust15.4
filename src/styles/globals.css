@@ -1,11 +1,33 @@
 :root {
-  --color-background: #f2f5f5;
+  --app-canvas: #f2f5f5;
+  --app-surface: #ffffff;
+  --app-text: #212121;
+  --app-text-muted: #717171;
+  --app-border: #d9e2df;
+  --app-hover: #edf5f2;
+  --app-selected: #e1f1ec;
+  --app-overlay: rgba(0, 0, 0, 0.12);
+  --app-drawer-shadow: -12px 0 28px rgba(0, 0, 0, 0.12);
+  --app-content-gradient: linear-gradient(135deg, #f9fcfc 0%, #f2f8f7 100%);
+  --app-auth-backdrop: radial-gradient(circle at 20% 0%, rgba(16, 125, 111, 0.12), transparent 34%);
+  --app-auth-panel: linear-gradient(145deg, #1f1717 0%, #302323 58%, #163f3c 100%);
   --color-scrollbar: #c8d2cf;
   --color-scrollbar-hover: #9caeaa;
 }
 
 :root[data-theme='dark'] {
-  --color-background: #101716;
+  --app-canvas: #101716;
+  --app-surface: #192321;
+  --app-text: #f2f7f6;
+  --app-text-muted: #b3c0bd;
+  --app-border: #31413e;
+  --app-hover: #24332f;
+  --app-selected: #2b413b;
+  --app-overlay: rgba(0, 0, 0, 0.56);
+  --app-drawer-shadow: -12px 0 28px rgba(0, 0, 0, 0.34);
+  --app-content-gradient: linear-gradient(135deg, #101716 0%, #142420 100%);
+  --app-auth-backdrop: radial-gradient(circle at 20% 0%, rgba(18, 124, 113, 0.24), transparent 34%);
+  --app-auth-panel: linear-gradient(145deg, #101716 0%, #172725 58%, #155d56 100%);
   --color-scrollbar: #41524e;
   --color-scrollbar-hover: #62736e;
 }
@@ -16,7 +38,7 @@
 }
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
-  background: var(--color-background);
+  background: var(--app-canvas);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb {
@@ -25,12 +47,12 @@
 }
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
-  background: var(--color-background);
+  background: var(--app-canvas);
   border-radius: 10px;
 }
 
 body {
-  background-color: var(--color-background);
+  background-color: var(--app-canvas);
 }
 
 .hero-image,
@@ -44,7 +66,7 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background-color: var(--color-background);
+  background-color: var(--app-canvas);
 }
 
 .site-load-spinner-group {
