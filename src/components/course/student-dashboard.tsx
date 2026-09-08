@@ -511,6 +511,9 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelect
         <Paper elevation={0} sx={{ p: 2.25, borderRadius: 4, border: '1px solid #edf0f3' }}><Typography component="h2" variant="h6" sx={{ fontWeight: 800 }}>Your progress</Typography><Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}><Box sx={{ width: 84, height: 84, borderRadius: '50%', display: 'grid', placeItems: 'center', background: `conic-gradient(#5d71dc ${averageProgress * 3.6}deg, #edf0f5 0)` }}><Box sx={{ width: 66, height: 66, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: '#fff' }}><Typography sx={{ fontWeight: 800 }}>{averageProgress}%</Typography></Box></Box><Typography variant="body2" color="text.secondary">Average completion across your active learning plan.</Typography></Box></Paper>
       </Stack>
     </Box>
+    <Box sx={{ mt: 3.5, mb: 2 }}><Typography variant="overline" sx={{ color: '#5d71dc', fontWeight: 800, letterSpacing: 1.2 }}>Growth center</Typography><Typography variant="h5" sx={{ fontWeight: 800 }}>Improve, compete, and celebrate</Typography><Typography variant="body2" color="text.secondary">Use your learning insights, rankings, and achievements to keep your momentum going.</Typography></Box>
+    <WeakAreasPanel enrollments={enrollments} onOpenCourse={onOpenCourse} />
+    <GamificationWidgets data={gamificationData} />
     {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mt: 2.25, borderRadius: 3 }}>You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling.</Alert>}
   </>
 }
