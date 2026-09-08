@@ -114,7 +114,7 @@ export const BookstorePage: FC<BookstorePageProps> = ({ darkMode, onToggleDarkMo
   const [checkoutItem, setCheckoutItem] = useState<BookstoreItem | null>(null)
   const user = getAuthenticatedUser()
   const reloadPurchases = () => user && void getBookstorePurchases().then(setPurchases).catch(() => undefined)
-  useEffect(() => { void getBookstoreItems().then(setItems).catch((error) => toast.add({ title: 'Unable to load bookstore', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })).finally(() => setIsLoading(false)); reloadPurchases() }, [])
+  useEffect(() => { const payment = new URLSearchParams(window.location.search).get('payment'); if (payment) window.location.assign('/api/payments/chapa/' + encodeURIComponent(payment) + '/bookstore-download'); void getBookstoreItems().then(setItems).catch((error) => toast.add({ title: 'Unable to load bookstore', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })).finally(() => setIsLoading(false)); reloadPurchases() }, [])
   const buy = async (item: BookstoreItem) => {
     setPurchasingId(item.id)
     try {

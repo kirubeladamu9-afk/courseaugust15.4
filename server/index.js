@@ -2274,7 +2274,9 @@ app.get('/api/payments/chapa/:reference/bookstore-download', async (request, res
     return response.status(404).json({ message: 'Purchased file not found.' })
   }
   const [payment] = await sql`
-    SELECT payments.status,
+    SELECT payments.reference,
+           payments.chapa_reference AS "chapaReference",
+           payments.status,
            bookstore_items.download_file AS "downloadFile",
            bookstore_items.download_file_name AS "fileName",
            bookstore_items.download_mime_type AS "mimeType"
@@ -2284,6 +2286,10 @@ app.get('/api/payments/chapa/:reference/bookstore-download', async (request, res
       AND payments.bookstore_item_id IS NOT NULL
   `
   if (!payment) return response.status(404).json({ message: 'Purchased file not found.' })
+  if (payment.status === 'pending' && payment.chapaReference) {
+    const verification = await verifyChapaTransaction(payment.chapaReference)
+    if (verification.status !== 'pending') payment.status = await updatePaymentStatus(payment.reference, verification.status, verification.data)
+  }
   if (payment.status !== 'paid') return response.status(409).json({ message: 'Payment is not complete.' })
   if (!payment.downloadFile || !payment.fileName || !payment.mimeType) return response.status(404).json({ message: 'Purchased file not found.' })
   response.set({
