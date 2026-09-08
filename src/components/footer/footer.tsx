@@ -28,6 +28,9 @@ const Footer: FC = () => {
             <FooterNavigation />
           </Grid>
         </Grid>
+        <Typography variant="body2" sx={{ mt: 5, pt: 3, borderTop: 1, borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+          © {new Date().getFullYear()} EKD Tech Solutions. All rights reserved.
+        </Typography>
       </Container>
     </Box>
   )
