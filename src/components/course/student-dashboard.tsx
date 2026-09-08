@@ -52,6 +52,9 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import TranslateOutlinedIcon from '@mui/icons-material/TranslateOutlined'
 import VideoCallOutlinedIcon from '@mui/icons-material/VideoCallOutlined'
 import CloseIcon from '@mui/icons-material/Close'
+import SearchIcon from '@mui/icons-material/Search'
+import TuneIcon from '@mui/icons-material/Tune'
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
 import { type FC, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Course } from '@/interfaces/course'
 import ScheduleCalendar, { type ScheduleSession } from '@/components/schedule-calendar'
@@ -371,20 +374,21 @@ const DashboardHeader: FC<{ title: string; darkMode: boolean; language: string; 
   const user = getAuthenticatedUser()
   const displayName = user?.name || 'Alex Morgan'
 
-  return <Box component="header" sx={{ height: 72, px: { xs: 2, md: 4 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+  return <Box component="header" sx={{ minHeight: 82, px: { xs: 2, md: 3.5 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, backgroundColor: 'rgba(255,255,255,.82)', backdropFilter: 'blur(16px)', borderBottom: 1, borderColor: 'rgba(41, 75, 91, .08)' }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
       <IconButton onClick={onOpenMenu} sx={{ display: { xs: 'inline-flex', md: 'none' } }} aria-label="Open dashboard navigation"><MenuIcon /></IconButton>
-      <Box sx={{ display: { xs: 'block', sm: 'none' } }}><Typography variant="h6" sx={{ fontWeight: 700 }}>Coursespace</Typography></Box>
-      <Box sx={{ display: { xs: 'none', md: 'block' }, ml: 2, pl: 2, borderLeft: 1, borderColor: 'divider' }}>
-        <Typography variant="caption" color="text.secondary">Student portal /</Typography>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{title}</Typography>
+      <Box sx={{ display: { xs: 'block', sm: 'none' } }}><Typography variant="h6" sx={{ fontWeight: 800 }}>Course<span style={{ color: '#5d71dc' }}>space</span></Typography></Box>
+      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+        <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: .8, lineHeight: 1 }}>Student portal</Typography>
+        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.35 }}>{title}</Typography>
       </Box>
     </Box>
-    <Stack direction="row" alignItems="center" spacing={0.5}>
-      <Tooltip title={`Language: ${language}`}><IconButton onClick={onLanguageChange} aria-label={`Change language, currently ${language}`}><TranslateOutlinedIcon /><Typography variant="caption" sx={{ ml: 0.25, fontWeight: 700 }}>{language}</Typography></IconButton></Tooltip>
-      <Tooltip title="Notifications"><IconButton aria-label="Notifications"><NotificationsNoneOutlinedIcon /></IconButton></Tooltip>
-      <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}><IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>{darkMode ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}</IconButton></Tooltip>
-      <Tooltip title="Open profile menu"><IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="Open profile menu" aria-controls={profileAnchor ? 'student-profile-menu' : undefined} aria-haspopup="true"><AccountCircleOutlinedIcon /></IconButton></Tooltip>
+    <Stack direction="row" alignItems="center" spacing={.75}>
+      <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', width: 220, px: 1.5, py: .55, borderRadius: 5, backgroundColor: '#f2f5f8', color: 'text.secondary' }}><SearchIcon fontSize="small" /><Typography variant="caption" sx={{ ml: .8 }}>Search here...</Typography></Box>
+      <Tooltip title={`Language: ${language}`}><IconButton onClick={onLanguageChange} aria-label={`Change language, currently ${language}`}><TranslateOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+      <Tooltip title="Notifications"><IconButton aria-label="Notifications"><NotificationsNoneOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+      <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}><IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>{darkMode ? <LightModeOutlinedIcon fontSize="small" /> : <DarkModeOutlinedIcon fontSize="small" />}</IconButton></Tooltip>
+      <Tooltip title="Open profile menu"><IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="Open profile menu" aria-controls={profileAnchor ? 'student-profile-menu' : undefined} aria-haspopup="true" sx={{ p: .25 }}><Avatar sx={{ width: 34, height: 34, bgcolor: '#5d71dc', fontSize: 14 }}>{displayName.charAt(0)}</Avatar></IconButton></Tooltip>
       <Menu id="student-profile-menu" anchorEl={profileAnchor} open={Boolean(profileAnchor)} onClose={() => setProfileAnchor(null)} PaperProps={{ sx: { minWidth: 190, borderRadius: 2, p: 0.75 } }}>
         <MenuItem onClick={() => { setProfileAnchor(null); window.dispatchEvent(new CustomEvent('student-profile-open')) }}><PersonOutlineIcon fontSize="small" sx={{ mr: 1 }} />{displayName}</MenuItem>
         <MenuItem onClick={() => { setProfileAnchor(null); void signOut().then(() => navigateTo('/', true)) }}>Sign out</MenuItem>
@@ -410,13 +414,12 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
     setIsEnrollmentExpanded((current) => !current)
     if (!enrollmentActive) onSelectView('courses')
   }
-  const navItem = (view: DashboardView, label: string, icon: ReactNode, active: boolean, endIcon?: ReactNode, onClick?: () => void, ariaExpanded?: boolean) => <Box component="button" type="button" aria-expanded={ariaExpanded} onClick={onClick ?? (() => onSelectView(view))} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5, backgroundColor: active ? 'primary.main' : 'transparent', color: active ? 'primary.contrastText' : 'text.secondary', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: active ? 'primary.dark' : 'action.hover' } }}><Box sx={{ display: 'flex' }}>{icon}</Box><Typography variant="body2" sx={{ flex: 1, fontWeight: active ? 600 : 400 }}>{label}</Typography>{endIcon}</Box>
+  const navItem = (view: DashboardView, label: string, icon: ReactNode, active: boolean, endIcon?: ReactNode, onClick?: () => void, ariaExpanded?: boolean) => <Box component="button" type="button" aria-expanded={ariaExpanded} onClick={onClick ?? (() => onSelectView(view))} sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, border: 0, borderRadius: 2.5, px: 1.5, py: 1.05, mb: .45, backgroundColor: active ? '#5d71dc' : 'transparent', color: active ? '#fff' : '#65717f', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all .18s ease', '&:hover': { backgroundColor: active ? '#4e61c9' : '#eef1fa', color: active ? '#fff' : '#4e61c9' } }}><Box sx={{ display: 'flex' }}>{icon}</Box><Typography variant="body2" sx={{ flex: 1, fontWeight: active ? 700 : 500 }}>{label}</Typography>{endIcon}</Box>
 
-  return <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column' }}>
-    <Box sx={{ px: 3, py: 2.5 }}><Logo /></Box>
-    <Divider />
-    <Box component="nav" aria-label="Student dashboard navigation" sx={{ p: 1.5, flex: 1 }}>
-      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Main menu</Typography>
+  return <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', borderRight: 1, borderColor: 'rgba(41, 75, 91, .08)' }}>
+    <Box sx={{ px: 3, py: 3.25 }}><Logo /></Box>
+    <Box component="nav" aria-label="Student dashboard navigation" sx={{ px: 1.75, pb: 1.5, flex: 1 }}>
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Menu</Typography>
       {navItem('overview', 'Dashboard', <DashboardOutlinedIcon fontSize="small" />, activeView === 'overview')}
       {navItem('calendar', 'Calendar', <CalendarTodayOutlinedIcon fontSize="small" />, activeView === 'calendar')}
       <Box>
@@ -433,7 +436,7 @@ const DashboardSidebar: FC<SidebarProps> = ({ activeView, onSelectView }) => {
       {navItem('profile', 'Profile', <PersonOutlineIcon fontSize="small" />, activeView === 'profile')}
       {navItem('payments', 'Payment History', <PaymentsOutlinedIcon fontSize="small" />, activeView === 'payments')}
     </Box>
-    <Box sx={{ p: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, backgroundColor: 'background.default', borderRadius: 2 }}><SchoolOutlinedIcon color="primary" fontSize="small" /><Typography variant="caption" color="text.secondary">Keep learning at your own pace.</Typography></Box></Box>
+    <Box sx={{ p: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, background: 'linear-gradient(135deg, #edf0ff, #f6f7ff)', borderRadius: 3 }}><SchoolOutlinedIcon sx={{ color: '#5d71dc' }} fontSize="small" /><Typography variant="caption" color="text.secondary">Keep learning at your own pace.</Typography></Box></Box>
   </Box>
 }
 
@@ -480,38 +483,28 @@ const OverviewView: FC<{ enrollments: DashboardEnrollment[]; now: Date; onSelect
   const nextClass = nextClassEnrollment?.classRecord
   const pendingCount = enrollments.filter((enrollment) => enrollment.type === 'class' && enrollment.status === 'pending_schedule').length
 
+  const averageProgress = Math.round(courseEnrollments.reduce((total, enrollment) => total + enrollment.progress, 0) / Math.max(1, courseEnrollments.length))
+  const displayName = getAuthenticatedUser()?.name?.split(' ')[0] || 'Learner'
   return <>
-    <ViewHeading eyebrow="Welcome back" title="Dashboard" description="Pick up where you left off and stay on top of your learning schedule." />
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
-      <SummaryCard label="Active courses" value={String(activeCourseCount)} detail="Self-paced courses in progress" icon={<MenuBookOutlinedIcon />} onClick={() => onSelectView('courses')} />
-      <SummaryCard label="Next live class" value={nextClass?.title ?? 'No class scheduled'} detail={nextClass ? classScheduleLabel(nextClass.schedule) : 'Check My Classes for updates'} icon={<VideoCallOutlinedIcon />} onClick={() => onSelectView('classes')} />
-      <SummaryCard label="Learning progress" value={`${Math.round(courseEnrollments.reduce((total, enrollment) => total + enrollment.progress, 0) / Math.max(1, courseEnrollments.length))}%`} detail="Average across active courses" icon={<CheckCircleOutlineIcon />} />
-    </Stack>
-    <Paper elevation={0} sx={{ p: 2.5, mb: 3, border: 1, borderColor: 'divider' }}>
-      <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Overall grades</Typography>
-      <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Your combined quiz, attendance, and completion performance for each enrollment.</Typography>
-      <Stack spacing={1.25}>{enrollments.map((enrollment) => {
-        const course = getEnrollmentCourse(enrollment)
-        if (!course) return null
-        const classRank = enrollment.type === 'class' ? getClassRank(gamificationData, enrollment.classRecord?.id) : undefined
-        return <Stack key={`${enrollment.type}-${enrollment.id}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: 'background.default' }}><Box><Typography sx={{ fontWeight: 600 }}>{enrollment.type === 'class' ? enrollment.classRecord?.title : course.title}</Typography><Typography variant="body2" color="text.secondary">{enrollment.type === 'class' ? 'Class' : 'Course'}</Typography></Box><Stack spacing={0.5} alignItems={{ xs: 'flex-start', sm: 'flex-end' }}><OverallGradeValue grade={getEnrollmentOverallGrade(enrollment, enrollment.progress, now)} /><ClassRankValue rank={classRank} /></Stack></Stack>
-      })}</Stack>
-    </Paper>
-    <WeakAreasPanel enrollments={enrollments} onOpenCourse={onOpenCourse} />
-    <GamificationWidgets data={gamificationData} />
-    {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mb: 3 }}><Box><Typography component="h2" variant="subtitle2" sx={{ fontWeight: 700 }}>Pending items</Typography><Typography variant="body2">You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling. We&apos;ll contact you to arrange the next step.</Typography></Box></Alert>}
-    <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
-      <Paper elevation={0} sx={{ flex: 1, p: 2.5, border: 1, borderColor: 'divider' }}>
-        <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Continue learning</Typography>
-        <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Jump back into your most recently active course.</Typography>
-        {courseEnrollments[0]?.course && <CourseMiniRow course={courseEnrollments[0].course} enrollment={courseEnrollments[0]} onOpenCourse={onOpenCourse} />}
-      </Paper>
-      <Paper elevation={0} sx={{ flex: 1, p: 2.5, border: 1, borderColor: 'divider' }}>
-        <Typography component="h2" variant="h6" sx={{ mb: 0.5 }}>Upcoming class</Typography>
-        <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>Your next scheduled live learning session.</Typography>
-        {nextClass ? <Stack direction="row" spacing={1.5} alignItems="flex-start"><Box sx={{ display: 'flex', p: 1, borderRadius: 2, color: 'primary.main', backgroundColor: 'action.hover' }}><CalendarTodayOutlinedIcon /></Box><Box><Typography sx={{ fontWeight: 600 }}>{nextClass.title}</Typography><Typography color="text.secondary" variant="body2">{classScheduleLabel(nextClass.schedule)}</Typography><Typography color="text.secondary" variant="body2">Tutor: {nextClass.tutorName}</Typography></Box></Stack> : <Typography color="text.secondary">Your schedule will appear here once a class is confirmed.</Typography>}
-      </Paper>
-    </Stack>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2, mb: 3 }}>
+      <Box><Typography variant="body2" sx={{ color: '#5d71dc', fontWeight: 800, mb: .5 }}>WELCOME BACK, {displayName.toUpperCase()}</Typography><Typography component="h1" variant="h4" sx={{ fontWeight: 800, letterSpacing: '-.04em' }}>Let&apos;s make learning fun!</Typography><Typography color="text.secondary" variant="body2" sx={{ mt: .75 }}>Here&apos;s a clear view of your learning journey.</Typography></Box>
+      <Button variant="outlined" startIcon={<TuneIcon />} sx={{ borderRadius: 5, display: { xs: 'none', sm: 'inline-flex' } }}>Filters</Button>
+    </Box>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(250px, .85fr) minmax(360px, 1.45fr) minmax(250px, .85fr)' }, gap: 2.25, alignItems: 'start' }}>
+      <Stack spacing={2.25}>
+        <Paper elevation={0} sx={{ p: 2.25, borderRadius: 4, background: 'linear-gradient(135deg,#f8f9ff,#eff1ff)', border: '1px solid #e3e7ff' }}><Stack direction="row" justifyContent="space-between" alignItems="center"><Box><Typography variant="body2" color="text.secondary">Ongoing classes</Typography><Typography variant="h3" sx={{ mt: .3, fontWeight: 800 }}>{activeCourseCount}</Typography></Box><Box sx={{ p: 1, color: '#5d71dc', bgcolor: '#fff', borderRadius: 2 }}><MenuBookOutlinedIcon /></Box></Stack><Typography variant="caption" color="text.secondary">Courses currently in progress</Typography></Paper>
+        {courseEnrollments.slice(0, 2).map((enrollment, index) => enrollment.course && <Paper key={enrollment.id} elevation={0} sx={{ p: 2, borderRadius: 4, bgcolor: index ? '#ecf8ff' : '#f1f0ff', border: '1px solid rgba(93,113,220,.12)' }}><Stack direction="row" justifyContent="space-between"><Box sx={{ p: .75, borderRadius: 2, bgcolor: '#fff', color: '#5d71dc' }}><MenuBookOutlinedIcon fontSize="small" /></Box><MoreHorizIcon color="action" fontSize="small" /></Stack><Typography sx={{ fontWeight: 800, mt: 1.5 }}>{enrollment.course.title}</Typography><Stack direction="row" spacing={.5} sx={{ mt: .75 }}><Chip label={enrollment.course.category} size="small" /><Chip label={enrollment.course.level} size="small" variant="outlined" /></Stack><Box sx={{ mt: 2 }}><Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">In progress</Typography><Typography variant="caption" sx={{ fontWeight: 800 }}>{enrollment.progress}%</Typography></Stack><LinearProgress variant="determinate" value={enrollment.progress} sx={{ mt: .6, height: 6, borderRadius: 5, bgcolor: '#fff' }} /></Box></Paper>)}
+      </Stack>
+      <Stack spacing={2.25}>
+        <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #edf0f3' }}><Stack direction="row" justifyContent="space-between"><Box><Typography component="h2" variant="h6" sx={{ fontWeight: 800 }}>Performance chart</Typography><Stack direction="row" spacing={1.25} sx={{ mt: .8 }}><Typography variant="caption" color="text.secondary">● Theory</Typography><Typography variant="caption" sx={{ color: '#77cfa5' }}>● Practice</Typography><Typography variant="caption" sx={{ color: '#e7b84e' }}>● Lessons</Typography></Stack></Box><Chip label="Weekly" size="small" variant="outlined" /></Stack><Box sx={{ height: 220, mt: 2, position: 'relative', overflow: 'hidden', borderBottom: '1px solid #e7ebef', backgroundImage: 'linear-gradient(#f2f4f6 1px, transparent 1px)', backgroundSize: '100% 54px' }}><Box sx={{ position: 'absolute', bottom: 26, left: 0, right: 0, height: 140, borderTop: '3px solid #8c82dc', borderRadius: '50% 50% 0 0 / 75% 75% 0 0', transform: 'skewY(-10deg)' }} /><Box sx={{ position: 'absolute', bottom: 22, left: 0, right: 0, height: 105, borderTop: '3px solid #e2b34e', borderRadius: '50% 50% 0 0 / 75% 75% 0 0', transform: 'skewY(-5deg)' }} /><Stack direction="row" justifyContent="space-between" sx={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>{['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day) => <Typography key={day} variant="caption" color="text.secondary">{day}</Typography>)}</Stack></Box></Paper>
+        <Paper elevation={0} sx={{ p: 2.25, borderRadius: 4, border: '1px solid #edf0f3' }}><Typography component="h2" variant="h6" sx={{ fontWeight: 800, mb: 1.5 }}>Continue learning</Typography>{courseEnrollments[0]?.course ? <CourseMiniRow course={courseEnrollments[0].course} enrollment={courseEnrollments[0]} onOpenCourse={onOpenCourse} /> : <Typography color="text.secondary" variant="body2">Your enrolled courses will appear here.</Typography>}</Paper>
+      </Stack>
+      <Stack spacing={2.25}>
+        <Paper elevation={0} sx={{ p: 2.25, borderRadius: 4, border: '1px solid #edf0f3' }}><Stack direction="row" justifyContent="space-between"><Box><Typography component="h2" variant="h6" sx={{ fontWeight: 800 }}>Your schedule</Typography><Typography variant="caption" color="text.secondary">This week</Typography></Box><CalendarTodayOutlinedIcon sx={{ color: '#5d71dc' }} /></Stack>{nextClass ? <Box sx={{ mt: 2, p: 1.5, borderRadius: 2.5, bgcolor: '#edf8ff' }}><Typography sx={{ fontWeight: 800 }} variant="body2">{nextClass.title}</Typography><Typography variant="caption" color="text.secondary">{classScheduleLabel(nextClass.schedule)}</Typography><Button size="small" sx={{ mt: .5, px: 0 }} onClick={() => onSelectView('classes')}>View class</Button></Box> : <Typography color="text.secondary" variant="body2" sx={{ mt: 2 }}>No live classes scheduled.</Typography>}</Paper>
+        <Paper elevation={0} sx={{ p: 2.25, borderRadius: 4, border: '1px solid #edf0f3' }}><Typography component="h2" variant="h6" sx={{ fontWeight: 800 }}>Your progress</Typography><Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}><Box sx={{ width: 84, height: 84, borderRadius: '50%', display: 'grid', placeItems: 'center', background: `conic-gradient(#5d71dc ${averageProgress * 3.6}deg, #edf0f5 0)` }}><Box sx={{ width: 66, height: 66, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: '#fff' }}><Typography sx={{ fontWeight: 800 }}>{averageProgress}%</Typography></Box></Box><Typography variant="body2" color="text.secondary">Average completion across your active learning plan.</Typography></Box></Paper>
+      </Stack>
+    </Box>
+    {pendingCount > 0 && <Alert severity="info" icon={<CalendarTodayOutlinedIcon />} action={<Button color="inherit" size="small" onClick={() => onSelectView('classes')}>View classes</Button>} sx={{ mt: 2.25, borderRadius: 3 }}>You have {pendingCount} class {pendingCount === 1 ? 'enrollment' : 'enrollments'} awaiting scheduling.</Alert>}
   </>
 }
 
@@ -1368,7 +1361,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     {!isLessonPlayer && !isQuizPlayer && (isMobile ? <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)}>{sidebar}<IconButton onClick={() => setMobileOpen(false)} aria-label="Close dashboard navigation" sx={{ position: 'absolute', top: 10, right: 10 }}><CloseIcon /></IconButton></Drawer> : <Box sx={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: drawerWidth, zIndex: 'drawer' }}>{sidebar}</Box>)}
     <Box sx={{ flex: 1, minWidth: 0, ml: isLessonPlayer ? 0 : { xs: 0, md: `${drawerWidth}px` } }}>
       {!isLessonPlayer && !isQuizPlayer && <DashboardHeader title={pageTitle} darkMode={darkMode} language={language} onLanguageChange={() => setLanguage((current) => current === 'EN' ? 'AM' : 'EN')} onToggleDarkMode={onToggleDarkMode} onOpenMenu={() => setMobileOpen(true)} />}
-      <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: isLessonPlayer ? 1600 : 1440, minHeight: isLessonPlayer ? '100vh' : 'calc(100vh - 72px)' }}>
+      <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, maxWidth: isLessonPlayer ? 1600 : 1540, minHeight: isLessonPlayer ? '100vh' : 'calc(100vh - 82px)', background: 'linear-gradient(135deg, #f9fcfd 0%, #f4f8ff 100%)' }}>
         {profileMessage && <Alert severity="success" onClose={() => setProfileMessage('')} sx={{ mb: 3 }}>{profileMessage}</Alert>}
         {progressError && <Alert severity="error" onClose={() => setProgressError(null)} sx={{ mb: 3 }}>{progressError}</Alert>}
         {isLoadingEnrollments ? <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 8 }} aria-live="polite"><CircularProgress aria-label="Loading enrollments" /><Typography color="text.secondary">Loading your enrollments...</Typography></Box> : enrollmentError ? <Alert severity="error">{enrollmentError}</Alert> : <>
