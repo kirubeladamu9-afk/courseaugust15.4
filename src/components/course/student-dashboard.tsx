@@ -1218,6 +1218,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   }, [])
 
   useEffect(() => {
+    if (isLoadingEnrollments || enrollmentError) return
     let isCurrent = true
     getGamification()
       .then((data) => {
@@ -1232,7 +1233,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
     return () => {
       isCurrent = false
     }
-  }, [completedLessons, quizResults, enrollments])
+  }, [completedLessons, enrollmentError, enrollments, isLoadingEnrollments, quizResults])
 
   useEffect(() => {
     let isCurrent = true
