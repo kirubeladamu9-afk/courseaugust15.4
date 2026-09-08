@@ -19,6 +19,9 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
+import AttachMoneyOutlinedIcon from '@mui/icons-material/AttachMoneyOutlined'
+import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined'
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import { type FC, useEffect, useMemo, useState } from 'react'
 import { getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminPayments, getAdminQuizViolations, getAdminTutors, getAdminUsers, type AdminClass, type AdminClassEnrollment, type AdminPayment, type AdminQuizViolation, type AtRiskStudent } from '@/services/api'
 import { type AdminTutor, type AdminUser } from './admin-data'
@@ -141,7 +144,30 @@ const ReportsPage: FC = () => {
   }, [generatedType, result.rows])
 
   const selectedReport = reportOptions.find((option) => option.value === reportType)
+  const summaryMetrics = useMemo(() => {
+    const now = new Date()
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const paidThisMonth = payments.filter((payment) => payment.status === 'Paid' && payment.date.startsWith(monthKey))
+    const attendanceRecords = enrollments.flatMap((enrollment) => Object.values(enrollment.attendance))
+    const presentRecords = attendanceRecords.filter((status) => status === 'Present').length
+    return {
+      totalStudents: new Set([...users.filter((user) => user.role === 'Student').map((user) => user.name), ...enrollments.map((enrollment) => enrollment.student_name)]).size,
+      revenueThisMonth: paidThisMonth.reduce((total, payment) => total + payment.amount, 0),
+      attendanceRate: attendanceRecords.length ? Math.round((presentRecords / attendanceRecords.length) * 100) : 0,
+    }
+  }, [enrollments, payments, users])
   const generateReport = () => { if (reportType) setGeneratedType(reportType) }
+  const applyPreset = (type: ReportType, presetFilters: FilterValues) => {
+    setReportType(type)
+    setFilters(presetFilters)
+    setGeneratedType(type)
+  }
+  const dateInputValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  const thisWeekStart = new Date()
+  thisWeekStart.setDate(thisWeekStart.getDate() - ((thisWeekStart.getDay() + 6) % 7))
+  const thisWeekEnd = new Date(thisWeekStart)
+  thisWeekEnd.setDate(thisWeekEnd.getDate() + 6)
   const exportReport = () => {
     const csv = [result.columns.join(','), ...result.rows.map((row) => result.columns.map((column) => csvCell(row[column])).join(','))].join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
@@ -167,10 +193,19 @@ const ReportsPage: FC = () => {
 
   return <><PageHeading />
     {isLoading ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress aria-label="Loading reporting data" /></Box> : error ? <Alert severity="error">{error}</Alert> : <>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+        {[
+          { label: 'Total Students', value: summaryMetrics.totalStudents.toLocaleString(), detail: 'Students in existing records', icon: <GroupsOutlinedIcon /> },
+          { label: 'Revenue This Month', value: `$${summaryMetrics.revenueThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, detail: 'Paid transactions this month', icon: <AttachMoneyOutlinedIcon /> },
+          { label: 'Average Attendance Rate', value: `${summaryMetrics.attendanceRate}%`, detail: 'Across recorded sessions', icon: <EventAvailableOutlinedIcon /> },
+        ].map((metric) => <Paper key={metric.label} elevation={0} sx={{ p: 2.25, border: 1, borderColor: 'divider' }}><Stack direction="row" justifyContent="space-between" alignItems="flex-start"><Box><Typography variant="body2" color="text.secondary">{metric.label}</Typography><Typography variant="h5" sx={{ mt: 1, mb: .5 }}>{metric.value}</Typography><Typography variant="caption" color="text.secondary">{metric.detail}</Typography></Box><Box sx={{ color: 'primary.main' }}>{metric.icon}</Box></Stack></Paper>)}
+      </Box>
       <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, border: 1, borderColor: 'divider', mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 0.5 }}>Create a report</Typography><Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>Choose one report type, set only its relevant filters, then generate the results.</Typography>
         <FormControl fullWidth sx={{ maxWidth: 440, mb: selectedReport ? 2.5 : 0 }}><InputLabel id="report-type-label">Report type</InputLabel><Select labelId="report-type-label" value={reportType} label="Report type" onChange={(event) => { setReportType(event.target.value as ReportType); setFilters({}); setGeneratedType(null) }}><MenuItem value=""><em>Select a report type</em></MenuItem>{reportOptions.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}</Select></FormControl>
         {selectedReport && <><Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{selectedReport.description}</Typography><Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} useFlexGap flexWrap="wrap" alignItems={{ md: 'center' }}>{filterPanel()}<Button variant="contained" startIcon={<AssessmentOutlinedIcon />} onClick={generateReport} sx={{ minHeight: 40 }}>Generate Report</Button></Stack></>}
+        <Box sx={{ mt: 3, pt: 2.5, borderTop: 1, borderColor: 'divider' }}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Quick Reports</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap"><Button size="small" variant="outlined" onClick={() => applyPreset('revenue', { startDate: dateInputValue(thisMonthStart), endDate: dateInputValue(new Date()), paymentStatus: 'Paid' })}>This Month&apos;s Revenue</Button><Button size="small" variant="outlined" onClick={() => applyPreset('attendance', { startDate: dateInputValue(thisWeekStart), endDate: dateInputValue(thisWeekEnd) })}>This Week&apos;s Attendance</Button><Button size="small" variant="outlined" onClick={() => applyPreset('progress', {})}>At-Risk Students</Button></Stack></Box>
+        {!generatedType && <Box sx={{ textAlign: 'center', py: 4, mt: 3, borderRadius: 2, bgcolor: 'action.hover' }}><AssessmentOutlinedIcon sx={{ fontSize: 42, color: 'text.secondary', mb: 1 }} /><Typography color="text.secondary">Select a report type above to get started</Typography></Box>}
       </Paper>
       {generatedType && <><Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: 'divider', mb: 3 }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1.5}><Box><Typography variant="h6">{reportOptions.find((option) => option.value === generatedType)?.label} report</Typography><Typography variant="body2" color="text.secondary">{result.rows.length} matching record{result.rows.length === 1 ? '' : 's'}.</Typography></Box><Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={exportReport} disabled={!result.rows.length}>Export CSV</Button></Stack></Paper>
       {chartData.length > 0 && <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', mb: 3 }}><Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>{generatedType === 'revenue' ? 'Revenue trend' : 'Enrollment trend'}</Typography><Stack direction="row" spacing={1.5} alignItems="flex-end" sx={{ height: 180, overflowX: 'auto', pb: 1 }}>{chartData.map((item) => <Box key={item.label} sx={{ minWidth: 72, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: .75 }}><Typography variant="caption" sx={{ fontWeight: 700 }}>{generatedType === 'revenue' ? `$${item.value.toLocaleString()}` : item.value}</Typography><Box sx={{ width: 36, height: `${Math.max(8, (item.value / Math.max(...chartData.map((entry) => entry.value))) * 110)}px`, borderRadius: '6px 6px 2px 2px', bgcolor: 'primary.main' }} /><Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>{item.label}</Typography></Box>)}</Stack></Paper>}
