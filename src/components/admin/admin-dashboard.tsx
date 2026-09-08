@@ -827,6 +827,7 @@ const RegistrationsPage: FC = () => {
 
   const columns: DataColumn<AdminRegistration>[] = [
     { key: 'student', label: 'Student' },
+    { key: 'email', label: 'Email' },
     { key: 'course', label: 'Course' },
     { key: 'date', label: 'Date' },
     { key: 'status', label: 'Status', render: (value) => <StatusChip status={String(value)} /> },

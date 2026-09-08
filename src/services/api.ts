@@ -429,6 +429,7 @@ export interface AdminPayment {
 export interface AdminRegistration {
   id: number
   student: string
+  email: string
   course: string
   date: string
   status: 'Pending' | 'Approved' | 'Waitlisted' | 'Rejected'

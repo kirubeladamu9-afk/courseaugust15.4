@@ -2960,6 +2960,7 @@ app.get('/api/admin/registrations', requireAdmin, async (_request, response) => 
   const registrations = await sql`
     SELECT COALESCE(enrollments.id, payments.id)::INTEGER AS id,
            COALESCE(students.full_name, NULLIF(payments.student_data->0->>'fullName', ''), NULLIF(users.name, ''), 'Unknown student') AS student,
+           users.email AS email,
            COALESCE(classes.title, courses.title, 'Course registration') AS course,
            to_char(COALESCE(enrollments.created_at, payments.created_at), 'Mon DD, YYYY') AS date,
            CASE
