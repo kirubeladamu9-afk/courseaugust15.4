@@ -8,6 +8,7 @@ import LinearProgress from '@mui/material/LinearProgress'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import { alpha } from '@mui/material/styles'
 import BoltOutlinedIcon from '@mui/icons-material/BoltOutlined'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined'
@@ -77,14 +78,14 @@ const XPLevelCard: FC<{ stats: StudentStats; lessonCount: number; quizCount: num
 }
 
 const StreakCard: FC<{ stats: StudentStats }> = ({ stats }) => (
-  <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: 'divider', background: 'linear-gradient(135deg, rgba(237, 108, 2, 0.12), rgba(237, 108, 2, 0.03))' }}>
+  <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: 'divider', background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.warning.main, theme.palette.mode === 'dark' ? 0.20 : 0.12)}, ${alpha(theme.palette.warning.main, theme.palette.mode === 'dark' ? 0.08 : 0.03)})` }}>
     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
       <Box>
         <Typography color="warning.dark" variant="overline" sx={{ fontWeight: 800, letterSpacing: 1 }}>Learning streak</Typography>
         <Typography variant="h3" sx={{ lineHeight: 1, fontWeight: 800 }}>{stats.current_streak}</Typography>
         <Typography color="text.secondary">days in a row</Typography>
       </Box>
-      <Box sx={{ display: 'flex', p: 1.25, borderRadius: '50%', color: 'warning.dark', backgroundColor: 'rgba(237, 108, 2, 0.16)' }}><LocalFireDepartmentOutlinedIcon sx={{ fontSize: 34 }} /></Box>
+      <Box sx={{ display: 'flex', p: 1.25, borderRadius: '50%', color: 'warning.dark', backgroundColor: (theme) => alpha(theme.palette.warning.main, theme.palette.mode === 'dark' ? 0.24 : 0.16) }}><LocalFireDepartmentOutlinedIcon sx={{ fontSize: 34 }} /></Box>
     </Stack>
     <Divider sx={{ my: 2 }} />
     <Stack direction="row" justifyContent="space-between" spacing={1}>
@@ -104,7 +105,7 @@ const BadgesPanel: FC<{ badges: Badge[]; achievements: Achievement[] }> = ({ bad
       {unlockedBadges.map((badge) => {
         const achievement = achievements.find((item) => item.badge_id === badge.id)
         return <Stack key={badge.id} direction="row" spacing={1.25} alignItems="center" sx={{ p: 1.25, borderRadius: 2, backgroundColor: 'background.default' }}>
-          <Box sx={{ display: 'flex', p: 1, borderRadius: 2, color: 'warning.dark', backgroundColor: 'rgba(237, 108, 2, 0.13)' }}>{getBadgeIcon(badge.icon)}</Box>
+          <Box sx={{ display: 'flex', p: 1, borderRadius: 2, color: 'warning.dark', backgroundColor: (theme) => alpha(theme.palette.warning.main, theme.palette.mode === 'dark' ? 0.22 : 0.13) }}>{getBadgeIcon(badge.icon)}</Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontWeight: 700 }}>{badge.name}</Typography>
             <Typography color="text.secondary" variant="body2">{badge.description}</Typography>
@@ -135,7 +136,7 @@ const LeaderboardPanel: FC<{ entries: LeaderboardEntry[]; classTitle: string }> 
 const ChallengesPanel: FC<{ challenges: Challenge[] }> = ({ challenges }) => (
   <GamificationCard title="Challenges" description="Small goals that add bonus XP and Points" icon={<StarBorderOutlinedIcon />}>
     <Stack spacing={1.25}>
-      {challenges.map((challenge) => <Card key={challenge.id} elevation={0} sx={{ border: 1, borderColor: challenge.completed ? 'success.light' : 'divider', backgroundColor: challenge.completed ? 'rgba(46, 125, 50, 0.06)' : 'background.default' }}>
+      {challenges.map((challenge) => <Card key={challenge.id} elevation={0} sx={{ border: 1, borderColor: challenge.completed ? 'success.light' : 'divider', backgroundColor: challenge.completed ? (theme) => alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.16 : 0.06) : 'background.default' }}>
         <CardContent sx={{ p: '12px !important' }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }}>
             <Box>

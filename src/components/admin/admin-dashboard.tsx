@@ -26,7 +26,7 @@ import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { useTheme } from '@mui/material/styles'
+import { alpha, useTheme } from '@mui/material/styles'
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined'
 import ClassOutlinedIcon from '@mui/icons-material/ClassOutlined'
@@ -134,7 +134,7 @@ const CourseEditorSection: FC<{ title: string; description?: string; expanded: b
 )
 
 const StatCard: FC<{ label: string; value: string; detail: string; icon: ReactNode }> = ({ label, value, detail, icon }) => (
-  <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid rgba(18,124,113,.10)', backgroundColor: 'rgba(255,255,255,.84)', flex: 1, minWidth: 200 }}>
+  <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, border: 1, borderColor: 'divider', backgroundColor: 'background.paper', flex: 1, minWidth: 200 }}>
     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
       <Typography color="text.secondary" variant="body2">{label}</Typography>
       <Box sx={{ color: 'primary.main' }}>{icon}</Box>
@@ -571,7 +571,7 @@ const DashboardCharts: FC<Pick<AdminDashboardOverview, 'revenueByMonth' | 'enrol
   )
 }
 
-const WeakAreasPanel: FC<{ weakAreas: AdminWeakArea[] }> = ({ weakAreas }) => <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: 4, border: '1px solid', borderColor: weakAreas.length ? 'warning.main' : 'rgba(18,124,113,.10)', backgroundColor: 'rgba(255,255,255,.84)' }}>
+const WeakAreasPanel: FC<{ weakAreas: AdminWeakArea[] }> = ({ weakAreas }) => <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: 4, border: 1, borderColor: weakAreas.length ? 'warning.main' : 'divider', backgroundColor: 'background.paper' }}>
   <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 2 }}>
     <Box>
       <Typography component="h2" variant="h6">Topics needing attention</Typography>
@@ -579,7 +579,7 @@ const WeakAreasPanel: FC<{ weakAreas: AdminWeakArea[] }> = ({ weakAreas }) => <P
     </Box>
     <Chip size="small" color={weakAreas.length ? 'warning' : 'success'} label={weakAreas.length ? `${weakAreas.length} weak topic${weakAreas.length === 1 ? '' : 's'}` : 'No weak topics'} />
   </Stack>
-  {weakAreas.length === 0 ? <Typography color="text.secondary" variant="body2">Topic performance is on track. Weak areas will appear here as learner responses are recorded.</Typography> : <Stack spacing={1.25}>{weakAreas.map((area) => <Box key={area.topic} sx={{ p: 1.5, borderRadius: 1.5, backgroundColor: 'warning.lighter' }}>
+  {weakAreas.length === 0 ? <Typography color="text.secondary" variant="body2">Topic performance is on track. Weak areas will appear here as learner responses are recorded.</Typography> : <Stack spacing={1.25}>{weakAreas.map((area) => <Box key={area.topic} sx={{ p: 1.5, borderRadius: 1.5, backgroundColor: (theme) => alpha(theme.palette.warning.main, theme.palette.mode === 'dark' ? 0.16 : 0.08) }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
       <Typography sx={{ fontWeight: 700 }}>{area.topic}</Typography>
       <Chip size="small" color="warning" label={`${area.accuracy}% accuracy`} sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }} />
@@ -1354,8 +1354,8 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   }, [adminUser, pathname, section])
 
   const sidebar = (
-    <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column', borderRight: 1, borderColor: 'rgba(18,124,113,.12)' }}>
-      <Box sx={{ px: 3, pt: 2.5, pb: 2.25, borderBottom: '1px solid rgba(18,124,113,.12)' }}><Box sx={{ transform: 'scale(.82)', transformOrigin: 'left center', width: '122%' }}><Logo /></Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: .2 }}>Your management workspace</Typography></Box>
+    <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column', borderRight: 1, borderColor: 'divider' }}>
+      <Box sx={{ px: 3, pt: 2.5, pb: 2.25, borderBottom: 1, borderColor: 'divider' }}><Box sx={{ transform: 'scale(.82)', transformOrigin: 'left center', width: '122%' }}><Logo /></Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: .2 }}>Your management workspace</Typography></Box>
       <Box component="nav" aria-label="Admin navigation" sx={{ px: 1.75, py: 2, flex: 1 }}>
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Overview</Typography>
         {navigation.map((item, index) => <Box key={item.key}>
@@ -1383,9 +1383,9 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
           </Box>}
         </Box>)}
       </Box>
-      <Box sx={{ p: 1.75, pt: 1, borderTop: '1px solid rgba(18,124,113,.12)' }}>
+      <Box sx={{ p: 1.75, pt: 1, borderTop: 1, borderColor: 'divider' }}>
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Account</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, p: 1.25, mb: 1.25, borderRadius: 3, background: 'linear-gradient(135deg, rgba(18,124,113,.10), rgba(18,124,113,.04))' }}><Box sx={{ position: 'relative' }}><Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: 14 }}>{(adminUser?.name || 'Admin').charAt(0)}</Avatar><Box sx={{ position: 'absolute', right: -1, bottom: 0, width: 9, height: 9, borderRadius: '50%', bgcolor: 'success.main', border: '2px solid #edf8f6' }} /></Box><Box sx={{ minWidth: 0 }}><Typography variant="body2" noWrap sx={{ fontWeight: 800 }}>{adminUser?.name || 'Admin user'}</Typography><Typography variant="caption" color="text.secondary">Administrator account</Typography></Box></Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, p: 1.25, mb: 1.25, borderRadius: 3, background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.10)}, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.10 : 0.04)})` }}><Box sx={{ position: 'relative' }}><Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: 14 }}>{(adminUser?.name || 'Admin').charAt(0)}</Avatar><Box sx={{ position: 'absolute', right: -1, bottom: 0, width: 9, height: 9, borderRadius: '50%', bgcolor: 'success.main', border: (theme) => `2px solid ${theme.palette.background.paper}` }} /></Box><Box sx={{ minWidth: 0 }}><Typography variant="body2" noWrap sx={{ fontWeight: 800 }}>{adminUser?.name || 'Admin user'}</Typography><Typography variant="caption" color="text.secondary">Administrator account</Typography></Box></Box>
         <Box title="Settings" aria-label="Settings" sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: .7 }}><SettingsOutlinedIcon color="disabled" fontSize="small" /><Typography variant="caption" color="text.secondary">Manage preferences</Typography></Box>
       </Box>
     </Box>
@@ -1395,13 +1395,13 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }} aria-busy={isLoading}>
       {isMobile ? <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)}>{sidebar}</Drawer> : <Box sx={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: drawerWidth, zIndex: 'drawer' }}>{sidebar}</Box>}
       <Box sx={{ flex: 1, minWidth: 0, ml: { xs: 0, md: `${drawerWidth}px` } }}>
-        <Box component="header" sx={{ minHeight: 82, px: { xs: 2, md: 3.5 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, backgroundColor: 'rgba(255,255,255,.82)', backdropFilter: 'blur(16px)', borderBottom: 1, borderColor: 'rgba(18,124,113,.12)' }}>
+        <Box component="header" sx={{ minHeight: 82, px: { xs: 2, md: 3.5 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, backgroundColor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.96 : 0.82), backdropFilter: 'blur(16px)', borderBottom: 1, borderColor: 'divider' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
             {isMobile && <IconButton onClick={() => setMobileOpen(true)} aria-label="Open admin menu"><MenuIcon /></IconButton>}
             <Box><Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: .8, lineHeight: 1 }}>Admin workspace</Typography><Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.35 }}>{section === 'overview' ? 'Dashboard' : navigation.find((item) => item.key === section)?.label}</Typography></Box>
           </Box>
           <Stack direction="row" alignItems="center" spacing={.75}>
-            <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', width: 220, px: 1.5, py: .55, borderRadius: 5, backgroundColor: '#f2f5f5', color: 'text.secondary' }}><SearchIcon fontSize="small" /><Typography variant="caption" sx={{ ml: .8 }}>Search here...</Typography></Box>
+            <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', width: 220, px: 1.5, py: .55, borderRadius: 5, backgroundColor: 'action.hover', color: 'text.secondary' }}><SearchIcon fontSize="small" /><Typography variant="caption" sx={{ ml: .8 }}>Search here...</Typography></Box>
             <Tooltip title="Language: EN"><IconButton aria-label="Change language, currently EN"><TranslateOutlinedIcon fontSize="small" /></IconButton></Tooltip>
             <Tooltip title="Notifications"><IconButton aria-label="Notifications"><NotificationsNoneOutlinedIcon fontSize="small" /></IconButton></Tooltip>
             <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
@@ -1441,7 +1441,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             </Menu>
           </Stack>
         </Box>
-        <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, maxWidth: 1540, minHeight: 'calc(100vh - 82px)', background: 'linear-gradient(135deg, #f9fcfc 0%, #f2f8f7 100%)' }}>
+        <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, maxWidth: 1540, minHeight: 'calc(100vh - 82px)', background: (theme) => theme.palette.mode === 'dark' ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, #142420 100%)` : 'linear-gradient(135deg, #f9fcfc 0%, #f2f8f7 100%)' }}>
           {isLoading ? <AdminLoadingState /> : currentPage}
         </Box>
       </Box>

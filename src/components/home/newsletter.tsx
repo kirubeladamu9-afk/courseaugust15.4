@@ -35,8 +35,8 @@ const HomeNewsLetter: FC = () => {
           >
             <InputBase
               sx={{
-                backgroundColor: '#fff',
-                color: '#000',
+                backgroundColor: 'background.paper',
+                color: 'text.primary',
                 borderRadius: 3,
                 width: '100%',
                 height: 48,

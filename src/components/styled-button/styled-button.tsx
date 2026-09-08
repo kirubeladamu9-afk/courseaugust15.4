@@ -91,13 +91,13 @@ const StyledButtonRoot = styled('button', {
   ...(color === 'default' &&
     variant === 'contained' && {
       backgroundColor: theme.palette.text.primary,
-      color: theme.palette.primary.contrastText,
+      color: theme.palette.background.paper,
     }),
   ...(color === 'primary' &&
     variant === 'contained' && {
       backgroundColor: theme.palette.primary.main,
       color: theme.palette.primary.contrastText,
-      boxShadow: '0 6px 22px 0 rgb(18 124 113 / 12%)',
+      boxShadow: theme.shadows[2],
     }),
   ...(color === 'secondary' &&
     variant === 'contained' && {
@@ -106,12 +106,12 @@ const StyledButtonRoot = styled('button', {
     }),
   ...(color === 'dark' &&
     variant === 'contained' && {
-      backgroundColor: '#313d56',
-      color: theme.palette.primary.contrastText,
+      backgroundColor: theme.palette.text.primary,
+      color: theme.palette.background.paper,
     }),
   ...(color === 'light' &&
     variant === 'contained' && {
-      backgroundColor: theme.palette.primary.contrastText,
+      backgroundColor: theme.palette.background.paper,
       color: theme.palette.text.primary,
     }),
 
@@ -127,13 +127,13 @@ const StyledButtonRoot = styled('button', {
     }),
   ...(color === 'dark' &&
     variant === 'outlined' && {
-      border: `2px solid #313d56`,
-      color: '#313d56',
+      border: `2px solid ${theme.palette.text.primary}`,
+      color: theme.palette.text.primary,
     }),
   ...(color === 'light' &&
     variant === 'outlined' && {
-      border: `2px solid ${theme.palette.primary.contrastText}`,
-      color: theme.palette.primary.contrastText,
+      border: `2px solid ${theme.palette.text.primary}`,
+      color: theme.palette.text.primary,
     }),
 
   ...(color === 'primary' &&
@@ -146,7 +146,11 @@ const StyledButtonRoot = styled('button', {
     }),
   ...(color === 'dark' &&
     variant === 'text' && {
-      color: '#313d56',
+      color: theme.palette.text.primary,
+    }),
+  ...(color === 'light' &&
+    variant === 'text' && {
+      color: theme.palette.text.primary,
     }),
   ...(color === 'light' &&
     variant === 'text' && {

@@ -1,7 +1,13 @@
 :root {
-  --color-background: #f5f5f9;
-  --color-scrollbar: rgb(224, 224, 224);
-  --color-scrollbar-hover: #bbb;
+  --color-background: #f2f5f5;
+  --color-scrollbar: #c8d2cf;
+  --color-scrollbar-hover: #9caeaa;
+}
+
+:root[data-theme='dark'] {
+  --color-background: #101716;
+  --color-scrollbar: #41524e;
+  --color-scrollbar-hover: #62736e;
 }
 
 ::-webkit-scrollbar {
@@ -24,8 +30,7 @@
 }
 
 body {
-  /* background-color: var(--color-background); */
-  background-color: '#fff';
+  background-color: var(--color-background);
 }
 
 .hero-image,
@@ -39,7 +44,7 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background-color: #fff;
+  background-color: var(--color-background);
 }
 
 .site-load-spinner-group {
