@@ -2104,10 +2104,10 @@ app.post('/api/payments/chapa', async (request, response) => {
           AND bookstore_items.published = true
       `
     } else {
-      const guestEmail = typeof request.body?.guestEmail === 'string' ? request.body.guestEmail.trim() : ''
+      const suppliedGuestEmail = typeof request.body?.guestEmail === 'string' ? request.body.guestEmail.trim() : ''
+      const guestEmail = isValidEmail(suppliedGuestEmail) ? suppliedGuestEmail : `guest-${randomBytes(18).toString('hex')}@guest.invalid`
       const guestName = typeof request.body?.guestName === 'string' ? request.body.guestName.trim() : ''
       const guestPhone = typeof request.body?.guestPhone === 'string' ? request.body.guestPhone.trim() : ''
-      if (!isValidEmail(guestEmail)) return response.status(400).json({ message: 'A valid guest email is required.' })
       if (guestName.length > 200 || guestPhone.length > 50) return response.status(400).json({ message: 'Guest details are too long.' })
       const guestItems = await sql`
         SELECT bookstore_items.id, bookstore_items.title, bookstore_items.price::FLOAT AS price,
