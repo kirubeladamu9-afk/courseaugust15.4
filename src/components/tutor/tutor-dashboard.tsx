@@ -21,7 +21,7 @@ import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
 import ClassOutlinedIcon from '@mui/icons-material/ClassOutlined'
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
-import { type FC, useEffect, useMemo, useState } from 'react'
+import { type FC, useEffect, useMemo, useRef, useState } from 'react'
 import { CourseEditor } from '@/components/admin/admin-dashboard'
 import ScheduleCalendar, { type ScheduleSession } from '@/components/schedule-calendar'
 import { getAuthenticatedUser, getClassLeaderboard, getTutorAtRiskStudents, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorCourseStudents, getTutorOverview, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type AtRiskStudent, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
@@ -168,6 +168,7 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
   const [atRiskError, setAtRiskError] = useState<string | null>(null)
   const [profileError, setProfileError] = useState('')
   const [profileSaved, setProfileSaved] = useState(false)
+  const hasLoaded = useRef(false)
   const [now, setNow] = useState(() => new Date())
   const [courseDraft, setCourseDraft] = useState<AdminCourse | null>(null)
   const [classDraft, setClassDraft] = useState<{ record: TutorClass; course: AdminCourse } | null>(null)
@@ -204,7 +205,11 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => {
+    if (hasLoaded.current) return
+    hasLoaded.current = true
+    void load()
+  }, [])
   useEffect(() => {
     const timer = window.setInterval(() => { void refreshAtRisk() }, 30000)
     return () => window.clearInterval(timer)

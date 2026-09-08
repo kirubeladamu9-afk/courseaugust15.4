@@ -292,9 +292,10 @@ const getErrorMessage = async (response: Response) => {
 const fetchApi = async (url: string, init?: RequestInit) => {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await fetch(url, init)
+      return await fetch(url, { ...init, credentials: 'same-origin' })
     } catch (error) {
-      if (attempt >= 2 || !(error instanceof TypeError)) throw error
+      if (!(error instanceof TypeError)) throw error
+      if (attempt >= 2) throw new Error('Unable to connect to the CourseSpace API. Please try again when the server is available.')
       await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)))
     }
   }
