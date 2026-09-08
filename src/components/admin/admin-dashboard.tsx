@@ -73,7 +73,7 @@ import { toast } from '@/components/toast'
 import { Logo } from '@/components/logo'
 import { StyledButton } from '@/components/styled-button'
 import { navigateTo } from '@/lib/navigation'
-import { approveAdminQuizRetake, changePassword, type AdminDashboardOverview, type AdminWeakArea, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminQuizViolations, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AdminQuizViolation, type AtRiskStudent, type AuthUser } from '@/services/api'
+import { approveAdminQuizRetake, changePassword, getAdminRegistrations, type AdminDashboardOverview, type AdminRegistration, type AdminWeakArea, createAdminCourse, createAdminTutor, deleteAdminCourse, deleteAdminTutor, getAdminAtRiskStudents, getAdminClassesWorkspace, getAdminCourse, getAdminCourses, getAdminDashboardOverview, getAdminQuizViolations, getAdminTutor, getAdminTutors, getAdminUsers, getAuthenticatedUser, resetAdminUserPassword, signOut, updateAdminCourse, updateAdminTutor, updateAdminTutorStatus, updateAdminUserStatus, type AdminQuizViolation, type AtRiskStudent, type AuthUser } from '@/services/api'
 import AtRiskStudentsPanel from '@/components/at-risk-students-panel'
 import AdminDataTable, { type DataColumn } from './admin-data-table'
 import ClassesWorkspace from './classes-workspace'
@@ -81,7 +81,7 @@ import PaymentsPage from './payments-page'
 import ReportsPage from './reports-page'
 import PracticeExamManagement from './practice-exam-management'
 import { BookstoreAdminPage } from '@/components/bookstore/bookstore-page'
-import { registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
+import { type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType } from './admin-data'
 
 const drawerWidth = 272
 
@@ -806,25 +806,37 @@ const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
 }
 
 const RegistrationsPage: FC = () => {
-  const [rows, setRows] = useState(registrations)
-  const columns: DataColumn<Registration>[] = [
+  const [rows, setRows] = useState<AdminRegistration[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const loadRegistrations = async () => {
+    try {
+      setRows(await getAdminRegistrations())
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load registrations.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadRegistrations()
+  }, [])
+
+  const columns: DataColumn<AdminRegistration>[] = [
     { key: 'student', label: 'Student' },
     { key: 'course', label: 'Course' },
     { key: 'date', label: 'Date' },
     { key: 'status', label: 'Status', render: (value) => <StatusChip status={String(value)} /> },
   ]
-  const updateStatus = (id: number, status: Registration['status']) => setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row))
+  const updateStatus = (id: number, status: AdminRegistration['status']) => setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row))
 
   return (
     <>
-      <PageHeading title="Registrations" description="Review and manage incoming course registrations." />
-      <AdminDataTable rows={rows} columns={columns} searchPlaceholder="Search registrations" actions={(row) => (
-        <Stack direction="row" spacing={0.5}>
-          <Button label="Approve" size="small" onClick={() => updateStatus(row.id, 'Approved')} />
-          <Button label="Waitlist" size="small" variant="outlined" onClick={() => updateStatus(row.id, 'Waitlisted')} />
-          <Button label="Reject" size="small" variant="text" onClick={() => updateStatus(row.id, 'Rejected')} />
-        </Stack>
-      )} />
+      <PageHeading title="Registrations" description="Review and manage incoming course registrations from the database." />
+      {isLoading ? <AdminLoadingState label="Loading registrations" /> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => { setIsLoading(true); void loadRegistrations() }} /></Paper> : <AdminDataTable rows={rows} columns={columns} searchPlaceholder="Search registrations" actions={(row) => <Stack direction="row" spacing={0.5}><Button label="Approve" size="small" onClick={() => updateStatus(row.id, 'Approved')} /><Button label="Waitlist" size="small" variant="outlined" onClick={() => updateStatus(row.id, 'Waitlisted')} /><Button label="Reject" size="small" variant="text" onClick={() => updateStatus(row.id, 'Rejected')} /></Stack>} />}
     </>
   )
 }

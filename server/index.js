@@ -2956,6 +2956,30 @@ app.patch('/api/admin/practice-exams/:examId/questions/:questionId', requireAdmi
   return response.json({ ...question, options: deserializeJson(question.options) })
 })
 
+app.get('/api/admin/registrations', requireAdmin, async (_request, response) => {
+  const registrations = await sql`
+    SELECT COALESCE(enrollments.id, payments.id)::INTEGER AS id,
+           COALESCE(students.full_name, NULLIF(payments.student_data->0->>'fullName', ''), NULLIF(users.name, ''), 'Unknown student') AS student,
+           COALESCE(classes.title, courses.title, 'Course registration') AS course,
+           to_char(COALESCE(enrollments.created_at, payments.created_at), 'Mon DD, YYYY') AS date,
+           CASE
+             WHEN enrollments.class_status = 'waitlisted' THEN 'Waitlisted'
+             WHEN payments.status = 'paid' THEN 'Approved'
+             WHEN payments.status = 'failed' THEN 'Rejected'
+             ELSE 'Pending'
+           END AS status
+    FROM payments
+    INNER JOIN users ON users.id = payments.user_id
+    LEFT JOIN enrollments ON enrollments.payment_id = payments.id
+    LEFT JOIN students ON students.id = enrollments.student_id
+    LEFT JOIN courses ON courses.id = payments.course_id
+    LEFT JOIN classes ON classes.id = payments.class_id
+    WHERE payments.course_id IS NOT NULL OR payments.class_id IS NOT NULL
+    ORDER BY COALESCE(enrollments.created_at, payments.created_at) DESC, payments.id DESC
+  `
+  return response.json(registrations)
+})
+
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,

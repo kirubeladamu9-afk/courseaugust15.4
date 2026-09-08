@@ -426,6 +426,14 @@ export interface AdminPayment {
   status: 'Paid' | 'Pending' | 'Failed'
 }
 
+export interface AdminRegistration {
+  id: number
+  student: string
+  course: string
+  date: string
+  status: 'Pending' | 'Approved' | 'Waitlisted' | 'Rejected'
+}
+
 export interface MyPayment {
   id: number
   itemName: string
@@ -595,6 +603,12 @@ export const approveAdminQuizRetake = async (attemptId: number) => {
 
 export const getAdminPayments = async (): Promise<AdminPayment[]> => {
   const response = await requestApi('/api/admin/payments')
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const getAdminRegistrations = async (): Promise<AdminRegistration[]> => {
+  const response = await requestApi('/api/admin/registrations')
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

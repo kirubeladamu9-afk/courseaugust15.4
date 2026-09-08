@@ -70,14 +70,6 @@ export interface AdminModule {
   lessons: AdminLesson[]
 }
 
-export interface Registration {
-  id: number
-  student: string
-  course: string
-  date: string
-  status: 'Pending' | 'Approved' | 'Waitlisted' | 'Rejected'
-}
-
 export interface AssignedCourse {
   id: number
   title: string
@@ -117,13 +109,6 @@ export interface AdminUser {
   joined: string
   status: 'Active' | 'Suspended'
 }
-
-export const registrations: Registration[] = [
-  { id: 1, student: 'Ava Johnson', course: 'Mastering Data Modeling Fundamentals', date: 'Aug 18, 2025', status: 'Pending' },
-  { id: 2, student: 'Noah Williams', course: 'Docker and Kubernetes', date: 'Aug 17, 2025', status: 'Approved' },
-  { id: 3, student: 'Liam Brown', course: 'Modern React with MUI & Redux', date: 'Aug 16, 2025', status: 'Waitlisted' },
-  { id: 4, student: 'Emma Davis', course: 'Mastering Data Modeling Fundamentals', date: 'Aug 15, 2025', status: 'Pending' },
-]
 
 export const tutors: Tutor[] = [
   { id: 1, name: 'Maya Chen', email: 'maya@example.com', phone: '', bio: '', status: 'Active', createdAt: 'Jul 12, 2025', assignedCourses: [], assignedClasses: [], specialty: 'Data Science', courses: 4 },
