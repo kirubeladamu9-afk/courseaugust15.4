@@ -40,6 +40,7 @@ const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
 const BookstoreItemDialog: FC<{ item: BookstoreItem | null; onClose: () => void; onSaved: (item: BookstoreItem) => void }> = ({ item, onClose, onSaved }) => {
   const [form, setForm] = useState<BookstoreItemPayload>(() => item ? { title: item.title, description: item.description, category: item.category, price: item.price, coverData: item.coverData, published: item.published } : emptyForm())
   const [fileName, setFileName] = useState(item?.fileName ?? '')
+  const [coverFileName, setCoverFileName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
   const update = <K extends keyof BookstoreItemPayload>(key: K, value: BookstoreItemPayload[K]) => setForm((current) => ({ ...current, [key]: value }))
@@ -52,6 +53,17 @@ const BookstoreItemDialog: FC<{ item: BookstoreItem | null; onClose: () => void;
       setFileName(file.name)
     } catch (error) {
       toast.add({ title: 'Unable to read file', description: error instanceof Error ? error.message : 'Choose another file.', type: 'error' })
+    }
+  }
+  const chooseCoverImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.add({ title: 'Image required', description: 'Choose an image file for the cover.', type: 'error' })
+    try {
+      update('coverData', await fileToDataUrl(file))
+      setCoverFileName(file.name)
+    } catch (error) {
+      toast.add({ title: 'Unable to read image', description: error instanceof Error ? error.message : 'Choose another image.', type: 'error' })
     }
   }
   const save = async (event: FormEvent) => {
@@ -68,7 +80,7 @@ const BookstoreItemDialog: FC<{ item: BookstoreItem | null; onClose: () => void;
     } finally { setIsSaving(false) }
   }
 
-  return <Dialog open onClose={onClose} fullWidth maxWidth="sm"><Box component="form" onSubmit={(event) => void save(event)}><DialogTitle>{item ? 'Edit bookstore item' : 'Add bookstore item'}</DialogTitle><DialogContent><Stack spacing={2.25} sx={{ pt: 1 }}><TextField required label="Title" value={form.title} onChange={(event) => update('title', event.target.value)} inputProps={{ maxLength: 200 }} /><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}><TextField required label="Category" value={form.category} onChange={(event) => update('category', event.target.value)} /><TextField required label="Price (ETB)" type="number" value={form.price} onChange={(event) => update('price', Number(event.target.value))} inputProps={{ min: 0, step: 1 }} /></Box><TextField required label="Cover image URL" value={form.coverData} onChange={(event) => update('coverData', event.target.value)} helperText="Use an image URL or data image." /><TextField required multiline minRows={4} label="Description" value={form.description} onChange={(event) => update('description', event.target.value)} inputProps={{ maxLength: 5000 }} /><Button component="label" variant="outlined" startIcon={<DownloadOutlinedIcon />}>{fileName ? `File: ${fileName}` : 'Attach download file'}<input hidden type="file" accept=".pdf,.epub,.zip,.txt,.doc,.docx,.xlsx,application/pdf,application/epub+zip,application/zip,text/plain" onChange={(event) => void chooseFile(event)} /></Button><FormControlLabel control={<Switch checked={form.published} onChange={(event) => update('published', event.target.checked)} />} label="Publish in student bookstore" /></Stack></DialogContent><DialogActions sx={{ px: 3, pb: 2.5 }}><Button onClick={onClose}>Cancel</Button><Button variant="contained" type="submit" disabled={isSaving}>{isSaving ? 'Saving...' : 'Save item'}</Button></DialogActions></Box></Dialog>
+  return <Dialog open onClose={onClose} fullWidth maxWidth="sm"><Box component="form" onSubmit={(event) => void save(event)}><DialogTitle>{item ? 'Edit bookstore item' : 'Add bookstore item'}</DialogTitle><DialogContent><Stack spacing={2.25} sx={{ pt: 1 }}><TextField required label="Title" value={form.title} onChange={(event) => update('title', event.target.value)} inputProps={{ maxLength: 200 }} /><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}><TextField required label="Category" value={form.category} onChange={(event) => update('category', event.target.value)} /><TextField required label="Price (ETB)" type="number" value={form.price} onChange={(event) => update('price', Number(event.target.value))} inputProps={{ min: 0, step: 1 }} /></Box><Button component="label" variant="outlined">{coverFileName ? `Cover image: ${coverFileName}` : form.coverData ? 'Replace cover image' : 'Browse cover image'}<input hidden type="file" accept="image/*" onChange={(event) => void chooseCoverImage(event)} /></Button><TextField required multiline minRows={4} label="Description" value={form.description} onChange={(event) => update('description', event.target.value)} inputProps={{ maxLength: 5000 }} /><Button component="label" variant="outlined" startIcon={<DownloadOutlinedIcon />}>{fileName ? `File: ${fileName}` : 'Attach download file'}<input hidden type="file" accept=".pdf,.epub,.zip,.txt,.doc,.docx,.xlsx,application/pdf,application/epub+zip,application/zip,text/plain" onChange={(event) => void chooseFile(event)} /></Button><FormControlLabel control={<Switch checked={form.published} onChange={(event) => update('published', event.target.checked)} />} label="Publish in student bookstore" /></Stack></DialogContent><DialogActions sx={{ px: 3, pb: 2.5 }}><Button onClick={onClose}>Cancel</Button><Button variant="contained" type="submit" disabled={isSaving}>{isSaving ? 'Saving...' : 'Save item'}</Button></DialogActions></Box></Dialog>
 }
 
 export const BookstoreAdminPage: FC = () => {
