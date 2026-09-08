@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { navigateTo } from '@/lib/navigation'
-import { getPracticeExam, recordPracticeExamAnswer } from '@/services/api'
+import { getAuthenticatedUser, getPracticeExam, recordPracticeExamAnswer } from '@/services/api'
 import { savePracticeResult, type PracticeExamWithQuestions } from './practice-data'
 
 interface PracticeExamPlayerProps { examId: number; darkMode: boolean; onToggleDarkMode: () => void }
@@ -44,7 +44,7 @@ const PracticeExamPlayer: React.FC<PracticeExamPlayerProps> = ({ examId, darkMod
     const correct = answer === question.correct_answer
     setSelectedAnswer(answer)
     if (correct) setCorrectCount((count) => count + 1)
-    void recordPracticeExamAnswer(exam.id, question.id, answer).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to save this practice answer.'))
+    if (getAuthenticatedUser()) void recordPracticeExamAnswer(exam.id, question.id, answer).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to save this practice answer.'))
     if (questionIndex === exam.questions.length - 1) savePracticeResult(exam.id, { correct: correctCount + (correct ? 1 : 0), total: exam.questions.length, completedAt: new Date().toISOString() })
   }
   const nextQuestion = () => { if (!finished) { setQuestionIndex((index) => index + 1); setSelectedAnswer(null) } }
