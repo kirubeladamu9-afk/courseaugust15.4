@@ -80,6 +80,7 @@ import ClassesWorkspace from './classes-workspace'
 import PaymentsPage from './payments-page'
 import ReportsPage from './reports-page'
 import PracticeExamManagement from './practice-exam-management'
+import { BookstoreAdminPage } from '@/components/bookstore/bookstore-page'
 import { registrations, type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type Registration } from './admin-data'
 
 const drawerWidth = 272
@@ -1343,7 +1344,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
         if (tutorMatch) return <TutorEditorPage mode="edit" tutorId={Number(tutorMatch[1])} />
         return <TutorsPage />
       }
-      case 'blog': return <SimplePage title="Bookstore & Blog" description="Manage books, articles, and publishing content." icon={<BookOutlinedIcon fontSize="large" />} />
+      case 'blog': return <BookstoreAdminPage />
       case 'practice-exams': return <PracticeExamManagement />
       case 'payments': return <PaymentsPage />
       case 'reports': return <ReportsPage />

@@ -12,6 +12,7 @@ import TutorDashboard from '@/components/tutor/tutor-dashboard'
 import PracticeExamCatalog from '@/components/practice/practice-exam-catalog'
 import PracticeExamPlayer from '@/components/practice/practice-exam-player'
 import InfoPage from '@/components/info/info-page'
+import { BookstorePage } from '@/components/bookstore/bookstore-page'
 import { navigateTo } from '@/lib/navigation'
 import { type Course } from '@/interfaces/course'
 import { getAuthenticatedUser, getCourses } from '@/services/api'
@@ -59,6 +60,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   const isPracticeCatalogPath = /^\/practice-exams\/?$/.test(currentPath)
   const practiceExamMatch = currentPath.match(/^\/practice-exams\/(\d+)\/?$/)
   const isAboutPath = /^\/about-us\/?$/.test(currentPath)
+  const isBookstorePath = /^\/bookstore\/?$/.test(currentPath)
   const isContactPath = /^\/contact-us\/?$/.test(currentPath)
   const courseMatch = currentPath.match(/^\/courses\/([^/]+)\/?$/)
   const currentUser = getAuthenticatedUser()
@@ -80,7 +82,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   }, [canAccessAdmin, canAccessTutor, currentUser?.role, isAdminPath, isAuthenticated, isDashboardPath, isTutorPath])
 
   useEffect(() => {
-    if (isAdminPath || isDashboardPath || isTutorPath || isPracticeCatalogPath || practiceExamMatch || isAboutPath || isContactPath || courseMatch) {
+    if (isAdminPath || isDashboardPath || isTutorPath || isPracticeCatalogPath || practiceExamMatch || isAboutPath || isBookstorePath || isContactPath || courseMatch) {
       setHomeCourses(null)
       return
     }
@@ -98,7 +100,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
     return () => {
       isCurrent = false
     }
-  }, [currentPath, isAboutPath, isAdminPath, isContactPath, isDashboardPath, isPracticeCatalogPath, isTutorPath, practiceExamMatch])
+  }, [currentPath, isAboutPath, isAdminPath, isBookstorePath, isContactPath, isDashboardPath, isPracticeCatalogPath, isTutorPath, practiceExamMatch])
 
   if ((isAdminPath && !canAccessAdmin) || (isTutorPath && !canAccessTutor) || (isDashboardPath && (!isAuthenticated || currentUser?.role === 'admin' || currentUser?.role === 'tutor'))) return <RouteLoadingState message="Returning to Coursespace..." />
   if (isAdminPath) return <AdminDashboard darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
@@ -107,6 +109,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   if (isPracticeCatalogPath) return <PracticeExamCatalog darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (practiceExamMatch) return <PracticeExamPlayer examId={Number(practiceExamMatch[1])} darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (isAboutPath) return <InfoPage kind="about" darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
+  if (isBookstorePath) return <BookstorePage />
   if (isContactPath) return <InfoPage kind="contact" darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (!courseMatch && homeCourses === null) return <div className="page-loading-state"><SpinnerCustom /></div>
 

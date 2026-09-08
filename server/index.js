@@ -2802,6 +2802,16 @@ app.put('/api/admin/bookstore-items/:id', requireAdmin, async (request, response
   return response.json(await readBookstoreItem(itemId))
 })
 
+app.delete('/api/admin/bookstore-items/:id', requireAdmin, async (request, response) => {
+  const itemId = parseCourseId(request.params.id)
+  if (itemId === null) return response.status(400).json({ message: 'Invalid bookstore item id.' })
+  const [purchase] = await sql`SELECT id FROM bookstore_purchases WHERE bookstore_item_id = ${itemId} LIMIT 1`
+  if (purchase) return response.status(409).json({ message: 'Items with purchase records cannot be deleted. Unpublish the item instead.' })
+  const [deleted] = await sql`DELETE FROM bookstore_items WHERE id = ${itemId} RETURNING id`
+  if (!deleted) return response.status(404).json({ message: 'Bookstore item not found.' })
+  return response.status(204).send()
+})
+
 app.get('/api/admin/practice-exams', requireAdmin, async (_request, response) => {
   const exams = await sql`
     SELECT id::INTEGER AS id, title, subject, grade, price::FLOAT AS price, published

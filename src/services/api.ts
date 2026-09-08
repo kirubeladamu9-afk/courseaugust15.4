@@ -428,12 +428,57 @@ export interface AdminPayment {
 export interface MyPayment {
   id: number
   itemName: string
-  type: 'course' | 'class'
+  type: 'course' | 'class' | 'book' | 'practice_exam'
   amount: number
   currency: string
   status: 'Paid' | 'Pending' | 'Failed'
   date: string
   txRef: string
+}
+
+export interface BookstoreItem {
+  id: number
+  title: string
+  description: string
+  category: string
+  price: number
+  currency: string
+  coverData: string
+  published: boolean
+  fileName: string
+  fileSizeBytes: number
+  updatedAt: string
+}
+
+export interface BookstorePurchase {
+  id: number
+  itemId: number
+  title: string
+  category: string
+  price: number
+  currency: string
+  coverData: string
+  fileName: string
+  fileSizeBytes: number
+  purchasedAt: string
+}
+
+export type BookstoreItemPayload = Omit<BookstoreItem, 'id' | 'currency' | 'fileName' | 'fileSizeBytes' | 'updatedAt'> & { fileData?: string; fileName?: string }
+
+const requestBookstore = async <T>(url: string, init?: RequestInit): Promise<T> => {
+  const response = await requestApi(url, init)
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json() as Promise<T>
+}
+
+export const getBookstoreItems = () => requestBookstore<BookstoreItem[]>('/api/bookstore-items')
+export const getAdminBookstoreItems = () => requestBookstore<BookstoreItem[]>('/api/admin/bookstore-items')
+export const getBookstorePurchases = () => requestBookstore<BookstorePurchase[]>('/api/bookstore-purchases')
+export const createAdminBookstoreItem = (item: BookstoreItemPayload) => requestBookstore<BookstoreItem>('/api/admin/bookstore-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) })
+export const updateAdminBookstoreItem = (id: number, item: BookstoreItemPayload) => requestBookstore<BookstoreItem>(`/api/admin/bookstore-items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) })
+export const deleteAdminBookstoreItem = async (id: number) => {
+  const response = await requestApi(`/api/admin/bookstore-items/${id}`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
 }
 
 export const getPublicClasses = async (): Promise<PublicClass[]> => {
@@ -828,6 +873,16 @@ export const createChapaCheckout = async (courseId: AdminCourse['id'], practiceE
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(practiceExamId === undefined ? { courseId } : { practiceExamId }),
+  })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const createBookstoreChapaCheckout = async (bookstoreItemId: number): Promise<ChapaCheckout> => {
+  const response = await requestApi('/api/payments/chapa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookstoreItemId }),
   })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
