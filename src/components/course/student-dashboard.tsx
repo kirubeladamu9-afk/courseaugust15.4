@@ -600,7 +600,7 @@ const QuizzesView: FC<{ enrollments: DashboardEnrollment[]; completedLessons: Re
       const lessonIndex = lessons.findIndex((item) => item.id === lesson.id)
       return lessonIndex === 0 || completedLessons[course.id]?.includes(lessons[lessonIndex - 1].id) === true
     }
-    return course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => { const result = quizResults[course.id]?.[lesson.id]; const available = isQuizAvailable(lesson); return { enrollmentId: enrollment.id, enrollmentType: enrollment.type, course, lesson, moduleTitle: module.title, source, available, completed: (completedLessons[course.id] ?? []).includes(lesson.id), result, finished: (completedLessons[course.id] ?? []).includes(lesson.id) || Boolean(result), retakeAllowed: Boolean(result && !result.passed && (result.retakeApproved || (!result.disqualified && !result.violationCount && Object.values(result.answerStatuses ?? {}).includes('expired')))) } }))
+    return course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'quiz').map((lesson) => { const result = quizResults[course.id]?.[lesson.id]; const available = isQuizAvailable(lesson); return { enrollmentId: enrollment.id, enrollmentType: enrollment.type, course, lesson, moduleTitle: module.title, source, available, completed: (completedLessons[course.id] ?? []).includes(lesson.id), result, finished: (completedLessons[course.id] ?? []).includes(lesson.id) || Boolean(result), retakeAllowed: Boolean(result && !result.passed && (result.retakeApproved || (!result.disqualified && !result.violationCount))) } }))
   })
 
   const quizPageSize = 6
@@ -977,7 +977,7 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const quizQuestions = selectedLesson.quizQuestions ?? []
   const passingScore = selectedLesson.passThreshold ?? 70
   const hasAnsweredQuiz = quizQuestions.length > 0 && quizQuestions.every((question) => quizAnswers[question.id] !== undefined)
-  const canRetakeQuiz = Boolean(quizResult && !readOnly && !quizResult.passed && (quizResult.retakeApproved || (!quizResult.disqualified && !quizResult.violationCount && Object.values(quizResult.answerStatuses ?? {}).includes('expired'))))
+  const canRetakeQuiz = Boolean(quizResult && !readOnly && !quizResult.passed && (quizResult.retakeApproved || (!quizResult.disqualified && !quizResult.violationCount)))
   const isQuizFinished = selectedLesson.type === 'quiz' && (isCompleted || Boolean(quizResult)) && !canRetakeQuiz
   const canCompleteLesson = (selectedLesson.type !== 'quiz' || isQuizFinished) && (selectedLesson.type !== 'live' || attendance[selectedLesson.id] === 'Present')
   const liveSessionStart = selectedLesson.scheduledAt ? new Date(selectedLesson.scheduledAt).getTime() : NaN

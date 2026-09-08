@@ -1761,13 +1761,10 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/quiz-attempts', requi
       const latestAttempt = completedAttempts[0]
       const hasApprovedRetake = completedAttempts.some((attempt) => attempt.retakeApproved)
       const violations = deserializeJson(latestAttempt.violations)
-      const answers = deserializeJson(latestAttempt.answers)
-      const hasExpiredAnswer = isPlainObject(answers) && Object.values(answers).some((answer) => deserializeJson(answer)?.status === 'expired')
       const requiresApproval = latestAttempt.disqualified || (Array.isArray(violations) && violations.length > 0)
       if (completedAttempts.length >= 2) return { error: 'Only one quiz retake is allowed.' }
       if (latestAttempt.passed) return { error: 'Passed quizzes cannot be retaken.' }
       if (requiresApproval && !hasApprovedRetake) return { error: 'An administrator must approve a retake after a quiz violation.' }
-      if (!requiresApproval && !hasExpiredAnswer && !hasApprovedRetake) return { error: 'Only a timer-expired quiz can be retaken.' }
     }
 
     const [attempt] = await transaction`
