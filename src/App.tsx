@@ -109,7 +109,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   if (isPracticeCatalogPath) return <PracticeExamCatalog darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (practiceExamMatch) return <PracticeExamPlayer examId={Number(practiceExamMatch[1])} darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (isAboutPath) return <InfoPage kind="about" darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
-  if (isBookstorePath) return <BookstorePage />
+  if (isBookstorePath) return <BookstorePage darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (isContactPath) return <InfoPage kind="contact" darkMode={darkMode} onToggleDarkMode={onToggleDarkMode} />
   if (!courseMatch && homeCourses === null) return <div className="page-loading-state"><SpinnerCustom /></div>
 
