@@ -54,6 +54,9 @@ import MailOutlineIcon from '@mui/icons-material/MailOutline'
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
 import MenuIcon from '@mui/icons-material/Menu'
+import SearchIcon from '@mui/icons-material/Search'
+import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined'
+import TranslateOutlinedIcon from '@mui/icons-material/TranslateOutlined'
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
@@ -113,9 +116,10 @@ const statusColor = (status: string): 'success' | 'warning' | 'error' | 'info' |
 const StatusChip: FC<{ status: string }> = ({ status }) => <Chip label={status} color={statusColor(status)} size="small" />
 
 const PageHeading: FC<{ title: string; description: string; action?: ReactNode }> = ({ title, description, action }) => (
-  <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 4, flexDirection: { xs: 'column', sm: 'row' } }}>
+  <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 3, flexDirection: { xs: 'column', sm: 'row' } }}>
     <Box>
-      <Typography variant="h4" sx={{ mb: 0.5 }}>{title}</Typography>
+      <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 800, letterSpacing: 1.1 }}>Admin workspace</Typography>
+      <Typography variant="h4" sx={{ mb: 0.5, fontWeight: 800, letterSpacing: '-.035em' }}>{title}</Typography>
       <Typography color="text.secondary">{description}</Typography>
     </Box>
     {action}
@@ -130,7 +134,7 @@ const CourseEditorSection: FC<{ title: string; description?: string; expanded: b
 )
 
 const StatCard: FC<{ label: string; value: string; detail: string; icon: ReactNode }> = ({ label, value, detail, icon }) => (
-  <Paper elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', flex: 1, minWidth: 200 }}>
+  <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid rgba(18,124,113,.10)', backgroundColor: 'rgba(255,255,255,.84)', flex: 1, minWidth: 200 }}>
     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
       <Typography color="text.secondary" variant="body2">{label}</Typography>
       <Box sx={{ color: 'primary.main' }}>{icon}</Box>
@@ -567,7 +571,7 @@ const DashboardCharts: FC<Pick<AdminDashboardOverview, 'revenueByMonth' | 'enrol
   )
 }
 
-const WeakAreasPanel: FC<{ weakAreas: AdminWeakArea[] }> = ({ weakAreas }) => <Paper elevation={0} sx={{ p: 2.5, mb: 2, border: 1, borderColor: weakAreas.length ? 'warning.main' : 'divider' }}>
+const WeakAreasPanel: FC<{ weakAreas: AdminWeakArea[] }> = ({ weakAreas }) => <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: 4, border: '1px solid', borderColor: weakAreas.length ? 'warning.main' : 'rgba(18,124,113,.10)', backgroundColor: 'rgba(255,255,255,.84)' }}>
   <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 2 }}>
     <Box>
       <Typography component="h2" variant="h6">Topics needing attention</Typography>
@@ -1350,12 +1354,13 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
   }, [adminUser, pathname, section])
 
   const sidebar = (
-    <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ px: 3, py: 2.5 }}><Logo /></Box>
-      <Divider />
-      <Box component="nav" aria-label="Admin navigation" sx={{ p: 1.5, flex: 1 }}>
-        <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Main menu</Typography>
-        {navigation.map((item) => <Box key={item.key}>
+    <Box sx={{ width: drawerWidth, height: '100%', overflowY: 'auto', backgroundColor: 'background.paper', display: 'flex', flexDirection: 'column', borderRight: 1, borderColor: 'rgba(18,124,113,.12)' }}>
+      <Box sx={{ px: 3, pt: 2.5, pb: 2.25, borderBottom: '1px solid rgba(18,124,113,.12)' }}><Box sx={{ transform: 'scale(.82)', transformOrigin: 'left center', width: '122%' }}><Logo /></Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: .2 }}>Your management workspace</Typography></Box>
+      <Box component="nav" aria-label="Admin navigation" sx={{ px: 1.75, py: 2, flex: 1 }}>
+        <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Overview</Typography>
+        {navigation.map((item, index) => <Box key={item.key}>
+          {index === 1 && <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mt: 2.25, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Manage</Typography>}
+          {index === 7 && <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mt: 2.25, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Insights & access</Typography>}
           <Box
             component="button"
             title={item.label}
@@ -1363,9 +1368,9 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             aria-expanded={item.subviews ? section === item.key : undefined}
             onClick={() => selectSection(item.key)}
             sx={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, border: 0, borderRadius: 2, px: 1.5, py: 1.25, mb: 0.5,
+              width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, border: 0, borderRadius: 2.5, px: 1.5, py: 1.05, mb: .45,
               backgroundColor: section === item.key ? 'primary.main' : 'transparent', color: section === item.key ? 'primary.contrastText' : 'text.secondary',
-              cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', '&:hover': { backgroundColor: section === item.key ? 'primary.dark' : 'action.hover' },
+              cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all .18s ease', boxShadow: section === item.key ? '0 7px 16px rgba(18,124,113,.18)' : 'none', '&:hover': { backgroundColor: section === item.key ? 'primary.dark' : 'action.hover', transform: section === item.key ? 'none' : 'translateX(2px)' },
             }}
           >
             {item.icon}<Typography variant="body2" sx={{ flex: 1, fontWeight: section === item.key ? 600 : 400 }}>{item.label}</Typography>{item.subviews && (section === item.key ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />)}
@@ -1378,9 +1383,10 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
           </Box>}
         </Box>)}
       </Box>
-      <Box sx={{ p: 2 }}>
-        <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Preferences</Typography>
-        <Box title="Settings" aria-label="Settings" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, backgroundColor: 'background.default', borderRadius: 2 }}><SettingsOutlinedIcon color="disabled" fontSize="small" /><Typography variant="body2" color="text.secondary">Settings</Typography></Box>
+      <Box sx={{ p: 1.75, pt: 1, borderTop: '1px solid rgba(18,124,113,.12)' }}>
+        <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Account</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, p: 1.25, mb: 1.25, borderRadius: 3, background: 'linear-gradient(135deg, rgba(18,124,113,.10), rgba(18,124,113,.04))' }}><Box sx={{ position: 'relative' }}><Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: 14 }}>{(adminUser?.name || 'Admin').charAt(0)}</Avatar><Box sx={{ position: 'absolute', right: -1, bottom: 0, width: 9, height: 9, borderRadius: '50%', bgcolor: 'success.main', border: '2px solid #edf8f6' }} /></Box><Box sx={{ minWidth: 0 }}><Typography variant="body2" noWrap sx={{ fontWeight: 800 }}>{adminUser?.name || 'Admin user'}</Typography><Typography variant="caption" color="text.secondary">Administrator account</Typography></Box></Box>
+        <Box title="Settings" aria-label="Settings" sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: .7 }}><SettingsOutlinedIcon color="disabled" fontSize="small" /><Typography variant="caption" color="text.secondary">Manage preferences</Typography></Box>
       </Box>
     </Box>
   )
@@ -1389,12 +1395,15 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }} aria-busy={isLoading}>
       {isMobile ? <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)}>{sidebar}</Drawer> : <Box sx={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: drawerWidth, zIndex: 'drawer' }}>{sidebar}</Box>}
       <Box sx={{ flex: 1, minWidth: 0, ml: { xs: 0, md: `${drawerWidth}px` } }}>
-        <Box component="header" sx={{ height: 72, px: { xs: 2, md: 4 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box component="header" sx={{ minHeight: 82, px: { xs: 2, md: 3.5 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, backgroundColor: 'rgba(255,255,255,.82)', backdropFilter: 'blur(16px)', borderBottom: 1, borderColor: 'rgba(18,124,113,.12)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
             {isMobile && <IconButton onClick={() => setMobileOpen(true)} aria-label="Open admin menu"><MenuIcon /></IconButton>}
-            <Typography variant="h5" sx={{ display: { xs: 'none', sm: 'block' } }}>Admin workspace</Typography>
+            <Box><Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: .8, lineHeight: 1 }}>Admin workspace</Typography><Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.35 }}>{section === 'overview' ? 'Dashboard' : navigation.find((item) => item.key === section)?.label}</Typography></Box>
           </Box>
-          <Stack direction="row" alignItems="center" spacing={1}>
+          <Stack direction="row" alignItems="center" spacing={.75}>
+            <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', width: 220, px: 1.5, py: .55, borderRadius: 5, backgroundColor: '#f2f5f5', color: 'text.secondary' }}><SearchIcon fontSize="small" /><Typography variant="caption" sx={{ ml: .8 }}>Search here...</Typography></Box>
+            <Tooltip title="Language: EN"><IconButton aria-label="Change language, currently EN"><TranslateOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+            <Tooltip title="Notifications"><IconButton aria-label="Notifications"><NotificationsNoneOutlinedIcon fontSize="small" /></IconButton></Tooltip>
             <Tooltip title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
               <IconButton onClick={onToggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                 {darkMode ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
@@ -1408,8 +1417,9 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
                 aria-controls={profileAnchor ? 'admin-profile-menu' : undefined}
                 aria-haspopup="true"
                 aria-expanded={profileAnchor ? 'true' : undefined}
+                sx={{ p: .25 }}
               >
-                <AccountCircleOutlinedIcon />
+                <Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: 14 }}>{(adminUser?.name || 'Admin').charAt(0)}</Avatar>
               </IconButton>
             </Tooltip>
             <Menu
@@ -1431,7 +1441,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
             </Menu>
           </Stack>
         </Box>
-        <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, minHeight: 'calc(100vh - 72px)' }}>
+        <Box component="main" sx={{ p: { xs: 2, md: 3.5 }, maxWidth: 1540, minHeight: 'calc(100vh - 82px)', background: 'linear-gradient(135deg, #f9fcfc 0%, #f2f8f7 100%)' }}>
           {isLoading ? <AdminLoadingState /> : currentPage}
         </Box>
       </Box>
