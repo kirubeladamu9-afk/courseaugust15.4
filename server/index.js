@@ -2268,6 +2268,33 @@ app.post('/api/payments/chapa/class', requireAuthenticated, async (request, resp
   }
 })
 
+app.get('/api/payments/chapa/:reference/bookstore-download', async (request, response) => {
+  const requestedReference = request.params.reference
+  if (typeof requestedReference !== 'string' || requestedReference.length > 200 || !/^(?:test-)?book-\d+-[a-f0-9]{24}$/.test(requestedReference)) {
+    return response.status(404).json({ message: 'Purchased file not found.' })
+  }
+  const [payment] = await sql`
+    SELECT payments.status,
+           bookstore_items.download_file AS "downloadFile",
+           bookstore_items.download_file_name AS "fileName",
+           bookstore_items.download_mime_type AS "mimeType"
+    FROM payments
+    INNER JOIN bookstore_items ON bookstore_items.id = payments.bookstore_item_id
+    WHERE (payments.reference = ${requestedReference} OR payments.chapa_reference = ${requestedReference})
+      AND payments.bookstore_item_id IS NOT NULL
+  `
+  if (!payment) return response.status(404).json({ message: 'Purchased file not found.' })
+  if (payment.status !== 'paid') return response.status(409).json({ message: 'Payment is not complete.' })
+  if (!payment.downloadFile || !payment.fileName || !payment.mimeType) return response.status(404).json({ message: 'Purchased file not found.' })
+  response.set({
+    'Content-Type': payment.mimeType,
+    'Content-Length': String(payment.downloadFile.length),
+    'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(payment.fileName)}`,
+    'Cache-Control': 'private, no-store',
+  })
+  return response.send(payment.downloadFile)
+})
+
 app.get('/api/payments/chapa/:reference', requireAuthenticated, async (request, response) => {
   const requestedReference = request.params.reference
   const [payment] = await sql`

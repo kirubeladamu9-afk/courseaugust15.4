@@ -121,9 +121,8 @@ export const BookstorePage: FC<BookstorePageProps> = ({ darkMode, onToggleDarkMo
       const checkout = await createBookstoreChapaCheckout(item.id)
       if (checkout.mode === 'test') {
         await completeTestPayment(checkout.paymentReference, 'paid')
-        reloadPurchases()
         setCheckoutItem(null)
-        toast.add({ title: 'Purchase complete', description: item.title + ' is now in your library.', type: 'success' })
+        window.location.assign('/api/payments/chapa/' + encodeURIComponent(checkout.paymentReference) + '/bookstore-download')
       } else window.location.assign(checkout.checkoutUrl)
     } catch (error) {
       toast.add({ title: 'Unable to start checkout', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
