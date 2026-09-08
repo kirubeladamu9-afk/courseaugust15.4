@@ -1030,6 +1030,32 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
 
 const EmptyState: FC<{ title: string; description: string; actionLabel?: string; onAction?: () => void }> = ({ title, description, actionLabel, onAction }) => <Paper elevation={0} sx={{ p: { xs: 3, md: 4 }, border: 1, borderColor: 'divider', textAlign: 'center' }}><Typography variant="h6" sx={{ mb: 1 }}>{title}</Typography><Typography color="text.secondary" sx={{ mb: actionLabel ? 2.5 : 0 }}>{description}</Typography>{actionLabel && <Button variant="contained" onClick={onAction}>{actionLabel}</Button>}</Paper>
 
+const victoryConfetti = Array.from({ length: 28 }, (_, index) => ({
+  left: `${(index * 37) % 100}%`,
+  delay: `${(index % 9) * 90}ms`,
+  color: ['#107d6f', '#f6b73c', '#e94f64', '#4f8cff'][index % 4],
+}))
+
+const QuizVictoryCelebration: FC = () => {
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setVisible(false), 4200)
+    return () => window.clearTimeout(timeout)
+  }, [])
+
+  if (!visible) return null
+
+  return <Box sx={{ position: 'fixed', inset: 0, zIndex: 'tooltip', pointerEvents: 'none', overflow: 'hidden' }}>
+    {victoryConfetti.map((piece, index) => <Box key={index} sx={{ position: 'absolute', top: -24, left: piece.left, width: 8, height: 16, borderRadius: 1, backgroundColor: piece.color, animation: 'quizConfettiFall 3.2s ease-out forwards', animationDelay: piece.delay, '@keyframes quizConfettiFall': { '0%': { opacity: 0, transform: 'translateY(0) rotate(0deg)' }, '10%': { opacity: 1 }, '100%': { opacity: 0, transform: 'translateY(110vh) rotate(540deg)' } } }} />)}
+    <Paper role="status" aria-live="polite" elevation={6} sx={{ position: 'absolute', top: { xs: 24, md: 40 }, left: '50%', transform: 'translateX(-50%)', px: { xs: 2.5, md: 4 }, py: 2, borderRadius: 3, border: 1, borderColor: 'success.main', backgroundColor: 'background.paper', textAlign: 'center' }}>
+      <CelebrationOutlinedIcon color="success" sx={{ fontSize: 34, mb: 0.5 }} />
+      <Typography sx={{ fontWeight: 800 }}>Perfect score!</Typography>
+      <Typography variant="body2" color="text.secondary">100% — excellent work.</Typography>
+    </Paper>
+  </Box>
+}
+
 interface StudentDashboardProps {
   darkMode: boolean
   onToggleDarkMode: () => void
@@ -1067,6 +1093,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   const [startedCourses, setStartedCourses] = useState<Record<number, boolean>>({})
   const [timeSpent, setTimeSpent] = useState<Record<number, number>>({})
   const [quizResults, setQuizResults] = useState<Record<number, Record<number, DashboardQuizResult>>>({})
+  const [victoryCelebrationId, setVictoryCelebrationId] = useState(0)
   const [progressError, setProgressError] = useState<string | null>(null)
   const [profileMessage, setProfileMessage] = useState('')
   const progressSnapshot = useRef({ completedLessons, startedCourses, timeSpent, quizResults })
@@ -1318,6 +1345,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
         setEnrollments((current) => current.map((enrollment) => getEnrollmentCourse(enrollment)?.id === selectedCourseId ? { ...enrollment, progress: getCourseProgress(selectedCourse!, nextCompleted) } : enrollment))
       }
       setProgressError(null)
+      if (result.score === 100 && !result.disqualified) setVictoryCelebrationId((current) => current + 1)
       selectView('quizzes')
       return result
     } catch (error) { setProgressError(error instanceof Error ? error.message : 'Unable to submit quiz.'); return null }
@@ -1359,6 +1387,7 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       </Box>
     </Box>
     {classCheckoutCourse && classToEnroll && <EnrollmentModal course={classCheckoutCourse} classId={classToEnroll.id} open={true} onClose={() => setClassToEnroll(null)} />}
+    {victoryCelebrationId > 0 && <QuizVictoryCelebration key={victoryCelebrationId} />}
   </Box>
 }
 
