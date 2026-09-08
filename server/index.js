@@ -2287,18 +2287,20 @@ app.get('/api/payments/chapa/:reference', requireAuthenticated, async (request, 
   return response.json({ status: payment.status })
 })
 
-app.post('/api/payments/chapa/:reference/test-complete', requireAuthenticated, async (request, response) => {
+app.post('/api/payments/chapa/:reference/test-complete', async (request, response) => {
   if (!isTestChapa) return response.status(404).json({ message: 'Test checkout is not enabled.' })
 
+  const isAuthenticated = await loadAuthenticatedUser(request)
   const reference = request.params.reference
   const status = request.body?.status
   if (!/^test-(?:book|course|class|practice)-\d+-[a-f0-9]{24}$/.test(reference) || !['paid', 'failed'].includes(status)) return response.status(400).json({ message: 'Invalid test payment.' })
+  if (!isAuthenticated && !reference.startsWith('test-book-')) return response.status(401).json({ message: 'Authentication is required.' })
 
   const [payment] = await sql`
     SELECT reference, amount::FLOAT AS amount, currency, status
     FROM payments
     WHERE reference = ${reference}
-      AND user_id = ${request.userId}
+      ${isAuthenticated ? sql`AND user_id = ${request.userId}` : sql``}
       AND status = 'pending'
   `
   if (!payment) return response.status(404).json({ message: 'Test payment not found.' })
