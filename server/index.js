@@ -283,6 +283,18 @@ const initializeDatabase = async () => {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS bookstore_purchases_user_idx ON bookstore_purchases (user_id, purchased_at DESC)`
+  await sql`
+    UPDATE bookstore_items
+    SET download_count = purchase_counts.count
+    FROM (
+      SELECT bookstore_purchases.bookstore_item_id, COUNT(*)::INTEGER AS count
+      FROM bookstore_purchases
+      INNER JOIN payments ON payments.id = bookstore_purchases.payment_id AND payments.status = 'paid'
+      GROUP BY bookstore_purchases.bookstore_item_id
+    ) AS purchase_counts
+    WHERE bookstore_items.id = purchase_counts.bookstore_item_id
+      AND bookstore_items.download_count < purchase_counts.count
+  `
 
   await sql`
     CREATE TABLE IF NOT EXISTS enrollments (
