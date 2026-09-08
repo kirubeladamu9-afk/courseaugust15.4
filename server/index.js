@@ -749,7 +749,7 @@ const parseBookstorePayload = (body, requireFile) => {
   const published = body.published
   const hasFileFields = body.fileData !== undefined || body.fileName !== undefined
   const file = hasFileFields ? parseBookstoreFile(body.fileData, body.fileName) : null
-  if (!title || title.length > 200 || description.length > 5000 || !category || category.length > 100 || !isValidCourseCover(coverData) || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean' || (requireFile && !file) || (hasFileFields && !file)) return null
+  if (!title || title.length > 31 || description.length > 192 || !category || category.length > 16 || !isValidCourseCover(coverData) || !Number.isFinite(price) || price < 0 || typeof published !== 'boolean' || (requireFile && !file) || (hasFileFields && !file)) return null
   return { title, description, category, price, cover_data: coverData, published, file }
 }
 
