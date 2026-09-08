@@ -55,11 +55,11 @@ const verifyPassword = async (password, storedHash) => {
   return derivedHash.length === savedHash.length && timingSafeEqual(derivedHash, savedHash)
 }
 
+const isValidEmail = (email) => typeof email === 'string' && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
 const isValidCredentials = (email, password) => (
-  typeof email === 'string' &&
+  isValidEmail(email) &&
   typeof password === 'string' &&
-  email.length <= 254 &&
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
   password.length >= 8 &&
   password.length <= 128
 )
@@ -639,10 +639,9 @@ const getSessionToken = (request) => {
   return bearerToken ?? cookieToken
 }
 
-const requireAuthenticated = async (request, response, next) => {
+const loadAuthenticatedUser = async (request) => {
   const sessionToken = getSessionToken(request)
-  if (!sessionToken) return response.status(401).json({ message: 'Authentication is required.' })
-
+  if (!sessionToken) return false
   const [session] = await sql`
     SELECT auth_sessions.user_id AS "userId", users.role
     FROM auth_sessions
@@ -651,9 +650,14 @@ const requireAuthenticated = async (request, response, next) => {
       AND auth_sessions.expires_at > NOW()
       AND users.status = 'Active'
   `
-  if (!session) return response.status(401).json({ message: 'Authentication is required.' })
+  if (!session) return false
   request.userId = Number(session.userId)
   request.userRole = session.role
+  return true
+}
+
+const requireAuthenticated = async (request, response, next) => {
+  if (!await loadAuthenticatedUser(request)) return response.status(401).json({ message: 'Authentication is required.' })
   return next()
 }
 
@@ -2064,13 +2068,15 @@ app.post('/api/admin/quiz-attempts/:attemptId/retake-approval', requireAdmin, as
   return response.json(attempt)
 })
 
-app.post('/api/payments/chapa', requireAuthenticated, async (request, response) => {
+app.post('/api/payments/chapa', async (request, response) => {
+  await loadAuthenticatedUser(request)
   const courseId = parseCourseId(String(request.body?.courseId ?? ''))
   const practiceExamId = parseCourseId(String(request.body?.practiceExamId ?? ''))
   const bookstoreItemId = parseCourseId(String(request.body?.bookstoreItemId ?? ''))
   const itemCount = [courseId, practiceExamId, bookstoreItemId].filter((id) => id !== null).length
   if (itemCount === 0) return response.status(400).json({ message: 'Choose a valid item.' })
   if (itemCount > 1) return response.status(400).json({ message: 'Choose only one item.' })
+  if (!request.userId && (courseId !== null || practiceExamId !== null)) return response.status(401).json({ message: 'Authentication is required.' })
   if (!isTestChapa && !process.env.CHAPA_SECRET_KEY) return response.status(503).json({ message: 'Chapa checkout has not been configured yet.' })
 
   const [course] = courseId === null ? [null] : await sql`
@@ -2087,13 +2093,32 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
     WHERE practice_exams.id = ${practiceExamId}
       AND practice_exams.published = true
   `
-  const [bookstoreItem] = bookstoreItemId === null ? [null] : await sql`
-    SELECT bookstore_items.id, bookstore_items.title, bookstore_items.price::FLOAT AS price, users.name, users.email, users.phone
-    FROM bookstore_items
-    INNER JOIN users ON users.id = ${request.userId}
-    WHERE bookstore_items.id = ${bookstoreItemId}
-      AND bookstore_items.published = true
-  `
+  let bookstoreItem = null
+  if (bookstoreItemId !== null) {
+    if (request.userId) {
+      [bookstoreItem] = await sql`
+        SELECT bookstore_items.id, bookstore_items.title, bookstore_items.price::FLOAT AS price, users.name, users.email, users.phone
+        FROM bookstore_items
+        INNER JOIN users ON users.id = ${request.userId}
+        WHERE bookstore_items.id = ${bookstoreItemId}
+          AND bookstore_items.published = true
+      `
+    } else {
+      const guestEmail = typeof request.body?.guestEmail === 'string' ? request.body.guestEmail.trim() : ''
+      const guestName = typeof request.body?.guestName === 'string' ? request.body.guestName.trim() : ''
+      const guestPhone = typeof request.body?.guestPhone === 'string' ? request.body.guestPhone.trim() : ''
+      if (!isValidEmail(guestEmail)) return response.status(400).json({ message: 'A valid guest email is required.' })
+      if (guestName.length > 200 || guestPhone.length > 50) return response.status(400).json({ message: 'Guest details are too long.' })
+      const guestItems = await sql`
+        SELECT bookstore_items.id, bookstore_items.title, bookstore_items.price::FLOAT AS price,
+               ${guestName || 'Student'} AS name, ${guestEmail} AS email, ${guestPhone} AS phone
+        FROM bookstore_items
+        WHERE bookstore_items.id = ${bookstoreItemId}
+          AND bookstore_items.published = true
+      `
+      bookstoreItem = guestItems[0] ?? null
+    }
+  }
   const item = course ?? practiceExam ?? bookstoreItem
   if (!item) return response.status(404).json({ message: 'This item is not available for purchase.' })
 
@@ -2111,8 +2136,18 @@ app.post('/api/payments/chapa', requireAuthenticated, async (request, response) 
   const reference = `${referencePrefix}-${item.id}-${randomBytes(12).toString('hex')}`
   const currency = process.env.CHAPA_CURRENCY ?? 'ETB'
   const amount = item.price * students.length
+  let resolvedUserId = request.userId
+  if (!resolvedUserId) {
+    const guestEmail = `guest-${randomBytes(18).toString('hex')}@guest.invalid`
+    const guestPasswordHash = await hashPassword(randomBytes(32).toString('base64url'))
+    const [guestUser] = await sql`
+      INSERT INTO users ${sql({ name: item.name.trim() || 'Student', phone: item.phone || '', email: guestEmail, password_hash: guestPasswordHash, role: 'student', status: 'Active' })}
+      RETURNING id
+    `
+    resolvedUserId = Number(guestUser.id)
+  }
   const [payment] = await sql`
-    INSERT INTO payments ${sql({ reference, user_id: request.userId, course_id: course?.id ?? null, practice_exam_id: practiceExam?.id ?? null, bookstore_item_id: bookstoreItem?.id ?? null, student_data: JSON.stringify(students), amount, currency })}
+    INSERT INTO payments ${sql({ reference, user_id: resolvedUserId, course_id: course?.id ?? null, practice_exam_id: practiceExam?.id ?? null, bookstore_item_id: bookstoreItem?.id ?? null, student_data: JSON.stringify(students), amount, currency })}
     RETURNING id
   `
 

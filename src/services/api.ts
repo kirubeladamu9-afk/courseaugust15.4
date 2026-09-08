@@ -878,11 +878,11 @@ export const createChapaCheckout = async (courseId: AdminCourse['id'], practiceE
   return response.json()
 }
 
-export const createBookstoreChapaCheckout = async (bookstoreItemId: number): Promise<ChapaCheckout> => {
+export const createBookstoreChapaCheckout = async (bookstoreItemId: number, customer?: { email: string; name?: string }): Promise<ChapaCheckout> => {
   const response = await requestApi('/api/payments/chapa', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bookstoreItemId }),
+    body: JSON.stringify({ bookstoreItemId, ...(customer ? { guestEmail: customer.email, guestName: customer.name } : {}) }),
   })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
