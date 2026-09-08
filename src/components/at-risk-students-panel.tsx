@@ -15,7 +15,7 @@ interface AtRiskStudentsPanelProps {
 }
 
 const AtRiskStudentsPanel = ({ students, loading, error }: AtRiskStudentsPanelProps) => (
-  <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, border: 1, borderColor: students.length ? 'warning.main' : 'divider', mb: 3 }}>
+  <Paper elevation={0} sx={{ p: { xs: 1.5, md: 2 }, border: 1, borderRadius: 3, borderColor: students.length ? 'warning.main' : 'divider', mb: 1.5 }}>
     <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ mb: 2 }}>
       <WarningAmberOutlinedIcon color="warning" />
       <Box>
