@@ -75,6 +75,33 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   }, [])
 
   useEffect(() => {
+    const pageName = authMode === 'sign-in'
+      ? 'Sign In'
+      : authMode === 'sign-up'
+        ? 'Sign Up'
+        : isAdminPath
+          ? 'Admin Dashboard'
+          : isDashboardPath
+            ? 'Dashboard'
+            : isTutorPath
+              ? 'Tutor Dashboard'
+              : isPracticeCatalogPath
+                ? 'Practice Exams'
+                : practiceExamMatch
+                  ? 'Practice Exam'
+                  : isAboutPath
+                    ? 'About Us'
+                    : isBookstorePath
+                      ? 'Bookstore'
+                      : isContactPath
+                        ? 'Contact Us'
+                        : courseMatch
+                          ? 'Course'
+                          : 'Home'
+    document.title = `${pageName} - Courseshap`
+  }, [authMode, currentPath, isAboutPath, isAdminPath, isBookstorePath, isContactPath, isDashboardPath, isPracticeCatalogPath, isTutorPath, practiceExamMatch, courseMatch])
+
+  useEffect(() => {
     if (isAdminPath || isDashboardPath || isTutorPath || window.location.hash) return
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [authMode, currentPath, isAdminPath, isDashboardPath, isTutorPath])
