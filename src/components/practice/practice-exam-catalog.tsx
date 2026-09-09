@@ -61,7 +61,7 @@ const PracticeExamCatalog: React.FC<PracticeExamCatalogProps> = ({ darkMode, onT
   const visibleExams = exams.slice((page - 1) * examsPerPage, page * examsPerPage)
 
   return <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
-    <Header darkMode={darkMode} showSocialLinks onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} />
+    <Header darkMode={darkMode} onSignIn={() => navigateTo('/')} onToggleDarkMode={onToggleDarkMode} />
     <Box component="main" sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 4 }, py: { xs: 5, md: 8 } }}>
       <Box sx={{ maxWidth: 720, mb: 5 }}>
         <Chip label="Practice at your pace" color="primary" variant="outlined" sx={{ mb: 2 }} />
