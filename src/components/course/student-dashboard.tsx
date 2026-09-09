@@ -68,6 +68,8 @@ import { toast } from '@/components/toast'
 import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getBookstorePurchases, getCourses, getGamification, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, recordPracticeLessonAnswer, saveAuthenticatedUser, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, updateAuthenticatedProfile, type BookstorePurchase, type GamificationData, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType, type WeakArea } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 import { calculateOverallGrade } from '@/lib/overall-grade'
+import { StemActivityPlayer } from '@/components/stem/stem-lab'
+import type { StemConfig } from '@/components/stem/stem-types'
 
  type DashboardView = 'overview' | 'calendar' | 'courses' | 'classes' | 'quizzes' | 'purchases' | 'other-courses' | 'other-classes' | 'profile' | 'payments' | 'course-view'
  type EnrollmentType = 'course' | 'class'
@@ -126,6 +128,7 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   interactiveHotspots?: Array<{ id: number; left: string; top: string; label: string; explanation: string }>
   stemSubject?: 'Math' | 'Physics' | 'Biology' | 'Chemistry'
   stemTool?: 'graph' | 'simulation' | 'virtual-lab' | 'diagram' | 'calculator' | 'builder' | 'experiment' | 'game'
+  stemConfig?: StemConfig
   resources: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: QuizQuestion[]
   practiceQuestions?: Array<{ id: number; question: string; topic: string; options: string[]; correctAnswer: string; explanation: string }>
@@ -269,6 +272,7 @@ const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
       interactiveHotspots: lesson.interactiveHotspots,
       stemSubject: lesson.stemSubject,
       stemTool: lesson.stemTool,
+      stemConfig: lesson.stemConfig,
       resources: lesson.resources ?? [],
       quizQuestions: lesson.quizQuestions,
       practiceQuestions: lesson.practiceQuestions,
@@ -974,11 +978,12 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   const [quizAttempt, setQuizAttempt] = useState<QuizAttempt | null>(null)
   const [articleFinalPage, setArticleFinalPage] = useState(false)
   const [interactiveViewed, setInteractiveViewed] = useState(false)
+  const [stemLabPassed, setStemLabPassed] = useState(false)
   const submitQuiz = () => undefined
   const selectedLesson = lessons.find((lesson) => lesson.id === selectedLessonId) ?? lessons[0]
 
   useEffect(() => { setSelectedLessonId(initialLessonId ?? lessons[0]?.id) }, [course.id, initialLessonId])
-  useEffect(() => { setQuizAttempt(null); setArticleFinalPage(false); setInteractiveViewed(false); onQuizActiveChange(false) }, [selectedLessonId])
+  useEffect(() => { setQuizAttempt(null); setArticleFinalPage(false); setInteractiveViewed(false); setStemLabPassed(false); onQuizActiveChange(false) }, [selectedLessonId])
 
   if (!selectedLesson) return <EmptyState title="Course content unavailable" description="This course does not have any lessons yet." actionLabel="Back to courses" onAction={onBack} />
 
@@ -1015,6 +1020,12 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
   if (selectedLesson.type === 'practice') return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>
     <PracticeLessonView questions={selectedLesson.practiceQuestions ?? []} onAnswer={(questionId, answer) => onPracticeAnswer(selectedLesson.id, questionId, answer)} />
+  </>
+
+  if (selectedLesson.type === 'stem-lab') return <>
+    <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>
+    <StemActivityPlayer lesson={selectedLesson} onResult={(result) => { if (result.passed) { setStemLabPassed(true); void onCompleteLesson(selectedLesson.id) } }} />
+    {stemLabPassed && <Paper elevation={0} sx={{ mt: 2, p: 2, border: 1, borderColor: 'success.main', backgroundColor: 'success.light' }}><Stack direction="row" spacing={1} alignItems="center"><CheckCircleOutlineIcon color="success" /><Typography sx={{ fontWeight: 700 }}>Lesson completed and course progress updated.</Typography></Stack></Paper>}
   </>
 
   if ((selectedLesson.type as string) === 'quiz') return <>

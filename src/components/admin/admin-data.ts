@@ -1,5 +1,9 @@
 export type LessonType = 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'
 
+import type { StemConfig, StemSubject, StemTool } from '@/components/stem/stem-types'
+
+export type { StemSubject, StemTool }
+
 export interface InteractiveHotspot {
   id: number
   left: string
@@ -7,9 +11,6 @@ export interface InteractiveHotspot {
   label: string
   explanation: string
 }
-
-export type StemSubject = 'Math' | 'Physics' | 'Biology' | 'Chemistry'
-export type StemTool = 'graph' | 'simulation' | 'virtual-lab' | 'diagram' | 'calculator' | 'builder' | 'experiment' | 'game'
 
 export interface LessonResource {
   id: number
@@ -48,7 +49,7 @@ export interface AdminLesson {
   stemSubject?: StemSubject
   stemTool?: StemTool
   stemLabPublished?: boolean
-  stemConfig?: import('@/components/stem/stem-lab').StemConfig
+  stemConfig?: StemConfig
   quizQuestions?: QuizQuestion[]
   practiceQuestions?: PracticeQuestion[]
   passThreshold?: number
