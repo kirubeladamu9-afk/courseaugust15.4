@@ -48,6 +48,7 @@ export interface AdminLesson {
   stemSubject?: StemSubject
   stemTool?: StemTool
   stemLabPublished?: boolean
+  stemConfig?: import('@/components/stem/stem-lab').StemConfig
   quizQuestions?: QuizQuestion[]
   practiceQuestions?: PracticeQuestion[]
   passThreshold?: number
