@@ -128,7 +128,10 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
           onToggleDarkMode={onToggleDarkMode}
         />
         {authMode ? (
-          <SignInPage mode={authMode} />
+          <>
+            <SignInPage mode={authMode} />
+            <Footer />
+          </>
         ) : courseMatch ? (
           <CourseDetailPage courseId={decodeURIComponent(courseMatch[1])} />
         ) : (
