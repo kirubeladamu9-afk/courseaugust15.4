@@ -816,7 +816,7 @@ const parseCoursePayload = (body) => {
   const learningOutcomes = Array.isArray(body.learningOutcomes) && body.learningOutcomes.every((value) => typeof value === 'string') ? body.learningOutcomes : null
   const requirements = Array.isArray(body.requirements) && body.requirements.every((value) => typeof value === 'string') ? body.requirements : null
   const modules = Array.isArray(body.modules) ? body.modules : null
-  const hasInvalidStemLab = modules?.some((module) => !Array.isArray(module?.lessons) || module.lessons.some((lesson) => lesson?.type === 'stem-lab' && !hasValidStemLab(lesson)))
+  const hasInvalidStemLab = modules?.some((module) => !Array.isArray(module?.lessons) || module.lessons.some((lesson) => lesson?.type === 'stem_lab' && !hasValidStemLab(lesson)))
 
   if (!title || !category || !level || !isValidCourseCover(cover) || !status || !Number.isFinite(price) || price < 0 || !Number.isInteger(students) || students < 0 || !learningOutcomes || !requirements || !modules || hasInvalidStemLab || typeof body.description !== 'string' || typeof body.longDescription !== 'string' || typeof body.certificate !== 'boolean') {
     return null
@@ -884,7 +884,7 @@ const maxEngagementSeconds = 60
 const stemSubtypes = new Set(['math.graph', 'math.equation_solver', 'math.calculator', 'math.geometry_builder', 'physics.graph', 'physics.simulation', 'physics.formula_solver', 'physics.experiment', 'physics.virtual_lab', 'physics.circuit_builder', 'chemistry.formula_solver', 'chemistry.periodic_table', 'chemistry.molecule_builder', 'chemistry.chemical_equation', 'chemistry.simulation', 'chemistry.virtual_lab', 'chemistry.experiment', 'biology.interactive_diagram', 'biology.three_d_explorer', 'biology.virtual_lab', 'biology.simulation', 'biology.genetics_punnett_square', 'biology.classification_builder', 'biology.experiment'])
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-const hasValidStemLab = (lesson) => lesson?.type === 'stem-lab' && lesson.stemLabPublished === true && typeof lesson.subtype === 'string' && stemSubtypes.has(lesson.subtype) && isPlainObject(lesson.config) && lesson.config.version === 1 && typeof lesson.config.instructions === 'string' && lesson.config.instructions.trim()
+const hasValidStemLab = (lesson) => lesson?.type === 'stem_lab' && lesson.stemLabPublished === true && typeof lesson.subtype === 'string' && stemSubtypes.has(lesson.subtype) && isPlainObject(lesson.config) && lesson.config.version === 1 && typeof lesson.config.instructions === 'string' && lesson.config.instructions.trim()
 
 const getEnrollmentProgress = (modules, lessonProgress) => {
   const lessons = getCourseLessons(modules).filter((lesson) => lesson.type !== 'practice')
@@ -1847,7 +1847,7 @@ app.post('/api/enrollments/:enrollmentId/lessons/:lessonId/complete', requireAut
     const lesson = findCourseLesson(enrollment.modules, lessonId)
     if (!lesson) return { error: 'Lesson not found.' }
 
-    if (lesson.type === 'stem-lab') {
+    if (lesson.type === 'stem_lab') {
       const result = request.body?.stemResult
       if (!hasValidStemLab(lesson) || !isPlainObject(result) || result.subtype !== lesson.subtype || !isPlainObject(result.values)) return { error: 'Complete this published STEM Lab activity before marking the lesson complete.' }
     }

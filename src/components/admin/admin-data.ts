@@ -1,4 +1,4 @@
-export type LessonType = 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'
+export type LessonType = 'video' | 'article' | 'interactive' | 'stem_lab' | 'quiz' | 'practice' | 'live'
 
 import type { StemLabConfig, StemSubtype } from '@/components/stem/stem-types'
 
