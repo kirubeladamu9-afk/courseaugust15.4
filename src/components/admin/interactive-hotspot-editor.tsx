@@ -11,17 +11,18 @@ import { type ChangeEvent, type FC, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
 import { type AdminLesson, type InteractiveHotspot } from './admin-data'
 
-type Point = { x: number; y: number }
+type Point = { left: string; top: string }
 
 const clamp = (value: number) => Math.max(0, Math.min(100, value))
+const asPercentage = (value: number) => `${clamp(value).toFixed(3)}%`
 
-const createHotspot = (id: number, point: Point): InteractiveHotspot => ({ id, x: point.x, y: point.y, label: '', explanation: '' })
+const createHotspot = (id: number, point: Point): InteractiveHotspot => ({ id, left: point.left, top: point.top, label: '', explanation: '' })
 
 const readPoint = (event: React.PointerEvent<HTMLElement>, container: HTMLElement): Point => {
   const bounds = container.getBoundingClientRect()
   return {
-    x: clamp(((event.clientX - bounds.left) / bounds.width) * 100),
-    y: clamp(((event.clientY - bounds.top) / bounds.height) * 100),
+    left: asPercentage(((event.clientX - bounds.left) / bounds.width) * 100),
+    top: asPercentage(((event.clientY - bounds.top) / bounds.height) * 100),
   }
 }
 
@@ -86,14 +87,16 @@ const InteractiveHotspotEditor: FC<{ lesson: AdminLesson; onChange: (lesson: Adm
 
     {lesson.baseImageUrl ? <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Click the image to add a hotspot. Drag a marker to reposition it.</Typography>
-      <Box ref={canvasRef} onPointerDown={(event: React.PointerEvent<HTMLDivElement>) => { if (event.target === event.currentTarget) addHotspotAt(readPoint(event, event.currentTarget)) }} sx={{ position: 'relative', overflow: 'hidden', borderRadius: 1.5, border: 1, borderColor: 'divider', lineHeight: 0, touchAction: 'none', cursor: 'crosshair' }}>
-        <Box component="img" src={lesson.baseImageUrl} alt="Interactive lesson base" sx={{ display: 'block', width: '100%', maxHeight: 440, objectFit: 'contain', backgroundColor: 'background.default', userSelect: 'none', pointerEvents: 'none' }} />
-        {hotspots.map((hotspot, index) => <Box key={hotspot.id} component="button" type="button" aria-label={`Hotspot ${index + 1}${hotspot.label ? `: ${hotspot.label}` : ''}`} onPointerDown={(event: React.PointerEvent<HTMLButtonElement>) => beginMove(event, hotspot.id)} onPointerMove={moveHotspot} onPointerUp={endMove} onPointerCancel={endMove} sx={{ position: 'absolute', left: `${hotspot.x}%`, top: `${hotspot.y}%`, transform: 'translate(-50%, -50%)', width: 34, height: 34, border: 3, borderColor: 'background.paper', borderRadius: '50%', backgroundColor: selectedHotspotId === hotspot.id ? 'secondary.main' : 'primary.main', color: 'primary.contrastText', fontWeight: 800, lineHeight: 1, cursor: 'grab', boxShadow: 2, '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: 3, outlineColor: 'primary.light' } }}>{index + 1}</Box>)}
+      <Box sx={{ overflow: 'hidden', borderRadius: 1.5, border: 1, borderColor: 'divider', textAlign: 'center', backgroundColor: 'background.default' }}>
+        <Box ref={canvasRef} onPointerDown={(event: React.PointerEvent<HTMLDivElement>) => { if (event.target === event.currentTarget) addHotspotAt(readPoint(event, event.currentTarget)) }} sx={{ position: 'relative', display: 'inline-block', maxWidth: '100%', lineHeight: 0, touchAction: 'none', cursor: 'crosshair' }}>
+          <Box component="img" src={lesson.baseImageUrl} alt="Interactive lesson base" sx={{ display: 'block', maxWidth: '100%', maxHeight: 440, userSelect: 'none', pointerEvents: 'none' }} />
+          {hotspots.map((hotspot, index) => <Box key={hotspot.id} component="button" type="button" aria-label={`Hotspot ${index + 1}${hotspot.label ? `: ${hotspot.label}` : ''}`} onPointerDown={(event: React.PointerEvent<HTMLButtonElement>) => beginMove(event, hotspot.id)} onPointerMove={moveHotspot} onPointerUp={endMove} onPointerCancel={endMove} sx={{ position: 'absolute', left: hotspot.left, top: hotspot.top, transform: 'translate(-50%, -50%)', width: 34, height: 34, border: 3, borderColor: 'background.paper', borderRadius: '50%', backgroundColor: selectedHotspotId === hotspot.id ? 'secondary.main' : 'primary.main', color: 'primary.contrastText', fontWeight: 800, lineHeight: 1, cursor: 'grab', boxShadow: 2, '&:active': { cursor: 'grabbing' }, '&:focus-visible': { outline: 3, outlineColor: 'primary.light' } }}>{index + 1}</Box>)}
+        </Box>
       </Box>
     </Box> : <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', backgroundColor: 'background.default' }}><Typography color="text.secondary" variant="body2">Upload an image to place interactive hotspots.</Typography></Paper>}
 
     <Stack spacing={1}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}><Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Hotspots ({hotspots.length})</Typography>{lesson.baseImageUrl && <Button size="small" onClick={() => addHotspotAt({ x: 50, y: 50 })}>Add hotspot</Button>}</Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}><Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Hotspots ({hotspots.length})</Typography>{lesson.baseImageUrl && <Button size="small" onClick={() => addHotspotAt({ left: '50%', top: '50%' })}>Add hotspot</Button>}</Box>
       {selectedHotspot ? <Paper variant="outlined" sx={{ p: 1.5 }}><Stack spacing={1.25}><Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><Typography variant="body2" sx={{ fontWeight: 700 }}>Hotspot {hotspots.findIndex((hotspot) => hotspot.id === selectedHotspot.id) + 1}</Typography><IconButton size="small" color="error" aria-label="Remove selected hotspot" onClick={() => { const remaining = hotspots.filter((hotspot) => hotspot.id !== selectedHotspot.id); updateHotspots(remaining); setSelectedHotspotId(remaining[0]?.id ?? null) }}><DeleteOutlineIcon fontSize="small" /></IconButton></Box><TextField fullWidth size="small" label="Short label" value={selectedHotspot.label} onChange={(event) => updateHotspot(selectedHotspot.id, { label: event.target.value })} /><TextField fullWidth size="small" multiline minRows={3} label="Click explanation" value={selectedHotspot.explanation} onChange={(event) => updateHotspot(selectedHotspot.id, { explanation: event.target.value })} /></Stack></Paper> : <Typography color="text.secondary" variant="body2">Select or add a hotspot to define its label and explanation.</Typography>}
       {hotspots.length > 1 && <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>{hotspots.map((hotspot, index) => <Button key={hotspot.id} size="small" variant={selectedHotspotId === hotspot.id ? 'contained' : 'outlined'} onClick={() => setSelectedHotspotId(hotspot.id)}>Hotspot {index + 1}</Button>)}</Stack>}
     </Stack>

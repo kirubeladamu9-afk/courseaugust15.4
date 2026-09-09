@@ -123,7 +123,7 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   videoUrl?: string
   thumbnailUrl?: string
   baseImageUrl?: string
-  interactiveHotspots?: Array<{ id: number; x: number; y: number; label: string; explanation: string }>
+  interactiveHotspots?: Array<{ id: number; left: string; top: string; label: string; explanation: string }>
   resources: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: QuizQuestion[]
   practiceQuestions?: Array<{ id: number; question: string; topic: string; options: string[]; correctAnswer: string; explanation: string }>

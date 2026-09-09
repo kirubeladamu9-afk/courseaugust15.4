@@ -64,7 +64,7 @@ interface EnrollmentLesson {
   estimatedDuration?: number
   articleBody?: string
   baseImageUrl?: string
-  interactiveHotspots?: Array<{ id: number; x: number; y: number; label: string; explanation: string }>
+  interactiveHotspots?: Array<{ id: number; left: string; top: string; label: string; explanation: string }>
   resources?: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   practiceQuestions?: PracticeLessonQuestion[]

@@ -2,8 +2,8 @@ export type LessonType = 'video' | 'article' | 'interactive' | 'quiz' | 'practic
 
 export interface InteractiveHotspot {
   id: number
-  x: number
-  y: number
+  left: string
+  top: string
   label: string
   explanation: string
 }
