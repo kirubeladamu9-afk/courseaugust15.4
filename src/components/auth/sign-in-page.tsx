@@ -54,7 +54,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
   return <Box sx={{ background: 'var(--app-auth-backdrop)', backgroundColor: 'background.default', height: 'calc(100vh - 88px)', minHeight: 0, display: 'flex', alignItems: 'center', overflow: 'hidden', boxSizing: 'border-box', py: { xs: 1, md: 2 } }}>
     <Container maxWidth="lg" sx={{ maxHeight: '100%', display: 'flex', alignItems: 'center' }}>
       <Paper elevation={8} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 0.9fr) minmax(0, 1.1fr)' }, maxWidth: 1080, maxHeight: '100%', minHeight: 0, mx: 'auto', overflow: 'hidden', borderRadius: { xs: 3, md: 5 } }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 1.5, sm: 3, md: 4 }, color: 'common.white', background: 'var(--app-auth-panel)', minHeight: 0 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 1.5, sm: 3, md: 4 }, pb: { xs: 3, sm: 4, md: 5 }, color: 'common.white', background: 'var(--app-auth-panel)', minHeight: 0 }}>
           <Box>
             <Typography variant="overline" sx={{ letterSpacing: 1.2, color: 'rgba(255,255,255,0.72)' }}>Coursespace learning platform</Typography>
             <Typography component="h2" sx={{ mt: { xs: 1, md: 5 }, fontSize: { xs: '1.9rem', md: '3.5rem' }, lineHeight: 0.98, letterSpacing: '-0.06em', fontWeight: 700 }}>
@@ -66,7 +66,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
               Build practical skills with focused courses, supportive tutors, and relaxed practice that keeps you moving forward.
             </Typography>
           </Box>
-          <Box component="img" src="/images/home-hero.png" alt="Learner studying with Coursespace" sx={{ display: 'block', width: '100%', maxHeight: { xs: 48, sm: 120, md: 180 }, mt: { xs: 1, md: 2 }, objectFit: 'contain', objectPosition: 'bottom' }} />
+          <Box component="img" src="/images/home-hero.png" alt="Learner studying with Coursespace" sx={{ display: 'block', alignSelf: 'center', width: { xs: '86%', sm: '82%', md: '86%' }, height: 'auto', maxHeight: { xs: 48, sm: 120, md: 180 }, mt: { xs: 1, md: 2 }, objectFit: 'contain', objectPosition: 'center bottom' }} />
         </Box>
         <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 0, p: { xs: 1.5, sm: 3.5, md: 5 }, backgroundColor: 'background.paper' }}>
           {isRedirecting ? (
