@@ -51,10 +51,10 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
     }
   }
 
-  return <Box sx={{ background: 'var(--app-auth-backdrop)', backgroundColor: 'background.default', minHeight: 'calc(100vh - 88px)', py: { xs: 4, md: 8 } }}>
+  return <Box sx={{ background: 'var(--app-auth-backdrop)', backgroundColor: 'background.default', minHeight: 'calc(100vh - 88px)', display: 'flex', alignItems: 'center', overflowY: 'auto', py: { xs: 2, md: 4 } }}>
     <Container maxWidth="lg">
-      <Paper elevation={8} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 0.9fr) minmax(0, 1.1fr)' }, maxWidth: 1080, minHeight: { md: 620 }, mx: 'auto', overflow: 'hidden', borderRadius: { xs: 3, md: 5 } }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 3.5, md: 5 }, color: 'common.white', background: 'var(--app-auth-panel)', minHeight: { xs: 320, md: '100%' } }}>
+      <Paper elevation={8} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 0.9fr) minmax(0, 1.1fr)' }, maxWidth: 1080, maxHeight: { xs: 'min(90vh, calc(100vh - 120px))', md: 'min(90vh, calc(100vh - 152px))' }, minHeight: 0, mx: 'auto', overflowY: 'auto', borderRadius: { xs: 3, md: 5 } }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 3.5, md: 5 }, color: 'common.white', background: 'var(--app-auth-panel)', minHeight: { xs: 320, md: 0 } }}>
           <Box>
             <Typography variant="overline" sx={{ letterSpacing: 1.2, color: 'rgba(255,255,255,0.72)' }}>Coursespace learning platform</Typography>
             <Typography component="h2" sx={{ mt: { xs: 7, md: 13 }, fontSize: { xs: '2.7rem', md: '4rem' }, lineHeight: 0.98, letterSpacing: '-0.06em', fontWeight: 700 }}>
@@ -68,7 +68,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
           </Box>
           <Box component="img" src="/images/home-hero.png" alt="Learner studying with Coursespace" sx={{ display: 'block', width: '100%', maxHeight: 260, mt: 4, objectFit: 'contain', objectPosition: 'bottom' }} />
         </Box>
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 3.5, sm: 5, md: 7 }, backgroundColor: 'background.paper' }}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 0, p: { xs: 3.5, sm: 5, md: 7 }, backgroundColor: 'background.paper' }}>
           {isRedirecting ? (
             <Box sx={{ display: 'flex', flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }} aria-live="polite">
               <CircularProgress aria-label="Signing in" />
