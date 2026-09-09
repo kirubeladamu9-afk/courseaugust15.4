@@ -99,7 +99,7 @@ const navigation: AdminNavigationItem[] = [
   { key: 'courses', label: 'Programs & Courses', icon: <SchoolOutlinedIcon />, subviews: [{ label: 'Registrations', path: '/admin/registrations' }] },
   { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, subviews: [{ label: 'Pending Scheduling', path: '/admin/classes/pending' }, { label: 'Active Classes', path: '/admin/classes/active' }] },
   { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon /> },
-  { key: 'blog', label: 'Bookstore & Blog', icon: <BookOutlinedIcon /> },
+  { key: 'blog', label: 'Bookstore', icon: <BookOutlinedIcon /> },
   { key: 'practice-exams', label: 'Practice Exams', icon: <QuizOutlinedIcon /> },
   { key: 'payments', label: 'Payments', icon: <PaymentsOutlinedIcon /> },
   { key: 'reports', label: 'Reports', icon: <AssessmentOutlinedIcon /> },
