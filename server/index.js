@@ -555,6 +555,16 @@ const courseColumns = sql.unsafe(`
   to_char(updated_at, 'FMMonth DD, YYYY') AS "updatedAt"
 `)
 
+const courseSummaryColumns = sql.unsafe(`
+  id::INTEGER AS id,
+  title,
+  cover,
+  rating::FLOAT AS rating,
+  rating_count AS "ratingCount",
+  price::FLOAT AS price,
+  category
+`)
+
 const tutorColumns = sql.unsafe(`
   id::INTEGER AS id,
   name,
@@ -1421,12 +1431,12 @@ app.get('/api/health', async (_request, response) => {
 
 app.get('/api/courses', async (_request, response) => {
   const courses = await sql`
-    SELECT ${courseColumns}
+    SELECT ${courseSummaryColumns}
     FROM courses
     WHERE status = 'Published'
     ORDER BY id
   `
-  response.json(courses.map(deserializeCourse).map(sanitizeCourseForLearner))
+  response.json(courses)
 })
 
 app.get('/api/bookstore-items', async (_request, response) => {
