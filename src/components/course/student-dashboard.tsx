@@ -64,7 +64,7 @@ import Footer from '@/components/footer/footer'
 import EnrollmentModal from './enrollment-modal'
 import AdminDataTable, { type DataColumn } from '@/components/admin/admin-data-table'
 import { toast } from '@/components/toast'
-import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getBookstorePurchases, getCourses, getGamification, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, recordPracticeLessonAnswer, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, type BookstorePurchase, type GamificationData, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType, type WeakArea } from '@/services/api'
+import { beginQuizAttempt, completeLesson as completeLessonApi, getAuthenticatedUser, getBookstorePurchases, getCourses, getGamification, getMyEnrollments, getMyPayments, getPracticeExam, getPracticePurchases, getPublicClasses, logLiveSessionJoin, recordPracticeLessonAnswer, saveAuthenticatedUser, saveLessonEngagement, saveQuizAnswer, saveQuizViolation, submitQuizAttempt, signOut, updateAuthenticatedProfile, type BookstorePurchase, type GamificationData, type MyEnrollment, type MyPayment, type PublicClass, type QuizAnswerRecord, type QuizAnswerStatus, type QuizAttempt, type QuizQuestionResult, type QuizViolation, type QuizViolationType, type WeakArea } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 import { calculateOverallGrade } from '@/lib/overall-grade'
 
@@ -689,9 +689,10 @@ const OtherClassesView: FC<{ classes: PublicClass[]; enrolledClassIds: Set<numbe
 
 const ProfileFact: FC<{ icon: ReactNode; label: string; value: string }> = ({ icon, label, value }) => <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}><Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, flexShrink: 0, borderRadius: 1.5, backgroundColor: 'action.hover', color: 'primary.main' }}>{icon}</Box><Box sx={{ minWidth: 0 }}><Typography variant="overline" color="text.secondary">{label}</Typography><Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</Typography></Box></Box>
 
-const ProfileView: FC<{ onUpdateProfile: (profile: { name: string; email: string; phone: string }) => void }> = ({ onUpdateProfile }) => {
+const ProfileView: FC<{ onUpdateProfile: (profile: { name: string; email: string; phone: string }) => Promise<void> }> = ({ onUpdateProfile }) => {
   const user = getAuthenticatedUser()
-  const [profile, setProfile] = useState({ name: user?.name || 'Alex Morgan', email: user?.email || 'alex@example.com', phone: '+1 202 555 0147' })
+  const [profile, setProfile] = useState({ name: user?.name || 'Alex Morgan', email: user?.email || 'alex@example.com', phone: user?.phone || '' })
+  const [isSaving, setIsSaving] = useState(false)
   const initials = profile.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
   return <>
     <ViewHeading title="Profile" description="Keep your learner details current and up to date." />
@@ -711,7 +712,7 @@ const ProfileView: FC<{ onUpdateProfile: (profile: { name: string; email: string
       <Paper elevation={0} sx={{ p: { xs: 2.5, md: 3 }, border: 1, borderColor: 'divider', borderRadius: 2 }}>
         <Typography variant="h5" sx={{ mb: 0.5 }}>Personal information</Typography>
         <Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>Update the information used for your learning records and class communications.</Typography>
-        <Box component="form" onSubmit={(event) => { event.preventDefault(); onUpdateProfile(profile) }} sx={{ display: 'grid', gap: 2 }}><TextField label="Full name" value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /><TextField label="Email address" type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} /><TextField label="Phone number" value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} /><Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1 }}><Button type="submit" variant="contained" startIcon={<PersonOutlineIcon />}>Save profile</Button></Box></Box>
+        <Box component="form" onSubmit={async (event) => { event.preventDefault(); setIsSaving(true); try { await onUpdateProfile(profile) } finally { setIsSaving(false) } }} sx={{ display: 'grid', gap: 2 }}><TextField required label="Full name" value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /><TextField required label="Email address" type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} /><TextField label="Phone number" value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} /><Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1 }}><Button type="submit" variant="contained" disabled={isSaving} startIcon={<PersonOutlineIcon />}>{isSaving ? 'Saving profile...' : 'Save profile'}</Button></Box></Box>
       </Paper>
     </Box>
   </>
@@ -1375,7 +1376,17 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
       .then((records) => setEnrollments(mapMyEnrollments(records, currentUserId)))
       .catch((error) => setProgressError(error instanceof Error ? error.message : 'Unable to save practice answer.'))
   }
-  const updateProfile = (profile: { name: string; email: string; phone: string }) => setProfileMessage(`Profile saved for ${profile.name}.`)
+  const updateProfile = async (profile: { name: string; email: string; phone: string }) => {
+    try {
+      const updatedUser = await updateAuthenticatedProfile(profile)
+      saveAuthenticatedUser(updatedUser)
+      setProgressError(null)
+      setProfileMessage(`Profile saved for ${updatedUser.name}.`)
+    } catch (error) {
+      setProfileMessage('')
+      setProgressError(error instanceof Error ? error.message : 'Unable to update your profile.')
+    }
+  }
   const classCheckoutCourse = classToEnroll ? { id: classToEnroll.courseId ?? classToEnroll.id, title: classToEnroll.title, price: classToEnroll.price } : null
 
   const sidebar = <DashboardSidebar activeView={activeView} onSelectView={selectView} />

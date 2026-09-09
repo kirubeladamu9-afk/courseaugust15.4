@@ -1,5 +1,7 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import express from 'express'
 import postgres from 'postgres'
 
@@ -13,6 +15,7 @@ const sql = postgres(databaseUrl, { max: 10, ssl: 'require', prepare: false })
 const scrypt = promisify(scryptCallback)
 const app = express()
 const port = Number(process.env.PORT ?? 3001)
+const distDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
 const isTestChapa = process.env.CHAPA_MODE !== 'live'
 const sessionCookieName = 'coursespace-session'
 const sessionDuration = 86400000
@@ -721,6 +724,15 @@ const isValidTutorProfile = (body) => {
     profile.bio = body.bio.trim()
   }
   return Object.keys(profile).length ? profile : null
+}
+
+const isValidUserProfile = (body) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+  if (!name || name.length > 120 || !email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.length > 40) return null
+  return { name, email, phone }
 }
 
 const isValidCourseCover = (cover) => cover.length <= 10 * 1024 * 1024 && (cover.startsWith('/') || /^https?:\/\//i.test(cover) || /^data:image\/(?:avif|gif|jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(cover))
@@ -2812,12 +2824,22 @@ app.patch('/api/tutor/profile', requireTutor, async (request, response) => {
   const profile = isValidTutorProfile(request.body)
   if (!profile) return response.status(400).json({ message: 'Enter valid tutor profile details.' })
   try {
-    const [updated] = await sql`
-      UPDATE tutors
-      SET ${sql(profile)}
-      WHERE id = ${request.tutorId}
-      RETURNING id
-    `
+    const updated = await sql.begin(async (transaction) => {
+      const [tutor] = await transaction`
+        UPDATE tutors
+        SET ${transaction(profile)}
+        WHERE id = ${request.tutorId}
+        RETURNING id
+      `
+      if (!tutor) return null
+      await transaction`
+        UPDATE users
+        SET name = COALESCE(${profile.name ?? null}, name),
+            phone = COALESCE(${profile.phone ?? null}, phone)
+        WHERE id = ${request.userId}
+      `
+      return tutor
+    })
     if (!updated) return response.status(404).json({ message: 'Tutor profile not found.' })
     return response.json(await readTutor(request.tutorId))
   } catch (error) {
@@ -3565,6 +3587,24 @@ app.patch('/api/admin/classes/enrollments/:id/attendance', requireAdmin, async (
   return response.status(204).end()
 })
 
+app.patch('/api/auth/profile', requireAuthenticated, async (request, response) => {
+  const profile = isValidUserProfile(request.body)
+  if (!profile) return response.status(400).json({ message: 'Enter a valid name, email, and phone number.' })
+  try {
+    const [updated] = await sql`
+      UPDATE users
+      SET name = ${profile.name}, email = ${profile.email}, phone = ${profile.phone}
+      WHERE id = ${request.userId}
+      RETURNING id, name, email, phone, role, to_char(created_at, 'FMMonth DD, YYYY') AS "createdAt"
+    `
+    if (!updated) return response.status(404).json({ message: 'User profile not found.' })
+    return response.json(updated)
+  } catch (error) {
+    if (error.code === '23505') return response.status(409).json({ message: 'An account with this email already exists.' })
+    throw error
+  }
+})
+
 app.post('/api/auth/sign-up', async (request, response) => {
   const { email, password, name } = request.body ?? {}
   if (!isValidCredentials(email, password) || typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
@@ -3577,7 +3617,7 @@ app.post('/api/auth/sign-up', async (request, response) => {
   try {
     const [user] = await sql`
       INSERT INTO users ${sql({ name: name.trim(), phone: '', email: normalizedEmail, password_hash: passwordHash })}
-      RETURNING id, name, email, role, created_at AS "createdAt"
+      RETURNING id, name, email, phone, role, created_at AS "createdAt"
     `
     const sessionToken = randomBytes(32).toString('hex')
     await sql`
@@ -3601,7 +3641,7 @@ app.post('/api/auth/sign-in', async (request, response) => {
 
   const normalizedEmail = email.trim().toLowerCase()
   const [user] = await sql`
-    SELECT id, name, email, password_hash, role, status, created_at AS "createdAt"
+    SELECT id, name, email, phone, password_hash, role, status, created_at AS "createdAt"
     FROM users
     WHERE email = ${normalizedEmail}
   `
@@ -3649,6 +3689,9 @@ app.post('/api/auth/sign-out', async (request, response) => {
   return response.status(204).end()
 })
 
+app.use(express.static(distDirectory))
+app.get(/^(?!\/api(?:\/|$)).*/, (_request, response) => response.sendFile(path.join(distDirectory, 'index.html')))
+
 app.use((error, _request, response, _next) => {
   console.error(error)
   response.status(500).json({ message: 'Unable to complete your request.' })
@@ -3656,7 +3699,7 @@ app.use((error, _request, response, _next) => {
 
 initializeDatabase()
   .then(() => {
-    app.listen(port, () => {
+    app.listen(port, '0.0.0.0', () => {
       console.log(`API listening on port ${port}`)
     })
   })

@@ -6,6 +6,7 @@ export interface AuthUser {
   id: number | string
   name?: string
   email: string
+  phone?: string
   role: string
   createdAt: string
 }
@@ -826,6 +827,16 @@ export const updateAdminUserStatus = async (accountType: AdminUser['accountType'
 
 export const resetAdminUserPassword = async (accountType: AdminUser['accountType'], accountId: number): Promise<{ temporaryPassword: string }> => {
   const response = await requestApi(`/api/admin/users/${accountType}/${accountId}/reset-password`, { method: 'POST' })
+  if (!response.ok) throw new Error(await getErrorMessage(response))
+  return response.json()
+}
+
+export const updateAuthenticatedProfile = async (profile: { name: string; email: string; phone: string }): Promise<AuthUser> => {
+  const response = await requestApi('/api/auth/profile', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile),
+  })
   if (!response.ok) throw new Error(await getErrorMessage(response))
   return response.json()
 }

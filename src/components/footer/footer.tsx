@@ -5,6 +5,7 @@ import MuiLink from '@mui/material/Link'
 import Typography from '@mui/material/Typography'
 import FooterNavigation from './footer-navigation'
 import FooterSocialLinks from './footer-social-links'
+import type { FC } from 'react'
 
 const Footer: FC = () => {
   return (

@@ -3,6 +3,7 @@ import MuiLink from '@mui/material/Link'
 import Typography from '@mui/material/Typography'
 import type { Navigation } from '@/interfaces/navigation'
 import FooterSectionTitle from './footer-section-title'
+import type { FC } from 'react'
 
 const companyMenu: Navigation[] = [
   { label: 'About Us', path: '/about-us' },

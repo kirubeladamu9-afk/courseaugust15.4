@@ -24,7 +24,7 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import { type FC, useEffect, useMemo, useRef, useState } from 'react'
 import { CourseEditor } from '@/components/admin/admin-dashboard'
 import ScheduleCalendar, { type ScheduleSession } from '@/components/schedule-calendar'
-import { getAuthenticatedUser, getClassLeaderboard, getTutorAtRiskStudents, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorCourseStudents, getTutorOverview, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type AtRiskStudent, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
+import { getAuthenticatedUser, getClassLeaderboard, getTutorAtRiskStudents, getTutorClasses, getTutorClassStudents, getTutorCourses, getTutorCourseStudents, getTutorOverview, saveAuthenticatedUser, updateTutorClassAttendance, updateTutorClassCurriculum, updateTutorCourseCurriculum, updateTutorProfile, type AtRiskStudent, type TutorClass, type TutorClassStudent, type TutorOverview } from '@/services/api'
 import AtRiskStudentsPanel from '@/components/at-risk-students-panel'
 import { type AdminCourse, type AdminModule } from '@/components/admin/admin-data'
 import { navigateTo } from '@/lib/navigation'
@@ -276,6 +276,7 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     setProfileSaved(false)
     try {
       const updated = await updateTutorProfile(profile)
+      if (user) saveAuthenticatedUser({ ...user, name: updated.name, email: updated.email, phone: updated.phone })
       setOverview((current) => current ? { ...current, tutor: updated } : current)
       setProfile({ name: updated.name, phone: updated.phone, bio: updated.bio })
       setProfileSaved(true)

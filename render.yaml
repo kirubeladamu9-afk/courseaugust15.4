@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: coursespace
+    runtime: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CHAPA_MODE
+        sync: false
+      - key: CHAPA_SECRET_KEY
+        sync: false
+      - key: CHAPA_CURRENCY
+        value: ETB
+      - key: APP_URL
+        sync: false
