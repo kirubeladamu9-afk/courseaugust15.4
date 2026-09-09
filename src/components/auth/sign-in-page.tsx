@@ -38,7 +38,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
       }
       toast.add({
         title: 'Account created',
-        description: 'You can now sign in to Coursespace.',
+        description: 'You can now sign in to Coursesharp.',
         type: 'success',
       })
     } catch (error) {
@@ -56,7 +56,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
       <Paper elevation={8} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 0.9fr) minmax(0, 1.1fr)' }, maxWidth: 1080, maxHeight: '100%', minHeight: 0, mx: 'auto', overflow: 'hidden', borderRadius: { xs: 3, md: 5 } }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', p: { xs: 1.5, sm: 3, md: 4 }, pb: { xs: 3, sm: 4, md: 5 }, color: 'common.white', background: 'var(--app-auth-panel)', minHeight: 0 }}>
           <Box>
-            <Typography variant="overline" sx={{ letterSpacing: 1.2, color: 'rgba(255,255,255,0.72)' }}>Coursespace learning platform</Typography>
+            <Typography variant="overline" sx={{ letterSpacing: 1.2, color: 'rgba(255,255,255,0.72)' }}>Coursesharp learning platform</Typography>
             <Typography component="h2" sx={{ mt: { xs: 1, md: 5 }, fontSize: { xs: '1.9rem', md: '3.5rem' }, lineHeight: 0.98, letterSpacing: '-0.06em', fontWeight: 700 }}>
               Learn with
               <br />
@@ -66,7 +66,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
               Build practical skills with focused courses, supportive tutors, and relaxed practice that keeps you moving forward.
             </Typography>
           </Box>
-          <Box component="img" src="/images/home-hero.png" alt="Learner studying with Coursespace" sx={{ display: 'block', alignSelf: 'center', width: { xs: '86%', sm: '82%', md: '86%' }, height: 'auto', maxHeight: { xs: 48, sm: 120, md: 180 }, mt: { xs: 1, md: 2 }, objectFit: 'contain', objectPosition: 'center bottom' }} />
+          <Box component="img" src="/images/home-hero.png" alt="Learner studying with Coursesharp" sx={{ display: 'block', alignSelf: 'center', width: { xs: '86%', sm: '82%', md: '86%' }, height: 'auto', maxHeight: { xs: 48, sm: 120, md: 180 }, mt: { xs: 1, md: 2 }, objectFit: 'contain', objectPosition: 'center bottom' }} />
         </Box>
         <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 0, p: { xs: 1.5, sm: 3.5, md: 5 }, backgroundColor: 'background.paper' }}>
           {isRedirecting ? (
@@ -77,12 +77,12 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
           ) : (
             <>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: { xs: 2, md: 5 } }}>
-                <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, '& span': { color: 'primary.main' } }}>Course<span>space</span></Typography>
+                <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, '& span': { color: 'primary.main' } }}>Course<span>sharp</span></Typography>
                 <Typography variant="body2" color="text.secondary">{isSignUp ? 'Already learning with us?' : 'Secure account access'}</Typography>
               </Box>
               <Box sx={{ maxWidth: 430, width: '100%', mx: 'auto', flex: 1 }}>
                 <Typography component="h1" variant="h2" sx={{ mb: 0.75, fontSize: { xs: '2.1rem', md: '3rem' }, letterSpacing: '-0.05em' }}>{isSignUp ? 'Sign Up' : 'Sign In'}</Typography>
-                <Typography color="text.secondary" sx={{ mb: { xs: 2, md: 2.5 } }}>{isSignUp ? 'Create your Coursespace account.' : 'Welcome back to Coursespace.'}</Typography>
+                <Typography color="text.secondary" sx={{ mb: { xs: 2, md: 2.5 } }}>{isSignUp ? 'Create your Coursesharp account.' : 'Welcome back to Coursesharp.'}</Typography>
                 <Box sx={{ display: 'grid', gap: 1.5 }}>
                   <TextField required fullWidth label="Email" name="email" type="email" autoComplete="email" variant="outlined" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 999 } }} />
                   <TextField
@@ -114,7 +114,7 @@ const SignInPage: FC<SignInPageProps> = ({ mode }) => {
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: { xs: 2, md: 5 } }}>
-                <Typography variant="caption" color="text.secondary">© {new Date().getFullYear()} Coursespace</Typography>
+                <Typography variant="caption" color="text.secondary">© {new Date().getFullYear()} Coursesharp</Typography>
                 <Link href="/contact-us" underline="hover" variant="caption" color="text.secondary">Contact Us</Link>
               </Box>
             </>
