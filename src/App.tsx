@@ -75,6 +75,11 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
   }, [])
 
   useEffect(() => {
+    if (isAdminPath || isDashboardPath || isTutorPath || window.location.hash) return
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [authMode, currentPath, isAdminPath, isDashboardPath, isTutorPath])
+
+  useEffect(() => {
     if (isAdminPath && !canAccessAdmin) navigateTo('/', true)
     if (isTutorPath && !canAccessTutor) navigateTo('/', true)
     if (isDashboardPath && (!isAuthenticated || currentUser?.role === 'admin' || currentUser?.role === 'tutor')) navigateTo(currentUser?.role === 'admin' ? '/admin' : currentUser?.role === 'tutor' ? '/tutor' : '/', true)
