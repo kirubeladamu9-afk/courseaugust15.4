@@ -1,6 +1,8 @@
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import * as THREE from 'three'
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -647,10 +649,38 @@ export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComple
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.5)
     keyLight.position.set(3, 4, 5)
     scene.add(keyLight)
-    const modelScene = createThreeDScene(item.model)
+    const modelScene: ThreeDScene = item.model === 'cell' ? { group: new THREE.Group(), labels: [] } : createThreeDScene(item.model)
     modelScene.group.rotation.set(rotation.x, rotation.y, 0)
     groupRef.current = modelScene.group
     scene.add(modelScene.group)
+    let disposed = false
+
+    const loadCellModel = async () => {
+      const materials = await new MTLLoader().setPath('/cellModel/').loadAsync('CellAnatomy.mtl')
+      materials.preload()
+      const object = await new OBJLoader().setMaterials(materials).setPath('/cellModel/').loadAsync('CellAnatomy.obj')
+      if (disposed) return
+      const bounds = new THREE.Box3().setFromObject(object)
+      const size = bounds.getSize(new THREE.Vector3())
+      const center = bounds.getCenter(new THREE.Vector3())
+      object.position.sub(center)
+      object.scale.setScalar(4.2 / Math.max(size.x, size.y, size.z))
+      object.updateMatrixWorld(true)
+      modelScene.group.add(object)
+      const labels: Array<[string[], string, THREE.Vector3]> = [
+        [['nucleus'], 'Nucleus', new THREE.Vector3(0.1, 0.15, 0.15)],
+        [['mitochondria'], 'Mitochondrion', new THREE.Vector3(0.15, 0.15, 0.15)],
+        [['vesicles', 'lysosome'], 'Vacuole', new THREE.Vector3(0.15, 0.12, 0.15)],
+        [['cover', 'cellmembrane'], 'Cell membrane', new THREE.Vector3(0.15, -0.15, 0.15)],
+        [['mainbody', 'cytoplasm'], 'Cytoplasm', new THREE.Vector3(-0.1, -0.12, 0.15)],
+      ]
+      labels.forEach(([names, label, offset]) => {
+        const partBounds = new THREE.Box3()
+        object.traverse((child) => { if (names.some((name) => child.name.toLowerCase().includes(name))) partBounds.expandByObject(child) })
+        if (!partBounds.isEmpty()) addThreeDLabel(modelScene, label, partBounds.getCenter(new THREE.Vector3()).add(offset))
+      })
+    }
+    if (item.model === 'cell') void loadCellModel()
 
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
@@ -679,7 +709,7 @@ export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComple
     animate()
     const resizeObserver = new ResizeObserver(() => { const nextWidth = container.clientWidth || 520; camera.aspect = nextWidth / height; camera.updateProjectionMatrix(); renderer.setSize(nextWidth, height) })
     resizeObserver.observe(container)
-    return () => { window.cancelAnimationFrame(frame); resizeObserver.disconnect(); renderer.domElement.removeEventListener('pointerdown', pointerDown); renderer.domElement.removeEventListener('pointermove', pointerMove); renderer.domElement.removeEventListener('pointerup', pointerUp); renderer.domElement.removeEventListener('pointerleave', pointerUp); renderer.domElement.removeEventListener('click', pointerClick); renderer.dispose(); modelScene.group.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => material.dispose()) } }); container.replaceChildren(); groupRef.current = null }
+    return () => { disposed = true; window.cancelAnimationFrame(frame); resizeObserver.disconnect(); renderer.domElement.removeEventListener('pointerdown', pointerDown); renderer.domElement.removeEventListener('pointermove', pointerMove); renderer.domElement.removeEventListener('pointerup', pointerUp); renderer.domElement.removeEventListener('pointerleave', pointerUp); renderer.domElement.removeEventListener('click', pointerClick); renderer.dispose(); modelScene.group.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => material.dispose()) } }); container.replaceChildren(); groupRef.current = null }
   }, [item.model])
 
   useEffect(() => { if (groupRef.current) groupRef.current.rotation.set(rotation.x, rotation.y, 0) }, [rotation])
