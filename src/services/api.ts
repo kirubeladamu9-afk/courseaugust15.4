@@ -58,7 +58,7 @@ export interface WeakArea {
 interface EnrollmentLesson {
   id: number
   title: string
-  type: 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'
+  type: 'video' | 'article' | 'interactive' | 'stem_lab' | 'quiz' | 'practice' | 'live'
   duration: number | null
   videoUrl?: string
   thumbnailUrl?: string
@@ -705,7 +705,7 @@ export interface AdminClass {
   capacity: number
   schedule: AdminClassSchedule
   meeting_link: string
-  modules: Array<{ id: number; title: string; lessons: Array<{ id: number; title: string; type: 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'; duration: number | null; resources: Array<{ id: number; name: string; url?: string }> }> }>
+  modules: Array<{ id: number; title: string; lessons: Array<{ id: number; title: string; type: 'video' | 'article' | 'interactive' | 'stem_lab' | 'quiz' | 'practice' | 'live'; duration: number | null; resources: Array<{ id: number; name: string; url?: string }> }> }>
   price: number
   status: AdminClassStatus
   published: boolean

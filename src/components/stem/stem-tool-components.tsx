@@ -1,5 +1,8 @@
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import * as THREE from 'three'
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -21,7 +24,6 @@ import {
   graphPoints,
   labEquipmentFor,
   projectileMotion,
-  project3DPoint,
   runLabScenario,
   solveCircuit,
   solveLinearEquation,
@@ -36,6 +38,7 @@ import type {
   StemCircuitConfig,
   StemClassificationConfig,
   StemDiagramConfig,
+  StemEmbedConfig,
   StemFormulaConfig,
   StemGeometryConfig,
   StemGraphConfig,
@@ -51,6 +54,8 @@ import type {
   StemToolPlayerProps,
 } from './stem-types'
 
+export { solveLinearEquation } from './stem-engines'
+
 const numberText = (value: number) => Number.isFinite(value)
   ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 5 }).format(value)
   : '—'
@@ -61,6 +66,26 @@ const baseFields = <T extends StemLabConfig>(config: T, onChange: (config: T) =>
     <TextField fullWidth size="small" label="Learner instructions" value={config.instructions} onChange={(event) => onChange({ ...config, instructions: event.target.value })} />
   </Stack>
 )
+
+const secureEmbedUrl = (value: string) => {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+export const EmbedBuilder: FC<StemToolBuilderProps> = ({ config, onConfigChange }) => {
+  const item = config as StemEmbedConfig
+  const validUrl = secureEmbedUrl(item.embedUrl)
+  return <Stack spacing={2}>{baseFields(item, onConfigChange)}<TextField fullWidth required label="Tool provider" value={item.provider} onChange={(event) => onConfigChange({ ...item, provider: event.target.value })} /><TextField fullWidth required label="Secure embed URL" value={item.embedUrl} onChange={(event) => onConfigChange({ ...item, embedUrl: event.target.value })} helperText="Use an HTTPS URL that allows embedding." /><TextField fullWidth multiline minRows={2} label="Completion message" value={item.completionMessage} onChange={(event) => onConfigChange({ ...item, completionMessage: event.target.value })} /><Typography variant="caption" color={validUrl ? 'success.main' : 'warning.main'}>{validUrl ? 'The embedded tool URL is ready.' : 'Enter a valid HTTPS URL before publishing.'}</Typography></Stack>
+}
+
+export const EmbedPlayer: FC<StemToolPlayerProps> = ({ config, onComplete }) => {
+  const item = config as StemEmbedConfig
+  if (!secureEmbedUrl(item.embedUrl)) return <Typography color="text.secondary">This embedded tool is not available until a valid HTTPS URL is configured.</Typography>
+  return <Stack spacing={1.5}><Box component="iframe" src={item.embedUrl} title={`${item.provider} embedded tool`} loading="lazy" sx={{ width: '100%', minHeight: 420, border: 1, borderColor: 'divider', borderRadius: 1.5 }} /><Button variant="contained" onClick={() => onComplete({ provider: item.provider, embedUrl: item.embedUrl })}>Record activity</Button></Stack>
+}
 
 const CompletionNotice: FC<{ children: string }> = ({ children }) => (
   <Typography color="success.main" sx={{ fontWeight: 700 }}>{children}</Typography>
@@ -205,11 +230,13 @@ export const PhysicsSimulationBuilder: FC<StemToolBuilderProps> = ({ config, onC
   return <Stack spacing={2}>{baseFields(item, onConfigChange)}<FormControl fullWidth size="small"><InputLabel>Simulation concept</InputLabel><Select label="Simulation concept" value={item.scenario} onChange={(event) => onConfigChange({ ...item, scenario: event.target.value as StemPhysicsSimulationConfig['scenario'] })}><MenuItem value="projectile_motion">Projectile motion</MenuItem><MenuItem value="constant_force">Constant force</MenuItem></Select></FormControl><Typography variant="caption" color="text.secondary">Physics Simulation v1 intentionally supports these two named concepts only.</Typography></Stack>
 }
 
+type PhysicsInputValues = Record<'speed' | 'angle' | 'force' | 'mass' | 'seconds', string | undefined>
+
 export const PhysicsSimulationPlayer: FC<StemToolPlayerProps> = ({ config, onComplete }) => {
   const item = config as StemPhysicsSimulationConfig
-  const [values, setValues] = useState(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45' } : { force: '10', mass: '2', seconds: '4' })
+  const [values, setValues] = useState<PhysicsInputValues>(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45', force: undefined, mass: undefined, seconds: undefined } : { speed: undefined, angle: undefined, force: '10', mass: '2', seconds: '4' })
   const [result, setResult] = useState<Record<string, number> | null>(null)
-  useEffect(() => { setValues(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45' } : { force: '10', mass: '2', seconds: '4' }); setResult(null) }, [item.scenario])
+  useEffect(() => { setValues(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45', force: undefined, mass: undefined, seconds: undefined } : { speed: undefined, angle: undefined, force: '10', mass: '2', seconds: '4' }); setResult(null) }, [item.scenario])
   const run = () => {
     if (item.scenario === 'projectile_motion') {
       const motion = projectileMotion(Number(values.speed), Number(values.angle))
@@ -219,7 +246,7 @@ export const PhysicsSimulationPlayer: FC<StemToolPlayerProps> = ({ config, onCom
     const motion = constantForceMotion(Number(values.force), Number(values.mass), Number(values.seconds))
     setResult(motion)
   }
-  const ready = Object.values(values).every((value) => value.trim() && Number.isFinite(Number(value))) && (item.scenario !== 'constant_force' || Number(values.mass) > 0)
+  const ready = (item.scenario === 'projectile_motion' ? [values.speed, values.angle] : [values.force, values.mass, values.seconds]).every((value) => Boolean(value?.trim()) && Number.isFinite(Number(value))) && (item.scenario !== 'constant_force' || Number(values.mass) > 0)
   return <Stack spacing={2}><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1 }}>{item.scenario === 'projectile_motion' ? <><TextField type="number" label="Launch speed (m/s)" value={values.speed ?? ''} onChange={(event) => setValues({ ...values, speed: event.target.value })} /><TextField type="number" label="Launch angle (°)" value={values.angle ?? ''} onChange={(event) => setValues({ ...values, angle: event.target.value })} /></> : <><TextField type="number" label="Force (N)" value={values.force ?? ''} onChange={(event) => setValues({ ...values, force: event.target.value })} /><TextField type="number" label="Mass (kg)" value={values.mass ?? ''} onChange={(event) => setValues({ ...values, mass: event.target.value })} /><TextField type="number" label="Time (s)" value={values.seconds ?? ''} onChange={(event) => setValues({ ...values, seconds: event.target.value })} /></>}</Box><Button variant="contained" disabled={!ready} onClick={run} startIcon={<PlayArrowIcon />}>Run simulation</Button>{result && <Paper variant="outlined" sx={{ p: 2 }}><Typography sx={{ fontWeight: 800, mb: 0.5 }}>Calculated state</Typography>{Object.entries(result).map(([key, value]) => <Typography key={key} variant="body2">{key.replace(/([A-Z])/g, ' $1')}: {numberText(value)}</Typography>)}<Button sx={{ mt: 1 }} variant="outlined" onClick={() => onComplete({ scenario: item.scenario, input: values, output: result })}>Record simulation</Button></Paper>}</Stack>
 }
 
@@ -498,15 +525,200 @@ export const ThreeDExplorerBuilder: FC<StemToolBuilderProps> = ({ config, onConf
   return <Stack spacing={2}>{baseFields(item, onConfigChange)}<FormControl fullWidth size="small"><InputLabel>3D model</InputLabel><Select label="3D model" value={item.model} onChange={(event) => { const model = event.target.value as StemThreeDConfig['model']; onConfigChange({ ...item, model, requiredLabels: threeDModelPoints(model).map((point) => point.label).filter((label): label is string => Boolean(label)) }) }}><MenuItem value="cell">Cell</MenuItem><MenuItem value="dna">DNA</MenuItem><MenuItem value="neuron">Neuron</MenuItem></Select></FormControl><Typography variant="caption" color="text.secondary">Completion requires opening the model labels: {labels.join(', ')}.</Typography></Stack>
 }
 
+type ThreeDLabelObject = { object: THREE.Object3D; label: string }
+
+type ThreeDScene = { group: THREE.Group; labels: ThreeDLabelObject[] }
+
+const addThreeDLabel = (scene: ThreeDScene, label: string, position: THREE.Vector3) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 96
+  const context = canvas.getContext('2d')
+  if (!context) return
+  context.font = '600 30px sans-serif'
+  context.textBaseline = 'middle'
+  context.fillStyle = '#15333a'
+  context.fillText(label, 12, 48)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }))
+  sprite.position.copy(position)
+  sprite.scale.set(2.5, 0.47, 1)
+  sprite.userData.label = label
+  scene.group.add(sprite)
+  scene.labels.push({ object: sprite, label })
+}
+
+const addTube = (group: THREE.Group, points: THREE.Vector3[], color: number, radius = 0.06) => {
+  const curve = new THREE.CatmullRomCurve3(points)
+  group.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, radius, 10, false), new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.08 })))
+}
+
+const createThreeDScene = (model: StemThreeDConfig['model']): ThreeDScene => {
+  const scene: ThreeDScene = { group: new THREE.Group(), labels: [] }
+  const addMesh = (geometry: THREE.BufferGeometry, material: THREE.Material, position: THREE.Vector3, label?: string) => {
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.copy(position)
+    scene.group.add(mesh)
+    if (label) addThreeDLabel(scene, label, position.clone().add(new THREE.Vector3(0.2, 0.15, 0.15)))
+    return mesh
+  }
+
+  if (model === 'dna') {
+    const left: THREE.Vector3[] = []
+    const right: THREE.Vector3[] = []
+    for (let index = 0; index < 24; index += 1) {
+      const angle = index * 0.58
+      const y = (index - 12) * 0.18
+      const leftPoint = new THREE.Vector3(Math.cos(angle) * 0.72, y, Math.sin(angle) * 0.72)
+      const rightPoint = new THREE.Vector3(Math.cos(angle + Math.PI) * 0.72, y, Math.sin(angle + Math.PI) * 0.72)
+      left.push(leftPoint)
+      right.push(rightPoint)
+      const pair = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0xe8a12d }))
+      pair.position.copy(leftPoint).add(rightPoint).multiplyScalar(0.5)
+      pair.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rightPoint.clone().sub(leftPoint).normalize())
+      scene.group.add(pair)
+      if (index % 5 === 0) addThreeDLabel(scene, 'Base pair', leftPoint.clone().add(new THREE.Vector3(0.18, 0.08, 0.1)))
+    }
+    addTube(scene.group, left, 0x287d9d, 0.08)
+    addTube(scene.group, right, 0x8b4c9f, 0.08)
+    return scene
+  }
+
+  if (model === 'neuron') {
+    addMesh(new THREE.SphereGeometry(0.65, 32, 20), new THREE.MeshStandardMaterial({ color: 0xd27b4d, roughness: 0.5 }), new THREE.Vector3(), 'Cell body')
+    addTube(scene.group, [new THREE.Vector3(0.4, 0, 0), new THREE.Vector3(1.1, 0.1, 0.1), new THREE.Vector3(2.1, 0.2, 0)], 0x2d7896, 0.12)
+    addThreeDLabel(scene, 'Axon', new THREE.Vector3(1.45, 0.3, 0.1))
+    ;[
+      [new THREE.Vector3(-0.4, 0.3, 0), new THREE.Vector3(-1.25, 1.05, 0.2), new THREE.Vector3(-1.9, 1.2, 0.1)],
+      [new THREE.Vector3(-0.5, -0.05, 0), new THREE.Vector3(-1.25, -0.9, -0.2), new THREE.Vector3(-1.7, -1.1, -0.1)],
+      [new THREE.Vector3(-0.3, 0.45, 0), new THREE.Vector3(-0.8, 1.5, -0.3), new THREE.Vector3(-1.2, 1.85, -0.2)],
+    ].forEach((points) => addTube(scene.group, points, 0x4f9b62, 0.07))
+    addThreeDLabel(scene, 'Dendrite', new THREE.Vector3(-1.45, 1.35, 0.2))
+    return scene
+  }
+
+  const cytoplasm = addMesh(new THREE.SphereGeometry(1.58, 48, 32), new THREE.MeshStandardMaterial({ color: 0xe9b6a8, roughness: 0.65, metalness: 0.02 }), new THREE.Vector3())
+  cytoplasm.scale.set(1.25, 0.92, 1.05)
+  const membrane = addMesh(new THREE.SphereGeometry(1.8, 48, 32), new THREE.MeshPhysicalMaterial({ color: 0x5aa5b8, transparent: true, opacity: 0.2, roughness: 0.28, transmission: 0.35, depthWrite: false, side: THREE.DoubleSide }), new THREE.Vector3())
+  membrane.scale.set(1.28, 0.95, 1.08)
+  const nucleus = addMesh(new THREE.SphereGeometry(0.7, 32, 24), new THREE.MeshStandardMaterial({ color: 0x71429b, roughness: 0.42 }), new THREE.Vector3(-0.25, 0.05, 0.35), 'Nucleus')
+  nucleus.scale.set(1.05, 0.9, 0.95)
+  const mitochondrion = addMesh(new THREE.SphereGeometry(0.34, 24, 16), new THREE.MeshStandardMaterial({ color: 0xe69b32, roughness: 0.4 }), new THREE.Vector3(0.75, 0.5, 0.55), 'Mitochondrion')
+  mitochondrion.scale.set(1.45, 0.58, 0.62)
+  mitochondrion.rotation.z = -0.45
+  addMesh(new THREE.SphereGeometry(0.3, 24, 16), new THREE.MeshStandardMaterial({ color: 0x4d9b7b, roughness: 0.45 }), new THREE.Vector3(-0.75, 0.55, -0.4), 'Vacuole')
+  addThreeDLabel(scene, 'Cell membrane', new THREE.Vector3(0.25, -1.75, 0.45))
+  addThreeDLabel(scene, 'Cytoplasm', new THREE.Vector3(-0.75, -0.55, 0.9))
+  return scene
+}
+
 export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComplete }) => {
   const item = config as StemThreeDConfig
+  const containerRef = useRef<HTMLDivElement>(null)
+  const groupRef = useRef<THREE.Group | null>(null)
+  const openRef = useRef<(label: string) => void>(() => undefined)
   const [rotation, setRotation] = useState({ x: 0.2, y: -0.4 })
   const [opened, setOpened] = useState<string[]>([])
-  const points = threeDModelPoints(item.model).map((point) => ({ ...project3DPoint(point, rotation), source: point }))
-  const needed = item.requiredLabels.length ? item.requiredLabels : points.map((point) => point.label).filter((label): label is string => Boolean(label))
-  useEffect(() => { setRotation({ x: 0.2, y: -0.4 }); setOpened([]) }, [item.model, item.requiredLabels])
+  const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>(item.model === 'cell' ? 'loading' : 'ready')
+  const needed = [...new Set(item.requiredLabels.length ? item.requiredLabels : threeDModelPoints(item.model).map((point) => point.label).filter((label): label is string => Boolean(label)))]
   const open = (label: string) => setOpened((current) => { const next = current.includes(label) ? current : [...current, label]; if (needed.every((target) => next.includes(target))) onComplete({ model: item.model, labelsOpened: next }); return next })
-  return <Stack spacing={1.25}><Typography variant="body2" color="text.secondary">Rotate the model, then open every label to complete the exploration.</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField type="number" size="small" label="X rotation" value={rotation.x} onChange={(event) => setRotation({ ...rotation, x: Number(event.target.value) })} inputProps={{ step: 0.1 }} /><TextField type="number" size="small" label="Y rotation" value={rotation.y} onChange={(event) => setRotation({ ...rotation, y: Number(event.target.value) })} inputProps={{ step: 0.1 }} /></Stack><Box component="svg" viewBox="0 0 420 300" role="img" aria-label={`Interactive 3D ${item.model} model`} sx={{ width: '100%', maxWidth: 520, alignSelf: 'center', border: 1, borderColor: 'divider', borderRadius: 1.5, backgroundColor: 'background.default' }}>{points.sort((first, second) => first.depth - second.depth).map((point, index) => <g key={index} onClick={() => point.label && open(point.label)} style={{ cursor: point.label ? 'pointer' : 'default' }}><circle cx={210 + point.x * 120} cy={150 - point.y * 120} r={16 + point.depth * 3} fill="currentColor" opacity={0.45 + (point.depth + 1) * 0.15} />{point.label && <text x={228 + point.x * 120} y={155 - point.y * 120} fill="currentColor" fontSize="13">{point.label}</text>}</g>)}</Box><Typography variant="caption" color="text.secondary">Labels opened: {opened.length}/{needed.length}</Typography></Stack>
+  openRef.current = open
+
+  useEffect(() => {
+    setRotation({ x: 0.2, y: -0.4 })
+    setOpened([])
+    setModelStatus(item.model === 'cell' ? 'loading' : 'ready')
+  }, [item.model, item.requiredLabels])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const width = container.clientWidth || 520
+    const height = 330
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100)
+    camera.position.set(0, 0, 7)
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setSize(width, height)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.domElement.setAttribute('aria-label', `Interactive 3D ${item.model} model`)
+    renderer.domElement.setAttribute('role', 'img')
+    container.appendChild(renderer.domElement)
+
+    scene.add(new THREE.HemisphereLight(0xe8f5f7, 0x21363e, 2.2))
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.5)
+    keyLight.position.set(3, 4, 5)
+    scene.add(keyLight)
+    const modelScene: ThreeDScene = item.model === 'cell' ? { group: new THREE.Group(), labels: [] } : createThreeDScene(item.model)
+    modelScene.group.rotation.set(rotation.x, rotation.y, 0)
+    groupRef.current = modelScene.group
+    scene.add(modelScene.group)
+    let disposed = false
+
+    const loadCellModel = async () => {
+      const materials = await new MTLLoader().setPath('/cellModel/').loadAsync('CellAnatomy.mtl')
+      materials.preload()
+      const object = await new OBJLoader().setMaterials(materials).setPath('/cellModel/').loadAsync('CellAnatomy.obj')
+      if (disposed) return
+      const bounds = new THREE.Box3().setFromObject(object)
+      const size = bounds.getSize(new THREE.Vector3())
+      const center = bounds.getCenter(new THREE.Vector3())
+      const scale = 4.2 / Math.max(size.x, size.y, size.z)
+      object.scale.setScalar(scale)
+      object.position.copy(center).multiplyScalar(-scale)
+      object.updateMatrixWorld(true)
+      modelScene.group.add(object)
+      const labels: Array<[string[], string, THREE.Vector3]> = [
+        [['nucleus'], 'Nucleus', new THREE.Vector3(0.1, 0.15, 0.15)],
+        [['mitochondria'], 'Mitochondrion', new THREE.Vector3(0.15, 0.15, 0.15)],
+        [['vesicles', 'lysosome'], 'Vacuole', new THREE.Vector3(0.15, 0.12, 0.15)],
+        [['cover', 'cellmembrane'], 'Cell membrane', new THREE.Vector3(0.15, -0.15, 0.15)],
+        [['mainbody', 'cytoplasm'], 'Cytoplasm', new THREE.Vector3(-0.1, -0.12, 0.15)],
+      ]
+      labels.forEach(([names, label, offset]) => {
+        const partBounds = new THREE.Box3()
+        object.traverse((child) => { if (names.some((name) => child.name.toLowerCase().includes(name))) partBounds.expandByObject(child) })
+        if (!partBounds.isEmpty()) addThreeDLabel(modelScene, label, partBounds.getCenter(new THREE.Vector3()).add(offset))
+      })
+      setModelStatus('ready')
+    }
+    if (item.model === 'cell') void loadCellModel().catch(() => { if (!disposed) setModelStatus('error') })
+
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+    let dragging = false
+    let moved = false
+    let lastX = 0
+    let lastY = 0
+    const pointerDown = (event: PointerEvent) => { dragging = true; moved = false; lastX = event.clientX; lastY = event.clientY; renderer.domElement.setPointerCapture(event.pointerId) }
+    const pointerMove = (event: PointerEvent) => { if (!dragging || !groupRef.current) return; moved = moved || Math.hypot(event.clientX - lastX, event.clientY - lastY) > 2; const next = { x: groupRef.current.rotation.x + (event.clientY - lastY) * 0.01, y: groupRef.current.rotation.y + (event.clientX - lastX) * 0.01 }; groupRef.current.rotation.set(next.x, next.y, 0); setRotation(next); lastX = event.clientX; lastY = event.clientY }
+    const pointerUp = () => { dragging = false }
+    const pointerClick = (event: MouseEvent) => {
+      if (moved) { moved = false; return }
+      const bounds = renderer.domElement.getBoundingClientRect()
+      pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1)
+      raycaster.setFromCamera(pointer, camera)
+      const hit = raycaster.intersectObjects(modelScene.labels.map(({ object }) => object), false)[0]
+      if (hit?.object.userData.label) openRef.current(hit.object.userData.label)
+    }
+    renderer.domElement.addEventListener('pointerdown', pointerDown)
+    renderer.domElement.addEventListener('pointermove', pointerMove)
+    renderer.domElement.addEventListener('pointerup', pointerUp)
+    renderer.domElement.addEventListener('pointerleave', pointerUp)
+    renderer.domElement.addEventListener('click', pointerClick)
+    let frame = 0
+    const animate = () => { frame = window.requestAnimationFrame(animate); renderer.render(scene, camera) }
+    animate()
+    const resizeObserver = new ResizeObserver(() => { const nextWidth = container.clientWidth || 520; camera.aspect = nextWidth / height; camera.updateProjectionMatrix(); renderer.setSize(nextWidth, height) })
+    resizeObserver.observe(container)
+    return () => { disposed = true; window.cancelAnimationFrame(frame); resizeObserver.disconnect(); renderer.domElement.removeEventListener('pointerdown', pointerDown); renderer.domElement.removeEventListener('pointermove', pointerMove); renderer.domElement.removeEventListener('pointerup', pointerUp); renderer.domElement.removeEventListener('pointerleave', pointerUp); renderer.domElement.removeEventListener('click', pointerClick); renderer.dispose(); modelScene.group.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => material.dispose()) } }); if (renderer.domElement.parentNode === container) container.removeChild(renderer.domElement); groupRef.current = null }
+  }, [item.model])
+
+  useEffect(() => { if (groupRef.current) groupRef.current.rotation.set(rotation.x, rotation.y, 0) }, [rotation])
+
+  return <Stack spacing={1.25}><Typography variant="body2" color="text.secondary">Drag the model to rotate it, then click every label to complete the exploration.</Typography><Box ref={containerRef} role="application" aria-label={`${item.model} 3D explorer`} sx={{ position: 'relative', width: '100%', maxWidth: 520, minHeight: 330, alignSelf: 'center', border: 1, borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden', background: 'radial-gradient(circle at 50% 38%, rgba(90, 165, 184, 0.2), transparent 62%), #f4fafb', cursor: 'grab', touchAction: 'none', '&:active': { cursor: 'grabbing' } }}>{modelStatus !== 'ready' && <Box sx={{ position: 'absolute', inset: 0, zIndex: 1, display: 'grid', placeItems: 'center', backgroundColor: 'rgba(244, 250, 251, 0.78)' }}><Typography color={modelStatus === 'error' ? 'error.main' : 'text.secondary'}>{modelStatus === 'error' ? 'The cell model could not be loaded.' : 'Loading cell model…'}</Typography></Box>}</Box><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField type="number" size="small" label="X rotation" value={rotation.x.toFixed(2)} onChange={(event) => setRotation({ ...rotation, x: Number(event.target.value) })} inputProps={{ step: 0.1 }} /><TextField type="number" size="small" label="Y rotation" value={rotation.y.toFixed(2)} onChange={(event) => setRotation({ ...rotation, y: Number(event.target.value) })} inputProps={{ step: 0.1 }} /></Stack><Typography variant="caption" color="text.secondary">Labels opened: {opened.length}/{needed.length}</Typography></Stack>
 }
 
 export const PunnettBuilder: FC<StemToolBuilderProps> = ({ config, onConfigChange }) => {
