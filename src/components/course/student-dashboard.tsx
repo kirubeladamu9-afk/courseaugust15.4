@@ -1118,6 +1118,10 @@ const StudentDashboard: FC<StudentDashboardProps> = ({ darkMode, onToggleDarkMod
   }, [])
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [activeView, selectedCourseId])
+
+  useEffect(() => {
     const handleProfileOpen = () => setActiveView('profile')
     window.addEventListener('student-profile-open', handleProfileOpen)
     return () => window.removeEventListener('student-profile-open', handleProfileOpen)

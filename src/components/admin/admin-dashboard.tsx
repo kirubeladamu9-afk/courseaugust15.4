@@ -1333,6 +1333,10 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
     }
   }, [])
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [pathname])
+
   const currentPage = useMemo(() => {
     if (/^\/admin\/profile\/?$/.test(pathname)) return <AdminProfilePage user={adminUser} onSignOut={handleSignOut} />
 

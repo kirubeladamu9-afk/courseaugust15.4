@@ -220,6 +220,9 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
     return () => window.clearInterval(timer)
   }, [])
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [view, selectedClassId, progressTarget?.type, progressTarget?.id, courseDraft?.id, classDraft?.record.id])
+  useEffect(() => {
     const classId = progressTarget?.type === 'class' ? progressTarget.id : null
     if (classId === null) {
       setClassRanks(new Map())
