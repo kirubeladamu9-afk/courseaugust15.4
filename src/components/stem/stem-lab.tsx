@@ -1,6 +1,6 @@
-import AddIcon from '@mui/icons-material/Add'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import AddIcon from '@mui/icons-material/Add'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
@@ -14,72 +14,267 @@ import Slider from '@mui/material/Slider'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { type FC, useEffect, useMemo, useState } from 'react'
-import InteractiveDiagramViewer from '@/components/course/interactive-diagram-viewer'
+import { type FC, useEffect, useMemo, useRef, useState } from 'react'
+import InteractiveHotspotEditor from '@/components/admin/interactive-hotspot-editor'
 import { type AdminLesson } from '@/components/admin/admin-data'
-import { STEM_TOOLS, type StemActivityResult, type StemConfig, type StemItem, type StemQuestion, type StemSubject, type StemTool, type StemVariable } from './stem-types'
+import InteractiveDiagramViewer from '@/components/course/interactive-diagram-viewer'
+import { STEM_SUBJECTS, getStemTool, getStemToolsForSubject, type StemActivityResult, type StemConfig, type StemSubject, type StemTool, type StemVariable } from './stem-types'
 
-const defaultConfig = (): StemConfig => ({ version: 1, instructions: 'Explore the activity and submit your result when you are ready.', topic: '', difficulty: 'Beginner', completionScore: 70, maxAttempts: 3, timeLimitSeconds: 0, formula: 'x * x', outputLabel: 'Result', targetValue: 0, variables: [{ id: 1, name: 'x', label: 'Input', min: -10, max: 10, step: 1, initial: 0 }], items: [{ id: 1, label: 'Item 1', detail: '' }], procedure: [{ id: 1, label: 'Step 1', detail: '' }], questions: [{ id: 1, prompt: 'What is the correct outcome?', options: [''], correctAnswer: '' }] })
+const createVariable = (id: number, name: string, label: string, initial = 0): StemVariable => ({ id, name, label, min: -10, max: 10, step: 1, initial })
 
-export const getStemConfig = (lesson: Pick<AdminLesson, 'stemConfig'>): StemConfig => {
-  const defaults = defaultConfig()
-  return { ...defaults, ...(lesson.stemConfig ?? {}), variables: lesson.stemConfig?.variables ?? defaults.variables, items: lesson.stemConfig?.items ?? defaults.items, procedure: lesson.stemConfig?.procedure ?? defaults.procedure, questions: lesson.stemConfig?.questions ?? defaults.questions }
+export const createStemConfig = (tool?: StemTool): StemConfig => {
+  if (tool === 'calculator') return { version: 1, instructions: 'Enter a value for each variable to calculate the result.', topic: '', formula: 'F = m × a', outputLabel: 'Result', variables: [createVariable(1, 'm', 'Mass', 1), createVariable(2, 'a', 'Acceleration', 1)] }
+  if (tool === 'graph') return { version: 1, instructions: 'Move the parameter sliders to explore how they change the graph.', topic: '', formula: 'y = ax² + bx + c', outputLabel: 'y', variables: [createVariable(1, 'a', 'a', 1), createVariable(2, 'b', 'b', 0), createVariable(3, 'c', 'c', 0)] }
+  return { version: 1, instructions: 'Explore the diagram to learn more about each labeled part.', topic: '', formula: '', outputLabel: 'Result', variables: [] }
 }
 
-const nextId = (items: Array<{ id: number }>) => Math.max(0, ...items.map((item) => item.id)) + 1
-const usesFormula = (tool?: StemTool) => ['graph', 'simulation', 'calculator', 'experiment'].includes(tool ?? '')
-const usesItems = (tool?: StemTool) => ['builder', 'diagram'].includes(tool ?? '')
-const usesProcedure = (tool?: StemTool) => ['virtual-lab', 'experiment'].includes(tool ?? '')
-const usesQuestions = (tool?: StemTool) => ['game', 'virtual-lab', 'experiment'].includes(tool ?? '')
+export const getStemConfig = (lesson: Pick<AdminLesson, 'stemConfig' | 'stemTool'>): StemConfig => {
+  const defaults = createStemConfig(lesson.stemTool)
+  const config = lesson.stemConfig
+  return {
+    ...defaults,
+    ...config,
+    variables: config?.variables ?? defaults.variables,
+  }
+}
 
-const ItemsEditor: FC<{ title: string; items: StemItem[]; onChange: (items: StemItem[]) => void }> = ({ title, items, onChange }) => <Stack spacing={1}><Typography variant="subtitle2">{title}</Typography>{items.map((item, index) => <Stack key={item.id} direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField size="small" fullWidth label={`${title} ${index + 1}`} value={item.label} onChange={(event) => onChange(items.map((current) => current.id === item.id ? { ...current, label: event.target.value } : current))} /><TextField size="small" fullWidth label="Detail" value={item.detail} onChange={(event) => onChange(items.map((current) => current.id === item.id ? { ...current, detail: event.target.value } : current))} /><IconButton color="error" aria-label={`Remove ${title} ${index + 1}`} onClick={() => onChange(items.filter((current) => current.id !== item.id))}><DeleteOutlineIcon /></IconButton></Stack>)}<Button size="small" variant="text" startIcon={<AddIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => onChange([...items, { id: nextId(items), label: '', detail: '' }])}>Add {title.slice(0, -1)}</Button></Stack>
+const nextVariableId = (variables: StemVariable[]) => Math.max(0, ...variables.map((variable) => variable.id)) + 1
+const safeVariableName = (name: string) => name.replace(/[^a-zA-Z]/g, '')
+const hasValidVariables = (variables: StemVariable[], reserveX = false) => variables.length > 0 && variables.every((variable) => variable.name && (!reserveX || variable.name.toLowerCase() !== 'x') && Number.isFinite(variable.min) && Number.isFinite(variable.max) && variable.min <= variable.max && Number.isFinite(variable.step) && variable.step > 0) && new Set(variables.map((variable) => variable.name.toLowerCase())).size === variables.length
 
-const QuestionsEditor: FC<{ questions: StemQuestion[]; onChange: (questions: StemQuestion[]) => void }> = ({ questions, onChange }) => <Stack spacing={1}><Typography variant="subtitle2">Challenge questions</Typography>{questions.map((question, index) => <Paper key={question.id} variant="outlined" sx={{ p: 1.5 }}><Stack spacing={1}><Stack direction="row" justifyContent="space-between"><Typography variant="body2" sx={{ fontWeight: 700 }}>Question {index + 1}</Typography><IconButton color="error" aria-label={`Remove question ${index + 1}`} onClick={() => onChange(questions.filter((current) => current.id !== question.id))}><DeleteOutlineIcon /></IconButton></Stack><TextField size="small" label="Prompt" value={question.prompt} onChange={(event) => onChange(questions.map((current) => current.id === question.id ? { ...current, prompt: event.target.value } : current))} /><TextField size="small" label="Choices (one per line)" multiline minRows={2} value={question.options.join('\n')} onChange={(event) => onChange(questions.map((current) => current.id === question.id ? { ...current, options: event.target.value.split('\n') } : current))} /><TextField size="small" label="Correct choice" value={question.correctAnswer} onChange={(event) => onChange(questions.map((current) => current.id === question.id ? { ...current, correctAnswer: event.target.value } : current))} /></Stack></Paper>)}<Button size="small" variant="text" startIcon={<AddIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => onChange([...questions, { id: nextId(questions), prompt: '', options: [''], correctAnswer: '' }])}>Add question</Button></Stack>
+const VariablesEditor: FC<{ variables: StemVariable[]; reserveX?: boolean; onChange: (variables: StemVariable[]) => void }> = ({ variables, reserveX = false, onChange }) => {
+  const updateVariable = (id: number, changes: Partial<StemVariable>) => onChange(variables.map((variable) => variable.id === id ? { ...variable, ...changes } : variable))
+  return <Stack spacing={1.25}>
+    <Box><Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Variables</Typography><Typography variant="caption" color="text.secondary">Names must match the formula exactly.{reserveX ? ' The x-axis value is reserved.' : ''}</Typography></Box>
+    {variables.map((variable, index) => <Paper key={variable.id} variant="outlined" sx={{ p: 1.25 }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ md: 'center' }}>
+        <TextField size="small" label="Name" value={variable.name} inputProps={{ maxLength: 20 }} onChange={(event) => updateVariable(variable.id, { name: safeVariableName(event.target.value) })} sx={{ minWidth: { md: 100 } }} />
+        <TextField size="small" label="Learner label" value={variable.label} onChange={(event) => updateVariable(variable.id, { label: event.target.value })} sx={{ flex: 1, minWidth: { md: 150 } }} />
+        {(['min', 'max', 'step', 'initial'] as const).map((key) => <TextField key={key} size="small" type="number" label={key} value={variable[key]} onChange={(event) => updateVariable(variable.id, { [key]: Number(event.target.value) })} sx={{ width: { md: 88 } }} />)}
+        <IconButton color="error" aria-label={`Remove variable ${index + 1}`} onClick={() => onChange(variables.filter((item) => item.id !== variable.id))}><DeleteOutlineIcon /></IconButton>
+      </Stack>
+    </Paper>)}
+    <Button size="small" variant="text" startIcon={<AddIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => onChange([...variables, createVariable(nextVariableId(variables), `v${variables.length + 1}`, `Variable ${variables.length + 1}`)])}>Add variable</Button>
+  </Stack>
+}
 
-const VariablesEditor: FC<{ variables: StemVariable[]; onChange: (variables: StemVariable[]) => void }> = ({ variables, onChange }) => <Stack spacing={1}><Typography variant="subtitle2">Controls & variables</Typography>{variables.map((variable, index) => <Paper key={variable.id} variant="outlined" sx={{ p: 1.25 }}><Stack direction={{ xs: 'column', md: 'row' }} spacing={1}><TextField size="small" label="Name" value={variable.name} onChange={(event) => onChange(variables.map((current) => current.id === variable.id ? { ...current, name: event.target.value.replace(/[^a-zA-Z]/g, '') } : current))} /><TextField size="small" label="Learner label" value={variable.label} onChange={(event) => onChange(variables.map((current) => current.id === variable.id ? { ...current, label: event.target.value } : current))} />{(['min', 'max', 'step', 'initial'] as const).map((key) => <TextField key={key} size="small" type="number" label={key} value={variable[key]} onChange={(event) => onChange(variables.map((current) => current.id === variable.id ? { ...current, [key]: Number(event.target.value) } : current))} />)}<IconButton color="error" aria-label={`Remove variable ${index + 1}`} onClick={() => onChange(variables.filter((current) => current.id !== variable.id))}><DeleteOutlineIcon /></IconButton></Stack></Paper>)}<Button size="small" variant="text" startIcon={<AddIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => onChange([...variables, { id: nextId(variables), name: `x${variables.length + 1}`, label: 'Input', min: 0, max: 10, step: 1, initial: 0 }])}>Add control</Button></Stack>
+const expressionAfterAssignment = (formula: string) => formula.includes('=') ? formula.slice(formula.indexOf('=') + 1) : formula
+const formulaLabel = (formula: string, fallback: string) => formula.includes('=') ? formula.slice(0, formula.indexOf('=')).trim() || fallback : fallback
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const normalizeExpression = (formula: string, variableNames: string[]) => {
+  let expression = expressionAfterAssignment(formula)
+    .replace(/[×·]/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/−/g, '-')
+    .replace(/²/g, '^2')
+    .replace(/³/g, '^3')
+    .replace(/\s+/g, '')
+  for (const name of [...variableNames].sort((first, second) => second.length - first.length)) {
+    expression = expression.replace(new RegExp(`(${escapeRegex(name)})x(?=\\^|$|[+\\-*/)])`, 'g'), '$1*x')
+  }
+  return expression
+}
+
+export const evaluateStemFormula = (formula: string, values: Record<string, number>, variableNames = Object.keys(values)) => {
+  const expression = normalizeExpression(formula, variableNames)
+  if (!expression || !/^[0-9A-Za-z+\-*/^().]+$/.test(expression)) return Number.NaN
+  const tokens = expression.match(/\d*\.?\d+|[A-Za-z]+|[()+\-*/^]/g) ?? []
+  if (!tokens.length || tokens.join('') !== expression) return Number.NaN
+  let index = 0
+  const readPrimary = (): number => {
+    const token = tokens[index++]
+    if (token === '-') return -readPrimary()
+    if (token === '+') return readPrimary()
+    if (token === '(') {
+      const value = readExpression()
+      return tokens[index++] === ')' ? value : Number.NaN
+    }
+    if (token === undefined) return Number.NaN
+    if (/^[A-Za-z]+$/.test(token)) return Number.isFinite(values[token]) ? values[token] : Number.NaN
+    return Number(token)
+  }
+  const readPower = (): number => {
+    const value = readPrimary()
+    return tokens[index] === '^' ? value ** readPowerAfterOperator() : value
+  }
+  const readPowerAfterOperator = (): number => {
+    index += 1
+    return readPower()
+  }
+  const readTerm = (): number => {
+    let value = readPower()
+    while (tokens[index] === '*' || tokens[index] === '/') {
+      const operator = tokens[index++]
+      const next = readPower()
+      value = operator === '*' ? value * next : value / next
+    }
+    return value
+  }
+  const readExpression = (): number => {
+    let value = readTerm()
+    while (tokens[index] === '+' || tokens[index] === '-') {
+      const operator = tokens[index++]
+      const next = readTerm()
+      value = operator === '+' ? value + next : value - next
+    }
+    return value
+  }
+  const result = readExpression()
+  return index === tokens.length && Number.isFinite(result) ? result : Number.NaN
+}
+
+const formatValue = (value: number) => Number.isFinite(value) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 5 }).format(value) : '—'
+
+const isConfigured = (lesson: AdminLesson, config: StemConfig) => {
+  if (lesson.stemTool === 'diagram') return Boolean(lesson.baseImageUrl && lesson.interactiveHotspots?.length)
+  if (lesson.stemTool === 'calculator') return Boolean(config.formula.trim() && hasValidVariables(config.variables))
+  if (lesson.stemTool === 'graph') return Boolean(config.formula.trim() && hasValidVariables(config.variables, true))
+  return false
+}
+
+type AuthoringStage = 'choose' | 'configure' | 'preview' | 'publish'
 
 export const StemLabEditor: FC<{ lesson: AdminLesson; updateLessonDraft: (lesson: AdminLesson) => void }> = ({ lesson, updateLessonDraft }) => {
-  const [preview, setPreview] = useState(false)
-  const config = getStemConfig(lesson)
+  const [stage, setStage] = useState<AuthoringStage>('choose')
+  const [hasPreviewed, setHasPreviewed] = useState(false)
   const subject = lesson.stemSubject ?? 'Math'
   const tool = lesson.stemTool
-  const update = (values: Partial<StemConfig>) => updateLessonDraft({ ...lesson, stemConfig: { ...config, ...values } })
-  return <Stack spacing={2}><Box><Typography variant="subtitle1" sx={{ fontWeight: 700 }}>STEM Lab</Typography><Typography variant="body2" color="text.secondary">Create a reusable, scored activity without writing code.</Typography></Box><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><FormControl fullWidth><InputLabel>Subject</InputLabel><Select label="Subject" value={subject} onChange={(event) => updateLessonDraft({ ...lesson, stemSubject: event.target.value as StemSubject, stemTool: undefined, stemLabPublished: false, stemConfig: config })}>{(['Math', 'Physics', 'Chemistry', 'Biology'] as StemSubject[]).map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</Select></FormControl><FormControl fullWidth><InputLabel>Difficulty</InputLabel><Select label="Difficulty" value={config.difficulty} onChange={(event) => update({ difficulty: event.target.value as StemConfig['difficulty'] })}>{['Beginner', 'Intermediate', 'Advanced'].map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</Select></FormControl></Stack><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1 }}>{STEM_TOOLS.map((item) => <Button key={item.type} variant={tool === item.type ? 'contained' : 'outlined'} onClick={() => updateLessonDraft({ ...lesson, stemSubject: subject, stemTool: item.type, stemLabPublished: false, stemConfig: config })} sx={{ justifyContent: 'space-between' }}>{item.label}<Chip size="small" label={tool === item.type ? 'Selected' : 'Ready'} color={tool === item.type ? 'default' : 'primary'} /></Button>)}</Box>{tool && <><TextField fullWidth label="Learning topic" placeholder="e.g. Newton's laws" value={config.topic} onChange={(event) => update({ topic: event.target.value })} /><TextField fullWidth multiline minRows={2} label="Learner instructions" value={config.instructions} onChange={(event) => update({ instructions: event.target.value })} /><Stack direction={{ xs: 'column', md: 'row' }} spacing={1}><TextField fullWidth type="number" label="Passing score" inputProps={{ min: 0, max: 100 }} value={config.completionScore} onChange={(event) => update({ completionScore: Math.max(0, Math.min(100, Number(event.target.value))) })} /><TextField fullWidth type="number" label="Maximum attempts" inputProps={{ min: 1, max: 10 }} value={config.maxAttempts} onChange={(event) => update({ maxAttempts: Math.max(1, Number(event.target.value)) })} /><TextField fullWidth type="number" label="Time limit (seconds)" inputProps={{ min: 0 }} value={config.timeLimitSeconds} onChange={(event) => update({ timeLimitSeconds: Math.max(0, Number(event.target.value)) })} /></Stack>{usesFormula(tool) && <><TextField fullWidth label="Formula" helperText="Use variables, numbers, parentheses, +, -, ×, and ÷." value={config.formula} onChange={(event) => update({ formula: event.target.value })} /><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField fullWidth label="Output label" value={config.outputLabel} onChange={(event) => update({ outputLabel: event.target.value })} /><TextField fullWidth type="number" label="Target value" value={config.targetValue} onChange={(event) => update({ targetValue: Number(event.target.value) })} /></Stack><VariablesEditor variables={config.variables} onChange={(variables) => update({ variables })} /></>}{usesItems(tool) && <ItemsEditor title="Lab items" items={config.items} onChange={(items) => update({ items })} />}{usesProcedure(tool) && <ItemsEditor title="Procedure steps" items={config.procedure} onChange={(procedure) => update({ procedure })} />}{usesQuestions(tool) && <QuestionsEditor questions={config.questions} onChange={(questions) => update({ questions })} />}<Stack direction="row" spacing={1}><Button variant="outlined" onClick={() => setPreview((current) => !current)}>{preview ? 'Close preview' : 'Preview activity'}</Button><Button startIcon={<CheckCircleOutlineIcon />} variant="contained" onClick={() => updateLessonDraft({ ...lesson, stemLabPublished: true, stemConfig: config })}>{lesson.stemLabPublished ? 'Published' : 'Publish activity'}</Button></Stack>{preview && <StemActivityPlayer lesson={lesson} preview onResult={() => undefined} />}</>}</Stack>
+  const config = getStemConfig(lesson)
+  const ready = isConfigured(lesson, config)
+  const selectedTool = getStemTool(subject, tool)
+
+  useEffect(() => {
+    setStage(tool ? 'configure' : 'choose')
+    setHasPreviewed(false)
+  }, [lesson.id])
+
+  const updateConfiguration = (changes: Partial<StemConfig>) => {
+    setHasPreviewed(false)
+    setStage('configure')
+    updateLessonDraft({ ...lesson, stemConfig: { ...config, ...changes }, stemLabPublished: false })
+  }
+  const chooseSubject = (nextSubject: StemSubject) => {
+    setStage('choose')
+    setHasPreviewed(false)
+    updateLessonDraft({ ...lesson, stemSubject: nextSubject, stemTool: undefined, stemConfig: undefined, stemLabPublished: false })
+  }
+  const chooseTool = (nextTool: StemTool) => {
+    setStage('configure')
+    setHasPreviewed(false)
+    updateLessonDraft({ ...lesson, stemSubject: subject, stemTool: nextTool, stemConfig: createStemConfig(nextTool), stemLabPublished: false })
+  }
+
+  return <Stack spacing={2.5}>
+    <Box><Typography variant="subtitle1" sx={{ fontWeight: 700 }}>STEM Lab authoring</Typography><Typography variant="body2" color="text.secondary">Choose a subject tool, configure its learning interaction, preview it, then publish it to this lesson.</Typography></Box>
+    <FormControl fullWidth><InputLabel>Lesson subject</InputLabel><Select label="Lesson subject" value={subject} onChange={(event) => chooseSubject(event.target.value as StemSubject)}>{STEM_SUBJECTS.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</Select></FormControl>
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap flexWrap="wrap" aria-label="STEM Lab authoring steps">
+      <Button variant={stage === 'choose' ? 'contained' : 'outlined'} onClick={() => setStage('choose')}>1. Choose Tool</Button>
+      <Button variant={stage === 'configure' ? 'contained' : 'outlined'} disabled={!tool} onClick={() => setStage('configure')}>2. Configure</Button>
+      <Button variant={stage === 'preview' ? 'contained' : 'outlined'} disabled={!tool || !ready} onClick={() => { setHasPreviewed(true); setStage('preview') }}>3. Preview</Button>
+      <Button variant={stage === 'publish' ? 'contained' : 'outlined'} disabled={!hasPreviewed} onClick={() => setStage('publish')}>4. Publish</Button>
+    </Stack>
+
+    {stage === 'choose' && <Stack spacing={1.25}>
+      <Box><Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Tools for {subject}</Typography><Typography variant="caption" color="text.secondary">Only tools planned for this subject are shown. Coming Soon tools cannot be selected.</Typography></Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1 }}>
+        {getStemToolsForSubject(subject).map((item) => <Paper key={item.type} variant="outlined" component="button" type="button" disabled={!item.available} onClick={() => item.available && chooseTool(item.type)} sx={{ minHeight: 78, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, p: 1.25, borderColor: tool === item.type ? 'primary.main' : 'divider', backgroundColor: tool === item.type ? 'action.selected' : 'background.default', color: item.available ? 'text.primary' : 'text.disabled', cursor: item.available ? 'pointer' : 'not-allowed', font: 'inherit', textAlign: 'left', opacity: item.available ? 1 : 0.72, '&:hover': item.available ? { borderColor: 'primary.main' } : {} }}>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>{item.label}</Typography><Chip size="small" label={item.available ? (tool === item.type ? 'Selected' : 'Available') : 'Coming Soon'} color={item.available ? 'primary' : 'default'} variant={tool === item.type ? 'filled' : 'outlined'} />
+        </Paper>)}
+      </Box>
+    </Stack>}
+
+    {stage === 'configure' && (tool && selectedTool?.available ? <Stack spacing={2}>
+      <Box><Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Configure {selectedTool.label}</Typography><Typography variant="caption" color="text.secondary">Changes return this lab to draft until it is previewed and published again.</Typography></Box>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}><TextField fullWidth size="small" label="Topic" placeholder="e.g. Newton's second law" value={config.topic} onChange={(event) => updateConfiguration({ topic: event.target.value })} /><TextField fullWidth size="small" label="Learner instructions" value={config.instructions} onChange={(event) => updateConfiguration({ instructions: event.target.value })} /></Stack>
+      {tool === 'diagram' && <InteractiveHotspotEditor lesson={lesson} onChange={(nextLesson) => { setHasPreviewed(false); updateLessonDraft({ ...nextLesson, stemConfig: config, stemLabPublished: false }) }} />}
+      {tool === 'calculator' && <Stack spacing={2}><TextField fullWidth label="Formula" value={config.formula} onChange={(event) => updateConfiguration({ formula: event.target.value })} helperText="Use named variables and an optional result label, for example F = m × a. Supports +, −, ×, ÷, parentheses, and ^." /><TextField fullWidth size="small" label="Result label when no formula label is used" value={config.outputLabel} onChange={(event) => updateConfiguration({ outputLabel: event.target.value })} /><VariablesEditor variables={config.variables} onChange={(variables) => updateConfiguration({ variables })} /></Stack>}
+      {tool === 'graph' && <Stack spacing={2}><TextField fullWidth label="Function" value={config.formula} onChange={(event) => updateConfiguration({ formula: event.target.value })} helperText="For example y = ax² + bx + c. The x-axis value is supplied by the graph. Supports +, −, ×, ÷, parentheses, and ^." /><VariablesEditor variables={config.variables} reserveX onChange={(variables) => updateConfiguration({ variables })} /></Stack>}
+      {!ready && <Typography variant="caption" color="warning.main">Finish the required configuration before previewing: {tool === 'diagram' ? 'upload an image and add at least one hotspot.' : 'add a valid formula and uniquely named variables with valid ranges.'}</Typography>}
+    </Stack> : <Paper variant="outlined" sx={{ p: 2 }}><Typography color="text.secondary">Choose an available tool before configuring this lab.</Typography></Paper>)}
+
+    {stage === 'preview' && tool && ready && <Stack spacing={1.25}><Box><Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Learner preview</Typography><Typography variant="caption" color="text.secondary">This preview does not record progress or award XP.</Typography></Box><StemActivityPlayer lesson={lesson} preview onResult={() => undefined} /></Stack>}
+
+    {stage === 'publish' && <Paper variant="outlined" sx={{ p: 2 }}><Stack spacing={1.25}><Box><Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Ready to publish</Typography><Typography variant="body2" color="text.secondary">Publishing makes this configured {selectedTool?.label ?? 'STEM'} activity available to learners when you save the lesson.</Typography></Box><Button variant="contained" sx={{ alignSelf: 'flex-start' }} disabled={!hasPreviewed || lesson.stemLabPublished} onClick={() => updateLessonDraft({ ...lesson, stemLabPublished: true })}>{lesson.stemLabPublished ? 'STEM Lab published' : 'Publish STEM Lab'}</Button>{!hasPreviewed && <Typography variant="caption" color="warning.main">Preview the activity before publishing it.</Typography>}</Stack></Paper>}
+  </Stack>
 }
 
-const tokenize = (formula: string, variables: Record<string, number>) => formula.replace(/\s+/g, '').replace(/[a-zA-Z]+/g, (name) => String(variables[name] ?? 'NaN')).match(/\d*\.?\d+|[()+\-*/]/g) ?? []
-const evaluateFormula = (formula: string, variables: Record<string, number>) => {
-  const tokens = tokenize(formula, variables)
-  let index = 0
-  const expression = (): number => { let value = term(); while (tokens[index] === '+' || tokens[index] === '-') { const operator = tokens[index++]; value = operator === '+' ? value + term() : value - term() } return value }
-  const term = (): number => { let value = factor(); while (tokens[index] === '*' || tokens[index] === '/') { const operator = tokens[index++]; value = operator === '*' ? value * factor() : value / factor() } return value }
-  const factor = (): number => { const token = tokens[index++]; if (token === '-') return -factor(); if (token === '(') { const value = expression(); return tokens[index++] === ')' ? value : NaN } return token === undefined ? NaN : Number(token) }
-  const result = expression()
-  return index === tokens.length && Number.isFinite(result) ? result : NaN
+const CompletionNotice: FC<{ complete: boolean; preview: boolean }> = ({ complete, preview }) => complete && !preview ? <Paper variant="outlined" sx={{ p: 1.25, borderColor: 'success.main', backgroundColor: 'success.light' }}><Stack direction="row" spacing={1} alignItems="center"><CheckCircleOutlineIcon color="success" /><Typography variant="body2" sx={{ fontWeight: 700 }}>Activity complete. Your lesson progress and XP have been updated.</Typography></Stack></Paper> : null
+
+const CalculatorPlayer: FC<{ config: StemConfig; onInteraction: (values: Record<string, number>) => void }> = ({ config, onInteraction }) => {
+  const [inputs, setInputs] = useState<Record<string, string>>({})
+  useEffect(() => setInputs(Object.fromEntries(config.variables.map((variable) => [variable.name, '']))), [config.variables])
+  const values = useMemo(() => Object.fromEntries(config.variables.map((variable) => [variable.name, Number(inputs[variable.name])])), [config.variables, inputs])
+  const validValues = config.variables.every((variable) => inputs[variable.name]?.trim() !== '' && Number.isFinite(values[variable.name]))
+  const result = validValues ? evaluateStemFormula(config.formula, values, config.variables.map((variable) => variable.name)) : Number.NaN
+  const updateInput = (name: string, value: string) => {
+    const nextInputs = { ...inputs, [name]: value }
+    setInputs(nextInputs)
+    onInteraction(Object.fromEntries(config.variables.map((variable) => [variable.name, Number(nextInputs[variable.name]) || 0])))
+  }
+  return <Stack spacing={2}>
+    <Paper variant="outlined" sx={{ p: 2, backgroundColor: 'background.default' }}><Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>Live calculation</Typography><Typography variant="h5" sx={{ mt: 0.25 }}>{formulaLabel(config.formula, config.outputLabel)} = {formatValue(result)}</Typography></Paper>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.25 }}>{config.variables.map((variable) => <TextField key={variable.id} fullWidth type="number" label={variable.label || variable.name} value={inputs[variable.name] ?? ''} onChange={(event) => updateInput(variable.name, event.target.value)} inputProps={{ step: 'any' }} helperText={variable.label === variable.name ? undefined : variable.name} />)}</Box>
+    {!validValues && <Typography variant="caption" color="text.secondary">Enter a number for every variable to calculate the result.</Typography>}
+    {validValues && !Number.isFinite(result) && <Typography variant="caption" color="error">This formula cannot be calculated with the entered values.</Typography>}
+  </Stack>
+}
+
+const graphWidth = 640
+const graphHeight = 360
+const graphRange = 10
+const graphX = (value: number) => ((value + graphRange) / (graphRange * 2)) * graphWidth
+const graphY = (value: number) => graphHeight - ((value + graphRange) / (graphRange * 2)) * graphHeight
+
+const GraphPlayer: FC<{ config: StemConfig; onInteraction: (values: Record<string, number>) => void }> = ({ config, onInteraction }) => {
+  const [values, setValues] = useState<Record<string, number>>({})
+  useEffect(() => setValues(Object.fromEntries(config.variables.map((variable) => [variable.name, variable.initial]))), [config.variables])
+  const segments = useMemo(() => {
+    const names = [...config.variables.map((variable) => variable.name), 'x']
+    const paths: string[][] = [[]]
+    for (let index = 0; index <= 240; index += 1) {
+      const x = -graphRange + index / 12
+      const y = evaluateStemFormula(config.formula, { ...values, x }, names)
+      const visible = Number.isFinite(y) && Math.abs(y) <= graphRange * 3
+      if (!visible) {
+        if (paths.at(-1)?.length) paths.push([])
+        continue
+      }
+      paths.at(-1)?.push(`${graphX(x).toFixed(2)},${graphY(y).toFixed(2)}`)
+    }
+    return paths.filter((path) => path.length > 1).map((path) => path.join(' '))
+  }, [config.formula, config.variables, values])
+  const updateValue = (name: string, value: number) => {
+    const nextValues = { ...values, [name]: value }
+    setValues(nextValues)
+    onInteraction(nextValues)
+  }
+  return <Stack spacing={2}>
+    <Paper variant="outlined" sx={{ p: { xs: 1, sm: 2 }, backgroundColor: 'background.default' }}><Box component="svg" viewBox={`0 0 ${graphWidth} ${graphHeight}`} role="img" aria-label="Live function graph" sx={{ display: 'block', width: '100%', minHeight: 260, backgroundColor: 'background.paper', borderRadius: 1 }}>
+      {[-10, -5, 0, 5, 10].map((value) => <g key={value}><line x1={graphX(value)} x2={graphX(value)} y1={0} y2={graphHeight} stroke={value === 0 ? 'currentColor' : '#d9e1e5'} strokeWidth={value === 0 ? 2 : 1} /><line x1={0} x2={graphWidth} y1={graphY(value)} y2={graphY(value)} stroke={value === 0 ? 'currentColor' : '#d9e1e5'} strokeWidth={value === 0 ? 2 : 1} /><text x={graphX(value)} y={graphY(0) + 18} textAnchor="middle" fontSize="12" fill="currentColor">{value}</text>{value !== 0 && <text x={graphX(0) + 8} y={graphY(value) + 4} fontSize="12" fill="currentColor">{value}</text>}</g>)}
+      {segments.map((points, index) => <polyline key={index} points={points} fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />)}
+    </Box><Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>x and y range from −10 to 10 · {formulaLabel(config.formula, 'y')} = {expressionAfterAssignment(config.formula)}</Typography></Paper>
+    <Stack spacing={2}>{config.variables.map((variable) => <Box key={variable.id}><Stack direction="row" justifyContent="space-between" spacing={1}><Typography variant="body2" sx={{ fontWeight: 700 }}>{variable.label || variable.name}</Typography><Typography variant="body2" color="primary.main">{formatValue(values[variable.name] ?? variable.initial)}</Typography></Stack><Slider aria-label={`${variable.label || variable.name} parameter`} value={values[variable.name] ?? variable.initial} min={variable.min} max={variable.max} step={variable.step} onChange={(_, value) => updateValue(variable.name, Array.isArray(value) ? value[0] : value)} valueLabelDisplay="auto" /></Box>)}</Stack>
+    {!segments.length && <Typography variant="caption" color="warning.main">The function has no visible values in the current graph range.</Typography>}
+  </Stack>
 }
 
 export const StemActivityPlayer: FC<{ lesson: Pick<AdminLesson, 'title' | 'stemSubject' | 'stemTool' | 'stemConfig' | 'baseImageUrl' | 'interactiveHotspots'>; preview?: boolean; onResult: (result: StemActivityResult) => void }> = ({ lesson, preview = false, onResult }) => {
   const config = getStemConfig(lesson)
-  const [values, setValues] = useState<Record<string, number>>({})
-  const [selected, setSelected] = useState<string[]>([])
-  const [answers, setAnswers] = useState<Record<number, string>>({})
-  const [procedure, setProcedure] = useState<number[]>([])
-  const [attempt, setAttempt] = useState(0)
-  const [result, setResult] = useState<StemActivityResult | null>(null)
-  const [seconds, setSeconds] = useState(config.timeLimitSeconds)
-  const formulaResult = useMemo(() => evaluateFormula(config.formula, values), [config.formula, values])
-  useEffect(() => { setValues(Object.fromEntries(config.variables.map((variable) => [variable.name, variable.initial]))); setSelected([]); setAnswers({}); setProcedure([]); setAttempt(0); setResult(null); setSeconds(config.timeLimitSeconds) }, [lesson.title, config.variables, config.timeLimitSeconds])
-  useEffect(() => { if (preview || !config.timeLimitSeconds || seconds <= 0 || result) return; const timer = window.setInterval(() => setSeconds((current) => current - 1), 1000); return () => window.clearInterval(timer) }, [config.timeLimitSeconds, preview, result, seconds])
-  const submit = () => {
-    const questions = config.questions.filter((question) => question.prompt.trim() && question.correctAnswer.trim())
-    const questionScore = questions.length ? questions.filter((question) => answers[question.id] === question.correctAnswer).length / questions.length * 100 : 100
-    const formulaScore = usesFormula(lesson.stemTool) ? (Number.isFinite(formulaResult) && Math.abs(formulaResult - config.targetValue) < 0.0001 ? 100 : 0) : 100
-    const itemCount = config.items.filter((item) => item.label.trim()).length
-    const itemScore = usesItems(lesson.stemTool) && itemCount ? selected.length / itemCount * 100 : 100
-    const procedureScore = usesProcedure(lesson.stemTool) && config.procedure.length ? procedure.length / config.procedure.length * 100 : 100
-    const next = { score: Math.round((questionScore + formulaScore + itemScore + procedureScore) / 4), passed: false, attempt: attempt + 1, values, answers }
-    next.passed = next.score >= config.completionScore && (!config.timeLimitSeconds || seconds > 0)
-    setAttempt(next.attempt); setResult(next); onResult(next)
+  const [complete, setComplete] = useState(false)
+  const completed = useRef(false)
+  const finish = (values: Record<string, number> = {}) => {
+    if (preview || completed.current || !lesson.stemTool) return
+    completed.current = true
+    setComplete(true)
+    onResult({ tool: lesson.stemTool, values })
   }
-  return <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, backgroundColor: 'background.paper' }}><Stack spacing={2}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between"><Box><Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>{lesson.stemSubject} · {STEM_TOOLS.find((tool) => tool.type === lesson.stemTool)?.label}</Typography><Typography variant="h6">{lesson.title}</Typography>{config.topic && <Typography variant="body2" color="text.secondary">{config.topic} · {config.difficulty}</Typography>}</Box><Stack direction="row" spacing={1}>{preview && <Chip label="Preview" color="info" />}{config.timeLimitSeconds > 0 && <Chip color={seconds <= 15 ? 'error' : 'default'} label={`${Math.ceil(seconds / 60)} min remaining`} />}</Stack></Stack><Typography color="text.secondary">{config.instructions}</Typography>{lesson.stemTool === 'diagram' && lesson.baseImageUrl && <InteractiveDiagramViewer imageUrl={lesson.baseImageUrl} hotspots={lesson.interactiveHotspots ?? []} onViewed={() => undefined} />}{usesFormula(lesson.stemTool) && <Stack spacing={2}><Typography variant="subtitle2">{config.outputLabel}: <Box component="span" color="primary.main">{Number.isFinite(formulaResult) ? formulaResult : 'Invalid formula'}</Box></Typography>{config.variables.map((variable) => <Box key={variable.id}><Stack direction="row" justifyContent="space-between"><Typography variant="body2" sx={{ fontWeight: 700 }}>{variable.label}</Typography><Typography variant="body2">{values[variable.name] ?? variable.initial}</Typography></Stack><Slider value={values[variable.name] ?? variable.initial} min={variable.min} max={variable.max} step={variable.step || 1} valueLabelDisplay="auto" onChange={(_, value) => setValues((current) => ({ ...current, [variable.name]: Number(value) }))} /></Box>)}</Stack>}{usesItems(lesson.stemTool) && <Stack spacing={1}><Typography variant="subtitle2">Select each required item</Typography><Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>{config.items.filter((item) => item.label.trim()).map((item) => <Button key={item.id} variant={selected.includes(item.label) ? 'contained' : 'outlined'} onClick={() => setSelected((current) => current.includes(item.label) ? current.filter((value) => value !== item.label) : [...current, item.label])}>{item.label}</Button>)}</Box></Stack>}{usesProcedure(lesson.stemTool) && <Stack spacing={1}><Typography variant="subtitle2">Procedure</Typography>{config.procedure.map((step, index) => <Button key={step.id} variant={procedure.includes(step.id) ? 'contained' : 'outlined'} onClick={() => setProcedure((current) => current.includes(step.id) ? current.filter((id) => id !== step.id) : [...current, step.id])} sx={{ justifyContent: 'flex-start', textAlign: 'left' }}>{index + 1}. {step.label}{step.detail ? ` — ${step.detail}` : ''}</Button>)}</Stack>}{usesQuestions(lesson.stemTool) && <Stack spacing={2}>{config.questions.filter((question) => question.prompt.trim()).map((question, index) => <Box key={question.id}><Typography sx={{ fontWeight: 700, mb: 1 }}>Question {index + 1}: {question.prompt}</Typography><Stack spacing={1}>{question.options.filter(Boolean).map((option) => <Button key={option} variant={answers[question.id] === option ? 'contained' : 'outlined'} onClick={() => setAnswers((current) => ({ ...current, [question.id]: option }))} sx={{ justifyContent: 'flex-start', textAlign: 'left' }}>{option}</Button>)}</Stack></Box>)}</Stack>}{result && <Paper elevation={0} sx={{ p: 2, backgroundColor: result.passed ? 'success.light' : 'warning.light' }}><Typography sx={{ fontWeight: 800 }}>{result.passed ? 'Lab passed' : result.attempt >= config.maxAttempts ? 'Attempts complete' : 'Keep experimenting'}</Typography><Typography variant="body2">Score: {result.score}% · Passing score: {config.completionScore}%</Typography></Paper>}<Button variant="contained" disabled={Boolean(result?.passed) || (!preview && attempt >= config.maxAttempts)} onClick={submit}>{result?.passed ? 'Lab complete' : result && attempt < config.maxAttempts ? 'Try again' : 'Submit lab'}</Button></Stack></Paper>
+  useEffect(() => { completed.current = false; setComplete(false) }, [lesson.title, lesson.stemTool])
+  const tool = getStemTool(lesson.stemSubject, lesson.stemTool)
+  return <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, backgroundColor: 'background.paper' }}><Stack spacing={2.25}>
+    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}><Box><Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>{lesson.stemSubject} · {tool?.label ?? 'STEM Lab'}</Typography><Typography variant="h6">{lesson.title}</Typography>{config.topic && <Typography variant="body2" color="text.secondary">{config.topic}</Typography>}</Box>{preview && <Chip label="Preview" color="info" sx={{ alignSelf: 'flex-start' }} />}</Stack>
+    <Typography color="text.secondary">{config.instructions}</Typography>
+    {lesson.stemTool === 'diagram' ? lesson.baseImageUrl ? <InteractiveDiagramViewer imageUrl={lesson.baseImageUrl} hotspots={lesson.interactiveHotspots ?? []} onViewed={() => finish()} /> : <Typography color="text.secondary">This diagram is not ready yet.</Typography> : lesson.stemTool === 'calculator' ? <CalculatorPlayer config={config} onInteraction={finish} /> : lesson.stemTool === 'graph' ? <GraphPlayer config={config} onInteraction={finish} /> : <Typography color="text.secondary">This STEM tool is coming soon.</Typography>}
+    <CompletionNotice complete={complete} preview={preview} />
+  </Stack></Paper>
 }

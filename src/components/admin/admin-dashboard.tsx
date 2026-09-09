@@ -177,7 +177,7 @@ const formatDuration = (seconds: number) => {
 }
 
 const getModuleDuration = (module: AdminCourse['modules'][number]) => module.lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0)
-const getLessonLabel = (lesson: AdminLesson) => lesson.type === 'video' ? (lesson.duration ? formatDuration(lesson.duration) : 'Processing') : lesson.type === 'article' ? 'Article' : lesson.type === 'interactive' ? 'Interactive' : lesson.type === 'stem-lab' ? `STEM Lab · ${lesson.stemTool === 'diagram' ? 'Diagram' : 'Draft'}` : lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'practice' ? 'Practice' : 'Live'
+const getLessonLabel = (lesson: AdminLesson) => lesson.type === 'video' ? (lesson.duration ? formatDuration(lesson.duration) : 'Processing') : lesson.type === 'article' ? 'Article' : lesson.type === 'interactive' ? 'Interactive' : lesson.type === 'stem-lab' ? `STEM Lab · ${lesson.stemTool === 'diagram' ? 'Diagram' : lesson.stemTool === 'calculator' ? 'Calculator' : lesson.stemTool === 'graph' ? 'Graph' : 'Draft'}` : lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'practice' ? 'Practice' : 'Live'
 
 const LessonTypeIcon: FC<{ type: LessonType; fontSize?: 'small' | 'medium' }> = ({ type, fontSize = 'small' }) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize={fontSize} />
@@ -391,7 +391,7 @@ export const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCou
 
   const isVideoProcessing = lessonPanel?.lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100
   const liveLessonSessionDates = lessonPanel?.lesson.type === 'live' && classSchedule ? getAvailableClassSessionDates(classSchedule, course.modules.flatMap((module) => module.lessons), lessonPanel.isNew ? undefined : lessonPanel.lesson.id) : []
-  const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl) || ((lessonPanel?.lesson.type === 'interactive' || lessonPanel?.lesson.type === 'stem-lab') && (!lessonPanel.lesson.baseImageUrl || !(lessonPanel.lesson.interactiveHotspots?.length))) || (lessonPanel?.lesson.type === 'stem-lab' && (!lessonPanel.lesson.stemSubject || !lessonPanel.lesson.stemTool || !lessonPanel.lesson.stemConfig || !lessonPanel.lesson.stemLabPublished)) || (lessonPanel?.lesson.type === 'live' && classSchedule && !lessonPanel.lesson.scheduledAt))
+  const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl) || (lessonPanel?.lesson.type === 'interactive' && (!lessonPanel.lesson.baseImageUrl || !(lessonPanel.lesson.interactiveHotspots?.length))) || (lessonPanel?.lesson.type === 'stem-lab' && lessonPanel.lesson.stemTool === 'diagram' && (!lessonPanel.lesson.baseImageUrl || !(lessonPanel.lesson.interactiveHotspots?.length))) || (lessonPanel?.lesson.type === 'stem-lab' && (!lessonPanel.lesson.stemSubject || !lessonPanel.lesson.stemTool || !lessonPanel.lesson.stemConfig || !lessonPanel.lesson.stemLabPublished)) || (lessonPanel?.lesson.type === 'live' && classSchedule && !lessonPanel.lesson.scheduledAt))
   const handleThumbnailFile = (file: File) => {
     const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif']
     if (!supportedTypes.includes(file.type)) {
