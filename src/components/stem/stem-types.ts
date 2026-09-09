@@ -1,91 +1,123 @@
-export type StemSubject = 'Math' | 'Physics' | 'Chemistry' | 'Biology'
+import type { ComponentType, ReactNode } from 'react'
+import type { AdminLesson, InteractiveHotspot } from '@/components/admin/admin-data'
 
+export const STEM_SUBJECTS = ['math', 'physics', 'chemistry', 'biology'] as const
+
+export type StemSubject = typeof STEM_SUBJECTS[number]
 export type StemTool =
-  | 'diagram'
-  | 'calculator'
   | 'graph'
-  | 'equation-solver'
-  | 'geometry'
-  | 'builder'
+  | 'equation_solver'
+  | 'calculator'
+  | 'geometry_builder'
   | 'simulation'
-  | 'game'
+  | 'formula_solver'
   | 'experiment'
-  | 'circuit-builder'
-  | 'virtual-lab'
-  | 'periodic-table'
-  | 'molecule-builder'
-  | 'chemical-equation'
-  | 'three-d-explorer'
-  | 'genetics-punnett-square'
-  | 'classification-builder'
+  | 'virtual_lab'
+  | 'circuit_builder'
+  | 'periodic_table'
+  | 'molecule_builder'
+  | 'chemical_equation'
+  | 'interactive_diagram'
+  | 'three_d_explorer'
+  | 'genetics_punnett_square'
+  | 'classification_builder'
+export type StemSubtype = `${StemSubject}.${StemTool}`
 
-export type StemVariable = {
-  id: number
-  name: string
-  label: string
-  min: number
-  max: number
-  step: number
-  initial: number
-}
-
-export type StemConfig = {
+export type StemBaseConfig = {
   version: 1
-  instructions: string
   topic: string
-  formula: string
-  outputLabel: string
-  variables: StemVariable[]
+  instructions: string
 }
+
+export type StemEmbedConfig = StemBaseConfig & {
+  provider: string
+  embedUrl: string
+  completionMode: 'postmessage' | 'launch_confirm'
+  completionMessage: string
+}
+
+export type StemFormulaConfig = StemBaseConfig & {
+  formula: string
+  solveFor: string
+}
+
+export type StemLinearEquationConfig = StemBaseConfig & {
+  equation: string
+}
+
+export type StemPeriodicTableConfig = StemBaseConfig & {
+  targetAtomicNumbers: number[]
+}
+
+export type StemChemicalEquationConfig = StemBaseConfig & {
+  equation: string
+}
+
+export type StemPunnettConfig = StemBaseConfig & {
+  parentOne: string
+  parentTwo: string
+  dominantTrait: string
+  recessiveTrait: string
+}
+
+export type StemClassificationItem = {
+  id: number
+  label: string
+  category: string
+}
+
+export type StemClassificationConfig = StemBaseConfig & {
+  categories: string[]
+  items: StemClassificationItem[]
+}
+
+export type StemDiagramConfig = StemBaseConfig & {
+  imageUrl: string
+  hotspots: InteractiveHotspot[]
+}
+
+export type StemLabConfig =
+  | StemEmbedConfig
+  | StemFormulaConfig
+  | StemLinearEquationConfig
+  | StemPeriodicTableConfig
+  | StemChemicalEquationConfig
+  | StemPunnettConfig
+  | StemClassificationConfig
+  | StemDiagramConfig
 
 export type StemActivityResult = {
-  tool: StemTool
-  values: Record<string, number>
+  subtype: StemSubtype
+  values: Record<string, unknown>
+}
+
+export type StemToolBuilderProps = {
+  lesson: AdminLesson
+  config: StemLabConfig
+  onConfigChange: (config: StemLabConfig) => void
+}
+
+export type StemToolPlayerProps = {
+  config: StemLabConfig
+  onComplete: (values?: Record<string, unknown>) => void
 }
 
 export type StemToolDefinition = {
-  type: StemTool
-  label: string
   subject: StemSubject
-  available: boolean
+  tool: StemTool
+  subtype: StemSubtype
+  label: string
+  icon: ReactNode
+  Builder: ComponentType<StemToolBuilderProps>
+  Player: ComponentType<StemToolPlayerProps>
+  mode: 'build' | 'embed'
+  defaultConfig: StemLabConfig
+  isConfigured: (config: StemLabConfig) => boolean
 }
 
-export const STEM_SUBJECTS: StemSubject[] = ['Math', 'Physics', 'Chemistry', 'Biology']
-
-export const STEM_TOOLS: StemToolDefinition[] = [
-  { type: 'diagram', label: 'Diagram', subject: 'Math', available: true },
-  { type: 'calculator', label: 'Calculator', subject: 'Math', available: true },
-  { type: 'graph', label: 'Graph', subject: 'Math', available: true },
-  { type: 'equation-solver', label: 'Equation Solver', subject: 'Math', available: false },
-  { type: 'geometry', label: 'Geometry', subject: 'Math', available: false },
-  { type: 'builder', label: 'Builder', subject: 'Math', available: false },
-
-  { type: 'diagram', label: 'Diagram', subject: 'Physics', available: true },
-  { type: 'calculator', label: 'Calculator', subject: 'Physics', available: true },
-  { type: 'graph', label: 'Graph', subject: 'Physics', available: true },
-  { type: 'simulation', label: 'Simulation', subject: 'Physics', available: false },
-  { type: 'game', label: 'Game', subject: 'Physics', available: false },
-  { type: 'experiment', label: 'Experiment', subject: 'Physics', available: false },
-  { type: 'circuit-builder', label: 'Circuit Builder', subject: 'Physics', available: false },
-
-  { type: 'diagram', label: 'Diagram', subject: 'Chemistry', available: true },
-  { type: 'calculator', label: 'Calculator', subject: 'Chemistry', available: true },
-  { type: 'graph', label: 'Graph', subject: 'Chemistry', available: true },
-  { type: 'virtual-lab', label: 'Virtual Lab', subject: 'Chemistry', available: false },
-  { type: 'periodic-table', label: 'Periodic Table', subject: 'Chemistry', available: false },
-  { type: 'molecule-builder', label: 'Molecule Builder', subject: 'Chemistry', available: false },
-  { type: 'chemical-equation', label: 'Chemical Equation', subject: 'Chemistry', available: false },
-
-  { type: 'diagram', label: 'Diagram', subject: 'Biology', available: true },
-  { type: 'calculator', label: 'Calculator', subject: 'Biology', available: true },
-  { type: 'graph', label: 'Graph', subject: 'Biology', available: true },
-  { type: 'three-d-explorer', label: '3D Explorer', subject: 'Biology', available: false },
-  { type: 'genetics-punnett-square', label: 'Genetics/Punnett Square', subject: 'Biology', available: false },
-  { type: 'classification-builder', label: 'Classification Builder', subject: 'Biology', available: false },
-]
-
-export const getStemToolsForSubject = (subject: StemSubject) => STEM_TOOLS.filter((tool) => tool.subject === subject)
-
-export const getStemTool = (subject: StemSubject | undefined, type: StemTool | undefined) => STEM_TOOLS.find((tool) => tool.subject === subject && tool.type === type)
-
-export const STEM_ACTIVITY_TOOLS: StemTool[] = ['diagram', 'calculator', 'graph']
+export const STEM_SUBJECT_LABELS: Record<StemSubject, string> = {
+  math: 'Math',
+  physics: 'Physics',
+  chemistry: 'Chemistry',
+  biology: 'Biology',
+}
