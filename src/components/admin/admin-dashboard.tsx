@@ -83,9 +83,8 @@ import ReportsPage from './reports-page'
 import PracticeExamManagement from './practice-exam-management'
 import { BookstoreAdminPage } from '@/components/bookstore/bookstore-page'
 import Footer from '@/components/footer/footer'
-import { type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType, type StemSubject, type StemTool } from './admin-data'
+import { type AdminCourse, type AdminLesson, type AdminTutor, type AdminUser, type LessonType } from './admin-data'
 import InteractiveHotspotEditor from './interactive-hotspot-editor'
-import InteractiveDiagramViewer from '../course/interactive-diagram-viewer'
 import { StemLabEditor as StemLabActivityEditor } from '@/components/stem/stem-lab'
 
 const drawerWidth = 272
@@ -179,7 +178,7 @@ const formatDuration = (seconds: number) => {
 }
 
 const getModuleDuration = (module: AdminCourse['modules'][number]) => module.lessons.reduce((total, lesson) => total + (lesson.duration ?? lesson.estimatedDuration ?? 0), 0)
-const getLessonLabel = (lesson: AdminLesson) => lesson.type === 'video' ? (lesson.duration ? formatDuration(lesson.duration) : 'Processing') : lesson.type === 'article' ? 'Article' : lesson.type === 'interactive' ? 'Interactive' : lesson.type === 'stem-lab' ? `STEM Lab · ${lesson.stemTool === 'diagram' ? 'Diagram' : lesson.stemTool === 'calculator' ? 'Calculator' : lesson.stemTool === 'graph' ? 'Graph' : 'Draft'}` : lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'practice' ? 'Practice' : 'Live'
+const getLessonLabel = (lesson: AdminLesson) => lesson.type === 'video' ? (lesson.duration ? formatDuration(lesson.duration) : 'Processing') : lesson.type === 'article' ? 'Article' : lesson.type === 'interactive' ? 'Interactive' : lesson.type === 'stem-lab' ? `STEM Lab · ${lesson.subtype ? lesson.subtype.split('.').slice(-1)[0].replace(/_/g, ' ') : 'Draft'}` : lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'practice' ? 'Practice' : 'Live'
 
 const LessonTypeIcon: FC<{ type: LessonType; fontSize?: 'small' | 'medium' }> = ({ type, fontSize = 'small' }) => {
   if (type === 'article') return <ArticleOutlinedIcon fontSize={fontSize} />
@@ -192,7 +191,7 @@ const createLesson = (id: number, type: LessonType): AdminLesson => ({
   id, title: `New ${type} lesson`, type, duration: null, resources: [],
   ...(type === 'article' ? { articleBody: '' } : {}),
   ...(type === 'interactive' ? { baseImageUrl: '', interactiveHotspots: [] } : {}),
-  ...(type === 'stem-lab' ? { baseImageUrl: '', interactiveHotspots: [], stemSubject: 'Math' as StemSubject, stemTool: undefined, stemLabPublished: false } : {}),
+  ...(type === 'stem-lab' ? { subtype: undefined, config: undefined, stemLabPublished: false } : {}),
   ...(type === 'quiz' ? { passThreshold: 70, quizQuestions: [] } : {}),
   ...(type === 'practice' ? { practiceQuestions: [] } : {}),
   ...(type === 'live' ? { meetingUrl: '', recurringDays: [], sessionTime: '', sessionDuration: 60, scheduledAt: '', endsAt: '', estimatedDuration: 3600 } : {}),
@@ -393,7 +392,7 @@ export const CourseEditor: FC<{ course: AdminCourse; onChange: (course: AdminCou
 
   const isVideoProcessing = lessonPanel?.lesson.type === 'video' && videoUploadProgress > 0 && videoUploadProgress < 100
   const liveLessonSessionDates = lessonPanel?.lesson.type === 'live' && classSchedule ? getAvailableClassSessionDates(classSchedule, course.modules.flatMap((module) => module.lessons), lessonPanel.isNew ? undefined : lessonPanel.lesson.id) : []
-  const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl) || (lessonPanel?.lesson.type === 'interactive' && (!lessonPanel.lesson.baseImageUrl || !(lessonPanel.lesson.interactiveHotspots?.length))) || (lessonPanel?.lesson.type === 'stem-lab' && lessonPanel.lesson.stemTool === 'diagram' && (!lessonPanel.lesson.baseImageUrl || !(lessonPanel.lesson.interactiveHotspots?.length))) || (lessonPanel?.lesson.type === 'stem-lab' && (!lessonPanel.lesson.stemSubject || !lessonPanel.lesson.stemTool || !lessonPanel.lesson.stemConfig || !lessonPanel.lesson.stemLabPublished)) || (lessonPanel?.lesson.type === 'live' && classSchedule && !lessonPanel.lesson.scheduledAt))
+  const cannotSaveLesson = Boolean(!lessonPanel?.lesson.title.trim() || isVideoProcessing || (lessonPanel?.isNew && lessonPanel.lesson.type === 'video' && !lessonPanel.lesson.videoUrl) || (lessonPanel?.lesson.type === 'interactive' && (!lessonPanel.lesson.baseImageUrl || !(lessonPanel.lesson.interactiveHotspots?.length))) || (lessonPanel?.lesson.type === 'stem-lab' && (!lessonPanel.lesson.subtype || !lessonPanel.lesson.config || !lessonPanel.lesson.stemLabPublished)) || (lessonPanel?.lesson.type === 'live' && classSchedule && !lessonPanel.lesson.scheduledAt))
   const handleThumbnailFile = (file: File) => {
     const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif']
     if (!supportedTypes.includes(file.type)) {
@@ -487,27 +486,6 @@ const PracticeQuestionsEditor: FC<{ lesson: AdminLesson; updateLessonDraft: (les
   return <Stack spacing={1.5}><Typography variant="body2" color="text.secondary">Practice questions have no timer, auto-submit, or attempt limit. Learners see the explanation immediately after choosing an answer.</Typography>{questions.map((question, index) => <Paper key={question.id} elevation={0} sx={{ p: 1.5, border: 1, borderColor: 'divider' }}><Stack spacing={1}><Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><Typography variant="body2" sx={{ fontWeight: 700 }}>Question {index + 1}</Typography><IconButton size="small" color="error" onClick={() => updateLessonDraft({ ...lesson, practiceQuestions: questions.filter((current) => current.id !== question.id) })} aria-label={`Delete practice question ${index + 1}`}><DeleteOutlineIcon fontSize="small" /></IconButton></Box><TextField fullWidth size="small" label="Question text" value={question.question} onChange={(event) => updateQuestion(question.id, { question: event.target.value })} /><TextField fullWidth required size="small" label="Topic" placeholder="e.g. Fractions" value={question.topic} onChange={(event) => updateQuestion(question.id, { topic: event.target.value })} /><Stack spacing={0.75}>{question.options.map((option, optionIndex) => <TextField key={`${question.id}-${optionIndex}`} fullWidth size="small" label={`Answer option ${optionIndex + 1}`} value={option} onChange={(event) => updateQuestion(question.id, { options: question.options.map((current, currentIndex) => currentIndex === optionIndex ? event.target.value : current) })} />)}</Stack><MuiButton size="small" onClick={() => updateQuestion(question.id, { options: [...question.options, ''] })} sx={{ alignSelf: 'flex-start' }}>Add answer option</MuiButton><FormControl fullWidth size="small"><InputLabel>Correct answer</InputLabel><Select label="Correct answer" value={question.correctAnswer} onChange={(event) => updateQuestion(question.id, { correctAnswer: event.target.value })}>{question.options.filter(Boolean).map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}</Select></FormControl><TextField fullWidth multiline minRows={2} size="small" label="Explanation" value={question.explanation} onChange={(event) => updateQuestion(question.id, { explanation: event.target.value })} /></Stack></Paper>)}<MuiButton variant="outlined" onClick={addQuestion} sx={{ alignSelf: 'flex-start' }}>Add practice question</MuiButton></Stack>
 }
 
-const stemSubjects: StemSubject[] = ['Math', 'Physics', 'Biology', 'Chemistry']
-const stemTools: Array<{ type: StemTool; label: string }> = [
-  { type: 'graph', label: 'Graph' }, { type: 'simulation', label: 'Simulation' }, { type: 'virtual-lab', label: 'Virtual Lab' }, { type: 'diagram', label: 'Diagram' },
-  { type: 'calculator', label: 'Calculator' }, { type: 'builder', label: 'Builder' }, { type: 'experiment', label: 'Experiment' }, { type: 'game', label: 'Game' },
-]
-
-const LegacyStemLabEditor: FC<{ lesson: AdminLesson; updateLessonDraft: (lesson: AdminLesson) => void }> = ({ lesson, updateLessonDraft }) => {
-  const [stage, setStage] = useState<'configure' | 'preview' | 'publish'>('configure')
-  const [hasPreviewed, setHasPreviewed] = useState(false)
-  const subject = lesson.stemSubject ?? 'Math'
-  const diagramReady = Boolean(lesson.baseImageUrl && lesson.interactiveHotspots?.length)
-  const selectSubject = (stemSubject: StemSubject) => { setHasPreviewed(false); updateLessonDraft({ ...lesson, stemSubject, stemLabPublished: false }) }
-  const selectTool = (stemTool: StemTool) => { setHasPreviewed(false); updateLessonDraft({ ...lesson, stemTool, stemLabPublished: false }) }
-
-  return <Stack spacing={2}>
-    <Box><Typography variant="subtitle1" sx={{ fontWeight: 700 }}>STEM Lab tool</Typography><Typography variant="body2" color="text.secondary">Choose a subject, then select a tool for this lab.</Typography></Box>
-    <FormControl fullWidth><InputLabel>Subject</InputLabel><Select label="Subject" value={subject} onChange={(event) => selectSubject(event.target.value as StemSubject)}>{stemSubjects.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}</Select></FormControl>
-    <Box><Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Tools for {subject}</Typography><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1 }}>{stemTools.map((tool) => { const available = tool.type === 'diagram'; const selected = lesson.stemTool === tool.type; return <Box key={tool.type} component="button" type="button" disabled={!available} onClick={() => available && selectTool(tool.type)} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, p: 1.25, border: 1, borderColor: selected ? 'primary.main' : 'divider', borderRadius: 1, backgroundColor: selected ? 'action.selected' : 'background.default', color: available ? 'text.primary' : 'text.disabled', cursor: available ? 'pointer' : 'not-allowed', font: 'inherit', textAlign: 'left', opacity: available ? 1 : 0.7 }}><Typography variant="body2" sx={{ fontWeight: 600 }}>{tool.label}</Typography>{available ? <Chip label="Available" size="small" color="primary" variant={selected ? 'filled' : 'outlined'} /> : <Chip label="Coming Soon" size="small" />}</Box> })}</Box></Box>
-    {lesson.stemTool === 'diagram' && <><Stack direction="row" spacing={1}><Button label="Configure" variant={stage === 'configure' ? 'contained' : 'outlined'} onClick={() => setStage('configure')} /><Button label="Preview" variant={stage === 'preview' ? 'contained' : 'outlined'} disabled={!diagramReady} onClick={() => { setHasPreviewed(true); setStage('preview') }} /><Button label="Publish" variant={stage === 'publish' ? 'contained' : 'outlined'} disabled={!hasPreviewed} onClick={() => setStage('publish')} /></Stack>{stage === 'configure' && <InteractiveHotspotEditor lesson={lesson} onChange={(nextLesson) => { setHasPreviewed(false); updateLessonDraft({ ...nextLesson, stemLabPublished: false }) }} />}{stage === 'preview' && <Paper variant="outlined" sx={{ p: 2 }}><Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Diagram preview</Typography><InteractiveDiagramViewer imageUrl={lesson.baseImageUrl} hotspots={lesson.interactiveHotspots ?? []} onViewed={() => undefined} /></Paper>}{stage === 'publish' && <Paper variant="outlined" sx={{ p: 2 }}><Stack spacing={1}><Typography variant="body2" sx={{ fontWeight: 700 }}>Ready to publish</Typography><Typography variant="body2" color="text.secondary">Publishing enables this Diagram lab for learners after the lesson is saved.</Typography><Button label={lesson.stemLabPublished ? 'Diagram published' : 'Publish Diagram'} onClick={() => updateLessonDraft({ ...lesson, stemLabPublished: true })} disabled={lesson.stemLabPublished} /></Stack></Paper>}</>}
-  </Stack>
-}
 
 const LessonDetailsPanel: FC<{ lessonPanel: LessonPanelState; updateLessonDraft: (lesson: AdminLesson) => void; onClose: () => void; onSave: () => void; onVideoFile: (file: File) => void; onAddResources: (files: FileList | null) => void; videoUploadProgress: number; disabled: boolean; classSchedule?: ClassLessonSchedule; classMeetingLink?: string; availableLiveSessionDates: string[] }> = ({ lessonPanel, updateLessonDraft, onClose, onSave, onVideoFile, onAddResources, videoUploadProgress, disabled, classSchedule, classMeetingLink = '', availableLiveSessionDates }) => {
   const { lesson } = lessonPanel
@@ -766,9 +744,9 @@ type CourseEditorPageProps =
   | { mode: 'new'; courseId?: never }
   | { mode: 'edit'; courseId: number }
 
-type StemLabSummary = { id: string; title: string; courseId: number; courseTitle: string; moduleTitle: string; tool?: StemTool; subject?: StemSubject; published: boolean }
+type StemLabSummary = { id: string; title: string; courseId: number; courseTitle: string; moduleTitle: string; subtype?: string; published: boolean }
 
-const formatStemLabTool = (tool?: StemTool) => tool ? tool.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ') : 'Not configured'
+const formatStemLabTool = (subtype?: string) => subtype ? subtype.split('.').map((part) => part.split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ')).join(' · ') : 'Not configured'
 
 const StemLabsPage: FC = () => {
   const [labs, setLabs] = useState<StemLabSummary[]>([])
@@ -779,7 +757,7 @@ const StemLabsPage: FC = () => {
     setIsLoading(true)
     try {
       const courses = await getAdminCourses()
-      setLabs(courses.flatMap((course) => course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'stem-lab').map((lesson) => ({ id: `${course.id}-${module.id}-${lesson.id}`, title: lesson.title, courseId: course.id, courseTitle: course.title, moduleTitle: module.title, tool: lesson.stemTool, subject: lesson.stemSubject, published: Boolean(lesson.stemLabPublished) })))))
+      setLabs(courses.flatMap((course) => course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'stem-lab').map((lesson) => ({ id: `${course.id}-${module.id}-${lesson.id}`, title: lesson.title, courseId: course.id, courseTitle: course.title, moduleTitle: module.title, subtype: lesson.subtype, published: Boolean(lesson.stemLabPublished) })))))
       setLoadError(null)
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Unable to load STEM Labs.')
@@ -793,7 +771,7 @@ const StemLabsPage: FC = () => {
   return <>
     <PageHeading title="STEM Labs" description="Review and launch reusable STEM learning activities across your courses." action={<Button label="New STEM Lab" onClick={() => navigateTo('/admin/courses/new')} disabled={isLoading} />} />
     {isLoading ? <AdminLoadingState label="Loading STEM Labs" /> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => void loadLabs()} /></Paper> : labs.length === 0 ? <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, textAlign: 'center', border: 1, borderColor: 'divider' }}><ScienceOutlinedIcon color="primary" sx={{ fontSize: 42, mb: 1 }} /><Typography variant="h6" sx={{ mb: 0.75 }}>No STEM Labs yet</Typography><Typography color="text.secondary" sx={{ mb: 2.5 }}>Create a course, then add a STEM Lab lesson to configure, preview, and publish an activity.</Typography><Button label="Create course" onClick={() => navigateTo('/admin/courses/new')} /></Paper> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
-      {labs.map((lab) => <Paper key={lab.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 2 }}><Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}><Box sx={{ minWidth: 0 }}><Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>{lab.subject ?? 'STEM'} · {formatStemLabTool(lab.tool)}</Typography><Typography variant="h6" noWrap>{lab.title}</Typography></Box><Chip size="small" color={lab.published ? 'success' : 'warning'} label={lab.published ? 'Published' : 'Draft'} /></Stack><Box><Typography variant="body2" color="text.secondary">{lab.courseTitle}</Typography><Typography variant="caption" color="text.secondary">{lab.moduleTitle}</Typography></Box><Button label="Open authoring" variant="outlined" onClick={() => navigateTo(`/admin/courses/${lab.courseId}/edit`)} /></Paper>)}
+      {labs.map((lab) => <Paper key={lab.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 2 }}><Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}><Box sx={{ minWidth: 0 }}><Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>{formatStemLabTool(lab.subtype)}</Typography><Typography variant="h6" noWrap>{lab.title}</Typography></Box><Chip size="small" color={lab.published ? 'success' : 'warning'} label={lab.published ? 'Published' : 'Draft'} /></Stack><Box><Typography variant="body2" color="text.secondary">{lab.courseTitle}</Typography><Typography variant="caption" color="text.secondary">{lab.moduleTitle}</Typography></Box><Button label="Open authoring" variant="outlined" onClick={() => navigateTo(`/admin/courses/${lab.courseId}/edit`)} /></Paper>)}
     </Box>}
   </>
 }

@@ -9,9 +9,10 @@ type InteractiveDiagramViewerProps = {
   imageUrl?: string
   hotspots: InteractiveHotspot[]
   onViewed: () => void
+  onHotspotOpen?: (id: number) => void
 }
 
-const InteractiveDiagramViewer: FC<InteractiveDiagramViewerProps> = ({ imageUrl, hotspots, onViewed }) => {
+const InteractiveDiagramViewer: FC<InteractiveDiagramViewerProps> = ({ imageUrl, hotspots, onViewed, onHotspotOpen }) => {
   const imageRef = useRef<HTMLImageElement>(null)
   const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null)
   const [hasViewed, setHasViewed] = useState(false)
@@ -48,7 +49,7 @@ const InteractiveDiagramViewer: FC<InteractiveDiagramViewerProps> = ({ imageUrl,
     <Box sx={{ display: 'flex', flex: 1, minWidth: 0, justifyContent: 'center', backgroundColor: 'background.default', lineHeight: 0 }}>
       <Box sx={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
         <Box ref={imageRef} component="img" src={imageUrl} alt="Interactive lesson diagram" onLoad={markViewed} sx={{ display: 'block', maxWidth: '100%', maxHeight: { md: 620 } }} />
-        {hotspots.map((hotspot, index) => <Box key={hotspot.id} component="button" type="button" aria-pressed={selectedHotspotId === hotspot.id} aria-label={`Open hotspot ${index + 1}${hotspot.label ? `: ${hotspot.label}` : ''}`} onClick={() => setSelectedHotspotId(hotspot.id)} sx={{ position: 'absolute', left: pixelPosition(hotspot.left, imageSize.width), top: pixelPosition(hotspot.top, imageSize.height), transform: 'translate(-50%, -50%)', display: 'grid', placeItems: 'center', width: 38, height: 38, p: 0, border: 3, borderColor: 'background.paper', borderRadius: '50%', backgroundColor: selectedHotspotId === hotspot.id ? 'secondary.main' : 'primary.main', color: 'primary.contrastText', fontWeight: 800, lineHeight: 1, cursor: 'pointer', boxShadow: 3, transition: 'transform 160ms ease, background-color 160ms ease', '&:hover': { transform: 'translate(-50%, -50%) scale(1.1)' }, '&:focus-visible': { outline: 3, outlineColor: 'primary.light' } }}>{index + 1}</Box>)}
+        {hotspots.map((hotspot, index) => <Box key={hotspot.id} component="button" type="button" aria-pressed={selectedHotspotId === hotspot.id} aria-label={`Open hotspot ${index + 1}${hotspot.label ? `: ${hotspot.label}` : ''}`} onClick={() => { setSelectedHotspotId(hotspot.id); onHotspotOpen?.(hotspot.id) }} sx={{ position: 'absolute', left: pixelPosition(hotspot.left, imageSize.width), top: pixelPosition(hotspot.top, imageSize.height), transform: 'translate(-50%, -50%)', display: 'grid', placeItems: 'center', width: 38, height: 38, p: 0, border: 3, borderColor: 'background.paper', borderRadius: '50%', backgroundColor: selectedHotspotId === hotspot.id ? 'secondary.main' : 'primary.main', color: 'primary.contrastText', fontWeight: 800, lineHeight: 1, cursor: 'pointer', boxShadow: 3, transition: 'transform 160ms ease, background-color 160ms ease', '&:hover': { transform: 'translate(-50%, -50%) scale(1.1)' }, '&:focus-visible': { outline: 3, outlineColor: 'primary.light' } }}>{index + 1}</Box>)}
       </Box>
     </Box>
     <Paper square elevation={0} sx={{ width: { xl: 300 }, flexShrink: 0, p: 2.5, borderTop: { xs: 1, xl: 0 }, borderLeft: { xl: 1 }, borderColor: 'divider', backgroundColor: 'background.paper', lineHeight: 'normal' }}>

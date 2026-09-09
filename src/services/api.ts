@@ -1,7 +1,7 @@
 import { type AdminCourse, type AdminModule, type AdminTutor, type AdminUser } from '@/components/admin/admin-data'
 import { type Course } from '@/interfaces/course'
 import { type PracticeExam, type PracticeExamWithQuestions, type PracticePurchase, type PracticeQuestion } from '@/components/practice/practice-data'
-import type { StemConfig } from '@/components/stem/stem-types'
+import type { StemActivityResult, StemLabConfig, StemSubtype } from '@/components/stem/stem-types'
 
 export interface AuthUser {
   id: number | string
@@ -66,10 +66,9 @@ interface EnrollmentLesson {
   articleBody?: string
   baseImageUrl?: string
   interactiveHotspots?: Array<{ id: number; left: string; top: string; label: string; explanation: string }>
-  stemSubject?: 'Math' | 'Physics' | 'Biology' | 'Chemistry'
-  stemTool?: 'graph' | 'simulation' | 'virtual-lab' | 'diagram' | 'calculator' | 'builder' | 'experiment' | 'game'
+  subtype?: StemSubtype
+  config?: StemLabConfig
   stemLabPublished?: boolean
-  stemConfig?: StemConfig
   resources?: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   practiceQuestions?: PracticeLessonQuestion[]
@@ -981,8 +980,9 @@ export const saveLessonEngagement = (enrollmentId: number, lessonId: number, val
   keepalive: values.keepalive,
 })
 
-export const completeLesson = (enrollmentId: number, lessonId: number) => requestLearningProgress<LessonProgress>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/complete`, {
+export const completeLesson = (enrollmentId: number, lessonId: number, stemResult?: StemActivityResult) => requestLearningProgress<LessonProgress>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/complete`, {
   method: 'POST',
+  ...(stemResult ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stemResult }) } : {}),
 })
 
 export const beginQuizAttempt = (enrollmentId: number, lessonId: number) => requestLearningProgress<QuizAttempt>(`/api/enrollments/${enrollmentId}/lessons/${lessonId}/quiz-attempts`, {

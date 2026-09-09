@@ -1,8 +1,6 @@
 export type LessonType = 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'
 
-import type { StemConfig, StemSubject, StemTool } from '@/components/stem/stem-types'
-
-export type { StemSubject, StemTool }
+import type { StemLabConfig, StemSubtype } from '@/components/stem/stem-types'
 
 export interface InteractiveHotspot {
   id: number
@@ -46,10 +44,9 @@ export interface AdminLesson {
   articleBody?: string
   baseImageUrl?: string
   interactiveHotspots?: InteractiveHotspot[]
-  stemSubject?: StemSubject
-  stemTool?: StemTool
+  subtype?: StemSubtype
+  config?: StemLabConfig
   stemLabPublished?: boolean
-  stemConfig?: StemConfig
   quizQuestions?: QuizQuestion[]
   practiceQuestions?: PracticeQuestion[]
   passThreshold?: number
