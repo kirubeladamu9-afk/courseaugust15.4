@@ -57,12 +57,14 @@ export interface WeakArea {
 interface EnrollmentLesson {
   id: number
   title: string
-  type: 'video' | 'article' | 'quiz' | 'practice' | 'live'
+  type: 'video' | 'article' | 'interactive' | 'quiz' | 'practice' | 'live'
   duration: number | null
   videoUrl?: string
   thumbnailUrl?: string
   estimatedDuration?: number
   articleBody?: string
+  baseImageUrl?: string
+  interactiveHotspots?: Array<{ id: number; x: number; y: number; label: string; explanation: string }>
   resources?: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   practiceQuestions?: PracticeLessonQuestion[]

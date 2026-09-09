@@ -32,6 +32,7 @@ const formatDuration = (seconds: number) => {
 const getLessonLabel = (lesson: AdminLesson) => {
   if (lesson.type === 'video') return lesson.duration ? formatDuration(lesson.duration) : 'Video'
   if (lesson.type === 'article') return 'Article'
+  if (lesson.type === 'interactive') return 'Interactive'
   if (lesson.type === 'quiz') return 'Quiz'
   if (lesson.type === 'practice') return 'Practice'
   return 'Live'

@@ -2577,7 +2577,7 @@ app.put('/api/tutor/courses/:id/curriculum', requireTutor, async (request, respo
   const courseId = parseCourseId(request.params.id)
   const modules = request.body?.modules
   const lessons = getCourseLessons(modules)
-  if (courseId === null || !Array.isArray(modules) || lessons.some((lesson) => !['video', 'article', 'quiz'].includes(lesson?.type))) {
+  if (courseId === null || !Array.isArray(modules) || lessons.some((lesson) => !['video', 'article', 'interactive', 'quiz'].includes(lesson?.type))) {
     return response.status(400).json({ message: 'Enter valid course curriculum lessons.' })
   }
   const [updated] = await sql`
@@ -2594,7 +2594,7 @@ app.put('/api/tutor/classes/:id/curriculum', requireTutor, async (request, respo
   const classId = parseCourseId(request.params.id)
   const modules = request.body?.modules
   const lessons = getCourseLessons(modules)
-  if (classId === null || !Array.isArray(modules) || lessons.some((lesson) => !['video', 'article', 'quiz', 'live'].includes(lesson?.type))) {
+  if (classId === null || !Array.isArray(modules) || lessons.some((lesson) => !['video', 'article', 'interactive', 'quiz', 'live'].includes(lesson?.type))) {
     return response.status(400).json({ message: 'Enter valid class curriculum lessons.' })
   }
   const [updated] = await sql`

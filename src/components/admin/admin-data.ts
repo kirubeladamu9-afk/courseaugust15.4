@@ -1,4 +1,12 @@
-export type LessonType = 'video' | 'article' | 'quiz' | 'practice' | 'live'
+export type LessonType = 'video' | 'article' | 'interactive' | 'quiz' | 'practice' | 'live'
+
+export interface InteractiveHotspot {
+  id: number
+  x: number
+  y: number
+  label: string
+  explanation: string
+}
 
 export interface LessonResource {
   id: number
@@ -32,6 +40,8 @@ export interface AdminLesson {
   thumbnailUrl?: string
   resources: LessonResource[]
   articleBody?: string
+  baseImageUrl?: string
+  interactiveHotspots?: InteractiveHotspot[]
   quizQuestions?: QuizQuestion[]
   practiceQuestions?: PracticeQuestion[]
   passThreshold?: number
