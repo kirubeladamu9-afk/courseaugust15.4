@@ -57,7 +57,7 @@ export interface WeakArea {
 interface EnrollmentLesson {
   id: number
   title: string
-  type: 'video' | 'article' | 'interactive' | 'quiz' | 'practice' | 'live'
+  type: 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'
   duration: number | null
   videoUrl?: string
   thumbnailUrl?: string
@@ -65,6 +65,8 @@ interface EnrollmentLesson {
   articleBody?: string
   baseImageUrl?: string
   interactiveHotspots?: Array<{ id: number; left: string; top: string; label: string; explanation: string }>
+  stemSubject?: 'Math' | 'Physics' | 'Biology' | 'Chemistry'
+  stemTool?: 'graph' | 'simulation' | 'virtual-lab' | 'diagram' | 'calculator' | 'builder' | 'experiment' | 'game'
   resources?: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: Array<{ id: number; question: string; options: string[] }>
   practiceQuestions?: PracticeLessonQuestion[]
@@ -701,7 +703,7 @@ export interface AdminClass {
   capacity: number
   schedule: AdminClassSchedule
   meeting_link: string
-  modules: Array<{ id: number; title: string; lessons: Array<{ id: number; title: string; type: 'video' | 'article' | 'quiz' | 'practice' | 'live'; duration: number | null; resources: Array<{ id: number; name: string; url?: string }> }> }>
+  modules: Array<{ id: number; title: string; lessons: Array<{ id: number; title: string; type: 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'; duration: number | null; resources: Array<{ id: number; name: string; url?: string }> }> }>
   price: number
   status: AdminClassStatus
   published: boolean

@@ -1,4 +1,4 @@
-export type LessonType = 'video' | 'article' | 'interactive' | 'quiz' | 'practice' | 'live'
+export type LessonType = 'video' | 'article' | 'interactive' | 'stem-lab' | 'quiz' | 'practice' | 'live'
 
 export interface InteractiveHotspot {
   id: number
@@ -7,6 +7,9 @@ export interface InteractiveHotspot {
   label: string
   explanation: string
 }
+
+export type StemSubject = 'Math' | 'Physics' | 'Biology' | 'Chemistry'
+export type StemTool = 'graph' | 'simulation' | 'virtual-lab' | 'diagram' | 'calculator' | 'builder' | 'experiment' | 'game'
 
 export interface LessonResource {
   id: number
@@ -42,6 +45,9 @@ export interface AdminLesson {
   articleBody?: string
   baseImageUrl?: string
   interactiveHotspots?: InteractiveHotspot[]
+  stemSubject?: StemSubject
+  stemTool?: StemTool
+  stemLabPublished?: boolean
   quizQuestions?: QuizQuestion[]
   practiceQuestions?: PracticeQuestion[]
   passThreshold?: number
