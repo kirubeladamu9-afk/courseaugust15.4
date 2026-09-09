@@ -2665,7 +2665,7 @@ const getAtRiskStudents = async ({ tutorId = null } = {}) => {
   const records = await sql`
     SELECT enrollments.id::INTEGER AS id,
            students.id::INTEGER AS "studentId",
-           students.full_name AS "studentName",
+           COALESCE(NULLIF(users.name, ''), students.full_name) AS "studentName",
            users.email AS "studentEmail",
            courses.title AS "courseTitle",
            classes.title AS "classTitle",
@@ -2698,7 +2698,7 @@ const getAtRiskStudents = async ({ tutorId = null } = {}) => {
     WHERE ((enrollments.class_id IS NULL AND enrollments.course_id IS NOT NULL) OR classes.published = true)
       AND (enrollments.class_id IS NULL OR enrollments.class_status = 'enrolled')
       ${tutorCondition}
-    ORDER BY students.full_name, enrollments.created_at DESC
+    ORDER BY COALESCE(NULLIF(users.name, ''), students.full_name), enrollments.created_at DESC
   `
   return records.map(evaluateAtRiskEnrollment).filter(Boolean)
 }
@@ -2713,7 +2713,7 @@ const getTutorStudentProgress = async (contentType, contentId) => {
   const students = await sql`
     SELECT enrollments.id::INTEGER AS id,
            students.id::INTEGER AS "studentId",
-           students.full_name AS "studentName",
+           COALESCE(NULLIF(users.name, ''), students.full_name) AS "studentName",
            students.age_or_grade AS "ageOrGrade",
            users.email AS "studentEmail",
            enrollments.class_status AS status,
@@ -2993,7 +2993,7 @@ app.patch('/api/admin/practice-exams/:examId/questions/:questionId', requireAdmi
 app.get('/api/admin/registrations', requireAdmin, async (_request, response) => {
   const registrations = await sql`
     SELECT COALESCE(enrollments.id, payments.id)::INTEGER AS id,
-           COALESCE(students.full_name, NULLIF(payments.student_data->0->>'fullName', ''), NULLIF(users.name, ''), 'Unknown student') AS student,
+           COALESCE(NULLIF(users.name, ''), students.full_name, NULLIF(payments.student_data->0->>'fullName', ''), 'Unknown student') AS student,
            users.email AS email,
            COALESCE(classes.title, courses.title, 'Course registration') AS course,
            to_char(COALESCE(enrollments.created_at, payments.created_at), 'Mon DD, YYYY') AS date,
@@ -3018,7 +3018,7 @@ app.get('/api/admin/registrations', requireAdmin, async (_request, response) => 
 app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
   const payments = await sql`
     SELECT payments.id::INTEGER AS id,
-           COALESCE(NULLIF(payments.student_data->0->>'fullName', ''), NULLIF(users.name, ''), 'Unknown student') AS student,
+           COALESCE(NULLIF(users.name, ''), NULLIF(payments.student_data->0->>'fullName', ''), 'Unknown student') AS student,
            COALESCE(bookstore_items.title, practice_exams.title, classes.title, courses.title, 'Purchase') AS course,
            CASE
              WHEN payments.bookstore_item_id IS NOT NULL OR payments.reference LIKE 'book-%' OR payments.reference LIKE 'test-book-%' THEN 'Book'
@@ -3048,7 +3048,7 @@ app.get('/api/admin/payments', requireAdmin, async (_request, response) => {
 app.get('/api/admin/quiz-violations', requireAdmin, async (_request, response) => {
   const violations = await sql`
     SELECT quiz_attempts.id::INTEGER AS id,
-           students.full_name AS "studentName",
+           COALESCE(NULLIF(users.name, ''), students.full_name) AS "studentName",
            users.email AS "studentEmail",
            COALESCE(classes.title, courses.title, 'Class enrollment') AS "courseTitle",
            CASE WHEN enrollments.class_id IS NULL THEN courses.modules ELSE classes.modules END AS modules,
@@ -3445,10 +3445,10 @@ app.get('/api/admin/classes/:id/leaderboard', requireAdminOrTutor, async (reques
   const [classRecord] = await sql`SELECT id FROM classes WHERE id = ${classId} AND published = true ${tutorCondition}`
   if (!classRecord) return response.status(404).json({ message: 'Class not found.' })
   const leaderboard = await sql`
-    SELECT ROW_NUMBER() OVER (ORDER BY (COALESCE(lesson_totals.completed, 0) * 25 + COALESCE(quiz_totals.passed, 0) * 50 + COALESCE(attendance_totals.present, 0) * 40) DESC, students.full_name, students.id)::INTEGER AS rank,
+    SELECT ROW_NUMBER() OVER (ORDER BY (COALESCE(lesson_totals.completed, 0) * 25 + COALESCE(quiz_totals.passed, 0) * 50 + COALESCE(attendance_totals.present, 0) * 40) DESC, COALESCE(NULLIF(users.name, ''), students.full_name), students.id)::INTEGER AS rank,
            students.id::INTEGER AS "studentId",
-           split_part(students.full_name, ' ', 1) AS "firstName",
-           LEFT(COALESCE(NULLIF(students.full_name, ''), users.email), 1) AS avatar,
+           split_part(COALESCE(NULLIF(users.name, ''), students.full_name), ' ', 1) AS "firstName",
+           LEFT(COALESCE(NULLIF(users.name, ''), students.full_name, users.email), 1) AS avatar,
            (COALESCE(lesson_totals.completed, 0) * 25 + COALESCE(quiz_totals.passed, 0) * 50 + COALESCE(attendance_totals.present, 0) * 40)::INTEGER AS xp
     FROM enrollments
     INNER JOIN students ON students.id = enrollments.student_id
@@ -3470,7 +3470,7 @@ app.get('/api/admin/classes/:id/leaderboard', requireAdminOrTutor, async (reques
       WHERE attendance.enrollment_id = enrollments.id
     ) attendance_totals ON true
     WHERE enrollments.class_id = ${classId} AND enrollments.class_status = 'enrolled'
-    ORDER BY xp DESC, students.full_name, students.id
+    ORDER BY xp DESC, COALESCE(NULLIF(users.name, ''), students.full_name), students.id
   `
   return response.json(leaderboard)
 })
@@ -3479,8 +3479,8 @@ app.get('/api/admin/classes', requireAdminOrTutor, async (_request, response) =>
   await sql`UPDATE classes SET status = 'closed', updated_at = NOW() WHERE (schedule->>'endDate') IS NOT NULL AND (schedule->>'endDate') < CURRENT_DATE::TEXT AND status <> 'closed'`
   const [classes, enrollments, pendingStudents, tutors, courses] = await Promise.all([
     sql`SELECT ${classColumns} FROM classes WHERE published = true ORDER BY created_at DESC, id DESC`,
-    sql`SELECT enrollments.id::INTEGER AS id, enrollments.class_id::INTEGER AS class_id, students.id::INTEGER AS student_id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, enrollments.class_status AS status, COALESCE(attendance.attendance, '{}'::jsonb) AS attendance FROM enrollments INNER JOIN students ON students.id = enrollments.student_id LEFT JOIN LATERAL (SELECT jsonb_object_agg(lesson_id::TEXT, status) AS attendance FROM class_attendance WHERE enrollment_id = enrollments.id) attendance ON true WHERE enrollments.class_id IS NOT NULL ORDER BY enrollments.created_at DESC`,
-    sql`SELECT enrollments.id::INTEGER AS id, students.full_name AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, NULLIF(regexp_replace(students.age_or_grade, '\\D', '', 'g'), '')::INTEGER AS age FROM enrollments INNER JOIN students ON students.id = enrollments.student_id INNER JOIN payments ON payments.id = enrollments.payment_id INNER JOIN courses ON courses.id = enrollments.course_id WHERE payments.status = 'paid' AND enrollments.class_id IS NULL AND LOWER(courses.category) = 'international online interactive' ORDER BY enrollments.created_at DESC`,
+    sql`SELECT enrollments.id::INTEGER AS id, enrollments.class_id::INTEGER AS class_id, students.id::INTEGER AS student_id, COALESCE(NULLIF(users.name, ''), students.full_name) AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, enrollments.class_status AS status, COALESCE(attendance.attendance, '{}'::jsonb) AS attendance FROM enrollments INNER JOIN students ON students.id = enrollments.student_id INNER JOIN users ON users.id = students.user_id LEFT JOIN LATERAL (SELECT jsonb_object_agg(lesson_id::TEXT, status) AS attendance FROM class_attendance WHERE enrollment_id = enrollments.id) attendance ON true WHERE enrollments.class_id IS NOT NULL ORDER BY enrollments.created_at DESC`,
+    sql`SELECT enrollments.id::INTEGER AS id, COALESCE(NULLIF(users.name, ''), students.full_name) AS student_name, to_char(enrollments.created_at, 'FMMonth DD, YYYY') AS enrolled_date, NULLIF(regexp_replace(students.age_or_grade, '\\D', '', 'g'), '')::INTEGER AS age FROM enrollments INNER JOIN students ON students.id = enrollments.student_id INNER JOIN users ON users.id = students.user_id INNER JOIN payments ON payments.id = enrollments.payment_id INNER JOIN courses ON courses.id = enrollments.course_id WHERE payments.status = 'paid' AND enrollments.class_id IS NULL AND LOWER(courses.category) = 'international online interactive' ORDER BY enrollments.created_at DESC`,
     sql`SELECT id::INTEGER AS id, name FROM tutors WHERE status = 'Active' ORDER BY name`,
   ])
   response.json({ classes: classes.map((classRecord) => ({ ...classRecord, modules: deserializeJson(classRecord.modules) ?? [] })), enrollments, pendingStudents, tutors })
