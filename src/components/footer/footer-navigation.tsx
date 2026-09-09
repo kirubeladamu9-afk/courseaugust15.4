@@ -6,7 +6,7 @@ import FooterSectionTitle from './footer-section-title'
 
 const companyMenu: Navigation[] = [
   { label: 'About Us', path: '/about-us' },
-  { label: 'Coursespace', path: '/' },
+  { label: 'Coursesharp', path: '/' },
   { label: 'Programs', path: '/#training-programs' },
   { label: 'Practice Exams', path: '/practice-exams' },
 ]
