@@ -36,6 +36,7 @@ import type {
   StemCircuitConfig,
   StemClassificationConfig,
   StemDiagramConfig,
+  StemEmbedConfig,
   StemFormulaConfig,
   StemGeometryConfig,
   StemGraphConfig,
@@ -51,6 +52,8 @@ import type {
   StemToolPlayerProps,
 } from './stem-types'
 
+export { solveLinearEquation } from './stem-engines'
+
 const numberText = (value: number) => Number.isFinite(value)
   ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 5 }).format(value)
   : '—'
@@ -61,6 +64,26 @@ const baseFields = <T extends StemLabConfig>(config: T, onChange: (config: T) =>
     <TextField fullWidth size="small" label="Learner instructions" value={config.instructions} onChange={(event) => onChange({ ...config, instructions: event.target.value })} />
   </Stack>
 )
+
+const secureEmbedUrl = (value: string) => {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+export const EmbedBuilder: FC<StemToolBuilderProps> = ({ config, onConfigChange }) => {
+  const item = config as StemEmbedConfig
+  const validUrl = secureEmbedUrl(item.embedUrl)
+  return <Stack spacing={2}>{baseFields(item, onConfigChange)}<TextField fullWidth required label="Tool provider" value={item.provider} onChange={(event) => onConfigChange({ ...item, provider: event.target.value })} /><TextField fullWidth required label="Secure embed URL" value={item.embedUrl} onChange={(event) => onConfigChange({ ...item, embedUrl: event.target.value })} helperText="Use an HTTPS URL that allows embedding." /><TextField fullWidth multiline minRows={2} label="Completion message" value={item.completionMessage} onChange={(event) => onConfigChange({ ...item, completionMessage: event.target.value })} /><Typography variant="caption" color={validUrl ? 'success.main' : 'warning.main'}>{validUrl ? 'The embedded tool URL is ready.' : 'Enter a valid HTTPS URL before publishing.'}</Typography></Stack>
+}
+
+export const EmbedPlayer: FC<StemToolPlayerProps> = ({ config, onComplete }) => {
+  const item = config as StemEmbedConfig
+  if (!secureEmbedUrl(item.embedUrl)) return <Typography color="text.secondary">This embedded tool is not available until a valid HTTPS URL is configured.</Typography>
+  return <Stack spacing={1.5}><Box component="iframe" src={item.embedUrl} title={`${item.provider} embedded tool`} loading="lazy" sx={{ width: '100%', minHeight: 420, border: 1, borderColor: 'divider', borderRadius: 1.5 }} /><Button variant="contained" onClick={() => onComplete({ provider: item.provider, embedUrl: item.embedUrl })}>Record activity</Button></Stack>
+}
 
 const CompletionNotice: FC<{ children: string }> = ({ children }) => (
   <Typography color="success.main" sx={{ fontWeight: 700 }}>{children}</Typography>
@@ -205,11 +228,13 @@ export const PhysicsSimulationBuilder: FC<StemToolBuilderProps> = ({ config, onC
   return <Stack spacing={2}>{baseFields(item, onConfigChange)}<FormControl fullWidth size="small"><InputLabel>Simulation concept</InputLabel><Select label="Simulation concept" value={item.scenario} onChange={(event) => onConfigChange({ ...item, scenario: event.target.value as StemPhysicsSimulationConfig['scenario'] })}><MenuItem value="projectile_motion">Projectile motion</MenuItem><MenuItem value="constant_force">Constant force</MenuItem></Select></FormControl><Typography variant="caption" color="text.secondary">Physics Simulation v1 intentionally supports these two named concepts only.</Typography></Stack>
 }
 
+type PhysicsInputValues = Record<'speed' | 'angle' | 'force' | 'mass' | 'seconds', string | undefined>
+
 export const PhysicsSimulationPlayer: FC<StemToolPlayerProps> = ({ config, onComplete }) => {
   const item = config as StemPhysicsSimulationConfig
-  const [values, setValues] = useState(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45' } : { force: '10', mass: '2', seconds: '4' })
+  const [values, setValues] = useState<PhysicsInputValues>(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45', force: undefined, mass: undefined, seconds: undefined } : { speed: undefined, angle: undefined, force: '10', mass: '2', seconds: '4' })
   const [result, setResult] = useState<Record<string, number> | null>(null)
-  useEffect(() => { setValues(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45' } : { force: '10', mass: '2', seconds: '4' }); setResult(null) }, [item.scenario])
+  useEffect(() => { setValues(item.scenario === 'projectile_motion' ? { speed: '20', angle: '45', force: undefined, mass: undefined, seconds: undefined } : { speed: undefined, angle: undefined, force: '10', mass: '2', seconds: '4' }); setResult(null) }, [item.scenario])
   const run = () => {
     if (item.scenario === 'projectile_motion') {
       const motion = projectileMotion(Number(values.speed), Number(values.angle))
@@ -219,7 +244,7 @@ export const PhysicsSimulationPlayer: FC<StemToolPlayerProps> = ({ config, onCom
     const motion = constantForceMotion(Number(values.force), Number(values.mass), Number(values.seconds))
     setResult(motion)
   }
-  const ready = Object.values(values).every((value) => value.trim() && Number.isFinite(Number(value))) && (item.scenario !== 'constant_force' || Number(values.mass) > 0)
+  const ready = (item.scenario === 'projectile_motion' ? [values.speed, values.angle] : [values.force, values.mass, values.seconds]).every((value) => Boolean(value?.trim()) && Number.isFinite(Number(value))) && (item.scenario !== 'constant_force' || Number(values.mass) > 0)
   return <Stack spacing={2}><Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1 }}>{item.scenario === 'projectile_motion' ? <><TextField type="number" label="Launch speed (m/s)" value={values.speed ?? ''} onChange={(event) => setValues({ ...values, speed: event.target.value })} /><TextField type="number" label="Launch angle (°)" value={values.angle ?? ''} onChange={(event) => setValues({ ...values, angle: event.target.value })} /></> : <><TextField type="number" label="Force (N)" value={values.force ?? ''} onChange={(event) => setValues({ ...values, force: event.target.value })} /><TextField type="number" label="Mass (kg)" value={values.mass ?? ''} onChange={(event) => setValues({ ...values, mass: event.target.value })} /><TextField type="number" label="Time (s)" value={values.seconds ?? ''} onChange={(event) => setValues({ ...values, seconds: event.target.value })} /></>}</Box><Button variant="contained" disabled={!ready} onClick={run} startIcon={<PlayArrowIcon />}>Run simulation</Button>{result && <Paper variant="outlined" sx={{ p: 2 }}><Typography sx={{ fontWeight: 800, mb: 0.5 }}>Calculated state</Typography>{Object.entries(result).map(([key, value]) => <Typography key={key} variant="body2">{key.replace(/([A-Z])/g, ' $1')}: {numberText(value)}</Typography>)}<Button sx={{ mt: 1 }} variant="outlined" onClick={() => onComplete({ scenario: item.scenario, input: values, output: result })}>Record simulation</Button></Paper>}</Stack>
 }
 

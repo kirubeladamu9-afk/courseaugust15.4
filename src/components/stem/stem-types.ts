@@ -31,6 +31,13 @@ export type StemBaseConfig = {
   instructions: string
 }
 
+export type StemEmbedConfig = StemBaseConfig & {
+  provider: string
+  embedUrl: string
+  completionMode: 'launch_confirm'
+  completionMessage: string
+}
+
 export type StemGraphConfig = StemBaseConfig & {
   expression: string
   targetX: number
@@ -118,6 +125,7 @@ export type StemClassificationConfig = StemBaseConfig & {
 }
 
 export type StemLabConfig =
+  | StemEmbedConfig
   | StemGraphConfig
   | StemLinearEquationConfig
   | StemCalculatorConfig
@@ -160,8 +168,8 @@ export type StemToolDefinition = {
   icon: ReactNode
   Builder: ComponentType<StemToolBuilderProps>
   Player: ComponentType<StemToolPlayerProps>
+  mode: 'build' | 'embed'
   defaultConfig: StemLabConfig
-  completionRule: string
   isConfigured: (config: StemLabConfig) => boolean
 }
 
