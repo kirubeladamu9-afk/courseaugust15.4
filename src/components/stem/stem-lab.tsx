@@ -237,10 +237,10 @@ const GraphPlayer: FC<{ config: StemConfig; onInteraction: (values: Record<strin
       const y = evaluateStemFormula(config.formula, { ...values, x }, names)
       const visible = Number.isFinite(y) && Math.abs(y) <= graphRange * 3
       if (!visible) {
-        if (paths.at(-1)?.length) paths.push([])
+        if (paths[paths.length - 1]?.length) paths.push([])
         continue
       }
-      paths.at(-1)?.push(`${graphX(x).toFixed(2)},${graphY(y).toFixed(2)}`)
+      paths[paths.length - 1]?.push(`${graphX(x).toFixed(2)},${graphY(y).toFixed(2)}`)
     }
     return paths.filter((path) => path.length > 1).map((path) => path.join(' '))
   }, [config.formula, config.variables, values])

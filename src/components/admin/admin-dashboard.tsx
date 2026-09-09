@@ -60,6 +60,7 @@ import TranslateOutlinedIcon from '@mui/icons-material/TranslateOutlined'
 import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline'
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline'
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined'
+import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import InsertLinkOutlinedIcon from '@mui/icons-material/InsertLinkOutlined'
@@ -89,7 +90,7 @@ import { StemLabEditor as StemLabActivityEditor } from '@/components/stem/stem-l
 
 const drawerWidth = 272
 
-type Section = 'overview' | 'courses' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'practice-exams' | 'payments' | 'reports' | 'violations' | 'users'
+type Section = 'overview' | 'courses' | 'stem-labs' | 'registrations' | 'classes' | 'tutors' | 'blog' | 'practice-exams' | 'payments' | 'reports' | 'violations' | 'users'
 
 type AdminNavigationItem = {
   key: Section
@@ -101,6 +102,7 @@ type AdminNavigationItem = {
 const navigation: AdminNavigationItem[] = [
   { key: 'overview', label: 'Overview', icon: <DashboardOutlinedIcon /> },
   { key: 'courses', label: 'Programs & Courses', icon: <SchoolOutlinedIcon />, subviews: [{ label: 'Registrations', path: '/admin/registrations' }] },
+  { key: 'stem-labs', label: 'STEM Labs', icon: <ScienceOutlinedIcon /> },
   { key: 'classes', label: 'Classes', icon: <ClassOutlinedIcon />, subviews: [{ label: 'Pending Scheduling', path: '/admin/classes/pending' }, { label: 'Active Classes', path: '/admin/classes/active' }] },
   { key: 'tutors', label: 'Tutors', icon: <PersonOutlineIcon /> },
   { key: 'blog', label: 'Bookstore', icon: <BookOutlinedIcon /> },
@@ -764,6 +766,38 @@ type CourseEditorPageProps =
   | { mode: 'new'; courseId?: never }
   | { mode: 'edit'; courseId: number }
 
+type StemLabSummary = { id: string; title: string; courseId: number; courseTitle: string; moduleTitle: string; tool?: StemTool; subject?: StemSubject; published: boolean }
+
+const formatStemLabTool = (tool?: StemTool) => tool ? tool.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ') : 'Not configured'
+
+const StemLabsPage: FC = () => {
+  const [labs, setLabs] = useState<StemLabSummary[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const loadLabs = async () => {
+    setIsLoading(true)
+    try {
+      const courses = await getAdminCourses()
+      setLabs(courses.flatMap((course) => course.modules.flatMap((module) => module.lessons.filter((lesson) => lesson.type === 'stem-lab').map((lesson) => ({ id: `${course.id}-${module.id}-${lesson.id}`, title: lesson.title, courseId: course.id, courseTitle: course.title, moduleTitle: module.title, tool: lesson.stemTool, subject: lesson.stemSubject, published: Boolean(lesson.stemLabPublished) })))))
+      setLoadError(null)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load STEM Labs.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => { void loadLabs() }, [])
+
+  return <>
+    <PageHeading title="STEM Labs" description="Review and launch reusable STEM learning activities across your courses." action={<Button label="New STEM Lab" onClick={() => navigateTo('/admin/courses/new')} disabled={isLoading} />} />
+    {isLoading ? <AdminLoadingState label="Loading STEM Labs" /> : loadError ? <Paper elevation={0} sx={{ p: 4, border: 1, borderColor: 'divider' }}><Typography color="error" sx={{ mb: 2 }}>{loadError}</Typography><Button label="Retry" onClick={() => void loadLabs()} /></Paper> : labs.length === 0 ? <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, textAlign: 'center', border: 1, borderColor: 'divider' }}><ScienceOutlinedIcon color="primary" sx={{ fontSize: 42, mb: 1 }} /><Typography variant="h6" sx={{ mb: 0.75 }}>No STEM Labs yet</Typography><Typography color="text.secondary" sx={{ mb: 2.5 }}>Create a course, then add a STEM Lab lesson to configure, preview, and publish an activity.</Typography><Button label="Create course" onClick={() => navigateTo('/admin/courses/new')} /></Paper> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
+      {labs.map((lab) => <Paper key={lab.id} elevation={0} sx={{ p: 2.5, border: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 2 }}><Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}><Box sx={{ minWidth: 0 }}><Typography variant="overline" color="primary.main" sx={{ fontWeight: 800 }}>{lab.subject ?? 'STEM'} · {formatStemLabTool(lab.tool)}</Typography><Typography variant="h6" noWrap>{lab.title}</Typography></Box><Chip size="small" color={lab.published ? 'success' : 'warning'} label={lab.published ? 'Published' : 'Draft'} /></Stack><Box><Typography variant="body2" color="text.secondary">{lab.courseTitle}</Typography><Typography variant="caption" color="text.secondary">{lab.moduleTitle}</Typography></Box><Button label="Open authoring" variant="outlined" onClick={() => navigateTo(`/admin/courses/${lab.courseId}/edit`)} /></Paper>)}
+    </Box>}
+  </>
+}
+
 const CourseEditorPage: FC<CourseEditorPageProps> = ({ mode, courseId }) => {
   const [course, setCourse] = useState<AdminCourse | null>(() => mode === 'new' ? createEmptyCourse() : null)
   const [isLoading, setIsLoading] = useState(mode === 'edit')
@@ -1410,6 +1444,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
         return <CoursesPage />
       }
       case 'registrations': return <RegistrationsPage />
+      case 'stem-labs': return <StemLabsPage />
       case 'classes': {
         if (/^\/admin\/classes\/pending\/?$/.test(pathname)) return <ClassesWorkspace view="pending" />
         if (/^\/admin\/classes\/new\/?$/.test(pathname)) return <ClassesWorkspace view="new" />
@@ -1440,7 +1475,7 @@ const AdminDashboard: FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode })
         <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Overview</Typography>
         {navigation.map((item, index) => <Box key={item.key}>
           {index === 1 && <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mt: 2.25, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Manage</Typography>}
-          {index === 7 && <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mt: 2.25, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Insights & access</Typography>}
+          {index === 8 && <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 1.5, mt: 2.25, mb: 1, letterSpacing: 1.2, fontWeight: 700 }}>Insights & access</Typography>}
           <Box
             component="button"
             title={item.label}

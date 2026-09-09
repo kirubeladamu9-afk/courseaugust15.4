@@ -128,6 +128,7 @@ const formatQuizCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${
   interactiveHotspots?: Array<{ id: number; left: string; top: string; label: string; explanation: string }>
   stemSubject?: 'Math' | 'Physics' | 'Biology' | 'Chemistry'
   stemTool?: 'graph' | 'simulation' | 'virtual-lab' | 'diagram' | 'calculator' | 'builder' | 'experiment' | 'game'
+  stemLabPublished?: boolean
   stemConfig?: StemConfig
   resources: Array<{ id: number; name: string; url?: string }>
   quizQuestions?: QuizQuestion[]
@@ -248,6 +249,7 @@ const getClassSessionState = (classRecord: DashboardClass, now: Date) => {
   return { activeLesson, isActive: Boolean(activeLesson), hasEnded: Boolean(latestStarted && !activeLesson) }
 }
 const getLessons = (course: DashboardCourse) => course.modules.flatMap((module) => module.lessons)
+const isStemLabLesson = (lesson: DashboardLesson) => lesson.type === 'stem-lab'
 const getCompletionLessons = (course: DashboardCourse) => getLessons(course).filter((lesson) => lesson.type !== 'practice')
 const getEnrollmentContentId = (enrollment: MyEnrollment) => enrollment.classId ?? enrollment.courseId ?? enrollment.id
 const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
@@ -272,6 +274,7 @@ const mapEnrollmentCourse = (enrollment: MyEnrollment): DashboardCourse => ({
       interactiveHotspots: lesson.interactiveHotspots,
       stemSubject: lesson.stemSubject,
       stemTool: lesson.stemTool,
+      stemLabPublished: lesson.stemLabPublished,
       stemConfig: lesson.stemConfig,
       resources: lesson.resources ?? [],
       quizQuestions: lesson.quizQuestions,
@@ -1022,7 +1025,12 @@ const CourseViewer: FC<{ course: DashboardCourse; progress: number; completedLes
     <PracticeLessonView questions={selectedLesson.practiceQuestions ?? []} onAnswer={(questionId, answer) => onPracticeAnswer(selectedLesson.id, questionId, answer)} />
   </>
 
-  if (selectedLesson.type === 'stem-lab') return <>
+  if (isStemLabLesson(selectedLesson) && !selectedLesson.stemLabPublished) return <>
+    <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>
+    <EmptyState title="STEM Lab coming soon" description="Your instructor is still preparing this activity. Please check back after it is published." />
+  </>
+
+  if (isStemLabLesson(selectedLesson)) return <>
     <Box component="button" type="button" onClick={onBack} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0, mb: 3, border: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}><ArrowBackIcon fontSize="small" /> Back to Course</Box>
     <StemActivityPlayer lesson={selectedLesson} onResult={() => { setStemLabPassed(true); void onCompleteLesson(selectedLesson.id) }} />
     {stemLabPassed && <Paper elevation={0} sx={{ mt: 2, p: 2, border: 1, borderColor: 'success.main', backgroundColor: 'success.light' }}><Stack direction="row" spacing={1} alignItems="center"><CheckCircleOutlineIcon color="success" /><Typography sx={{ fontWeight: 700 }}>Lesson completed and course progress updated.</Typography></Stack></Paper>}
