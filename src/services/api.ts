@@ -294,6 +294,7 @@ const fetchApi = async (url: string, init?: RequestInit) => {
     try {
       return await fetch(url, { ...init, credentials: 'same-origin' })
     } catch (error) {
+      if (init?.signal?.aborted) throw error
       if (!(error instanceof TypeError)) throw error
       if (attempt >= 30) throw new Error('Unable to connect to the CourseSpace API. Please try again when the server is available.')
       await new Promise((resolve) => window.setTimeout(resolve, Math.min(500 * 2 ** attempt, 2000)))
@@ -482,9 +483,9 @@ const requestBookstore = async <T>(url: string, init?: RequestInit): Promise<T> 
   return response.json() as Promise<T>
 }
 
-export const getBookstoreItems = () => requestBookstore<BookstoreItem[]>('/api/bookstore-items')
+export const getBookstoreItems = (init?: RequestInit) => requestBookstore<BookstoreItem[]>('/api/bookstore-items', init)
 export const getAdminBookstoreItems = () => requestBookstore<BookstoreItem[]>('/api/admin/bookstore-items')
-export const getBookstorePurchases = () => requestBookstore<BookstorePurchase[]>('/api/bookstore-purchases')
+export const getBookstorePurchases = (init?: RequestInit) => requestBookstore<BookstorePurchase[]>('/api/bookstore-purchases', init)
 export const createAdminBookstoreItem = (item: BookstoreItemPayload) => requestBookstore<BookstoreItem>('/api/admin/bookstore-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) })
 export const updateAdminBookstoreItem = (id: number, item: BookstoreItemPayload) => requestBookstore<BookstoreItem>(`/api/admin/bookstore-items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) })
 export const deleteAdminBookstoreItem = async (id: number) => {

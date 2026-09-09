@@ -113,8 +113,20 @@ export const BookstorePage: FC<BookstorePageProps> = ({ darkMode, onToggleDarkMo
   const [purchasingId, setPurchasingId] = useState<number | null>(null)
   const [checkoutItem, setCheckoutItem] = useState<BookstoreItem | null>(null)
   const user = getAuthenticatedUser()
-  const reloadPurchases = () => user && void getBookstorePurchases().then(setPurchases).catch(() => undefined)
-  useEffect(() => { const payment = new URLSearchParams(window.location.search).get('payment'); if (payment) window.location.assign('/api/payments/chapa/' + encodeURIComponent(payment) + '/bookstore-download'); void getBookstoreItems().then(setItems).catch((error) => toast.add({ title: 'Unable to load bookstore', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })).finally(() => setIsLoading(false)); reloadPurchases() }, [])
+  const reloadPurchases = (init?: RequestInit) => user && void getBookstorePurchases(init).then((loadedPurchases) => { if (!init?.signal?.aborted) setPurchases(loadedPurchases) }).catch(() => undefined)
+  useEffect(() => {
+    const controller = new AbortController()
+    const payment = new URLSearchParams(window.location.search).get('payment')
+    if (payment) window.location.assign('/api/payments/chapa/' + encodeURIComponent(payment) + '/bookstore-download')
+    void getBookstoreItems({ signal: controller.signal })
+      .then((loadedItems) => { if (!controller.signal.aborted) setItems(loadedItems) })
+      .catch((error) => {
+        if (!controller.signal.aborted) toast.add({ title: 'Unable to load bookstore', description: error instanceof Error ? error.message : 'Please try again.', type: 'error' })
+      })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false) })
+    reloadPurchases({ signal: controller.signal })
+    return () => controller.abort()
+  }, [])
   const buy = async (item: BookstoreItem) => {
     setPurchasingId(item.id)
     try {
