@@ -263,6 +263,11 @@ const TutorDashboard = ({ darkMode, onToggleDarkMode }: { darkMode: boolean; onT
 
   const selectedClass = classes.find((classRecord) => classRecord.id === selectedClassId)
   const liveLessons = useMemo(() => selectedClass?.modules.flatMap((module) => module.lessons).filter((lesson) => lesson.type === 'live') ?? [], [selectedClass])
+  const pageTitle = courseDraft ? 'Edit Course Curriculum' : classDraft ? 'Edit Class Curriculum' : progressTarget ? 'Student Progress' : view === 'overview' ? 'Overview' : view === 'schedule' ? 'Schedule' : view === 'courses' ? 'My Courses' : view === 'classes' ? 'My Classes' : view === 'students' ? 'Students & Attendance' : 'Profile'
+
+  useEffect(() => {
+    document.title = `${pageTitle} - Courseshap`
+  }, [pageTitle])
 
   const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault()

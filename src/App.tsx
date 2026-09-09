@@ -32,6 +32,30 @@ interface AppProps {
   onToggleDarkMode: () => void
 }
 
+const getAdminPageTitle = (pathname: string) => {
+  const normalizedPath = pathname.replace(/\/$/, '') || '/admin'
+  if (normalizedPath === '/admin') return 'Overview'
+  if (normalizedPath === '/admin/profile') return 'Admin Profile'
+  if (normalizedPath === '/admin/courses/new') return 'New Course'
+  if (/^\/admin\/courses\/\d+\/edit$/.test(normalizedPath)) return 'Edit Course'
+  if (normalizedPath === '/admin/courses') return 'Programs & Courses'
+  if (normalizedPath === '/admin/registrations') return 'Registrations'
+  if (normalizedPath === '/admin/classes/pending') return 'Pending Scheduling'
+  if (normalizedPath === '/admin/classes/new') return 'New Class'
+  if (/^\/admin\/classes\/\d+$/.test(normalizedPath)) return 'Class Details'
+  if (normalizedPath === '/admin/classes' || normalizedPath === '/admin/classes/active') return 'Active Classes'
+  if (normalizedPath === '/admin/tutors/new') return 'New Tutor'
+  if (/^\/admin\/tutors\/\d+$/.test(normalizedPath)) return 'Edit Tutor'
+  if (normalizedPath === '/admin/tutors') return 'Tutors'
+  if (normalizedPath === '/admin/blog') return 'Bookstore'
+  if (normalizedPath === '/admin/practice-exams') return 'Practice Exams'
+  if (normalizedPath === '/admin/payments') return 'Payments'
+  if (normalizedPath === '/admin/reports') return 'Reports'
+  if (normalizedPath === '/admin/violations') return 'Quiz Violations'
+  if (normalizedPath === '/admin/users') return 'Users'
+  return 'Admin Dashboard'
+}
+
 const RouteLoadingState: React.FC<{ message: string }> = ({ message }) => (
   <Box
     sx={{
@@ -80,7 +104,7 @@ const App: React.FC<AppProps> = ({ darkMode, onToggleDarkMode }) => {
       : authMode === 'sign-up'
         ? 'Sign Up'
         : isAdminPath
-          ? 'Admin Dashboard'
+          ? getAdminPageTitle(currentPath)
           : isDashboardPath
             ? 'Dashboard'
             : isTutorPath
