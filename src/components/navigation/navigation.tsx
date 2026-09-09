@@ -110,9 +110,17 @@ const Navigation: FC<{ isAdmin?: boolean }> = ({ isAdmin = false }) => {
         >
           {programDestinations.map(({ path: destination, label }) => {
             const isRoute = destination.startsWith('/')
+            const destinationHref = isRoute ? destination : `/#${destination}`
             const displayLabel = destination === 'training-programs' ? 'Training Programs' : label
-            if (isRoute) return <MenuItem key={destination} component="a" href={destination} onClick={(event) => handleDestinationClick(destination, event)}>{displayLabel}</MenuItem>
-            return <MenuItem key={destination} component="a" href={`#${destination}`} onClick={(event) => { event.preventDefault(); setActiveDestination(destination); setProgramsAnchor(null); document.getElementById(destination)?.scrollIntoView({ behavior: 'smooth' }) }}>{displayLabel}</MenuItem>
+            return <MenuItem
+              key={destination}
+              component="a"
+              href={destinationHref}
+              onClick={(event) => {
+                if (isRoute) handleDestinationClick(destination, event)
+                else setProgramsAnchor(null)
+              }}
+            >{displayLabel}</MenuItem>
           })}
         </Menu>
       </Box>
