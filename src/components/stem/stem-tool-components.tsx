@@ -620,6 +620,7 @@ export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComple
   const openRef = useRef<(label: string) => void>(() => undefined)
   const [rotation, setRotation] = useState({ x: 0.2, y: -0.4 })
   const [opened, setOpened] = useState<string[]>([])
+  const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>(item.model === 'cell' ? 'loading' : 'ready')
   const needed = [...new Set(item.requiredLabels.length ? item.requiredLabels : threeDModelPoints(item.model).map((point) => point.label).filter((label): label is string => Boolean(label)))]
   const open = (label: string) => setOpened((current) => { const next = current.includes(label) ? current : [...current, label]; if (needed.every((target) => next.includes(target))) onComplete({ model: item.model, labelsOpened: next }); return next })
   openRef.current = open
@@ -627,6 +628,7 @@ export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComple
   useEffect(() => {
     setRotation({ x: 0.2, y: -0.4 })
     setOpened([])
+    setModelStatus(item.model === 'cell' ? 'loading' : 'ready')
   }, [item.model, item.requiredLabels])
 
   useEffect(() => {
@@ -663,8 +665,9 @@ export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComple
       const bounds = new THREE.Box3().setFromObject(object)
       const size = bounds.getSize(new THREE.Vector3())
       const center = bounds.getCenter(new THREE.Vector3())
-      object.position.sub(center)
-      object.scale.setScalar(4.2 / Math.max(size.x, size.y, size.z))
+      const scale = 4.2 / Math.max(size.x, size.y, size.z)
+      object.scale.setScalar(scale)
+      object.position.copy(center).multiplyScalar(-scale)
       object.updateMatrixWorld(true)
       modelScene.group.add(object)
       const labels: Array<[string[], string, THREE.Vector3]> = [
@@ -679,8 +682,9 @@ export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComple
         object.traverse((child) => { if (names.some((name) => child.name.toLowerCase().includes(name))) partBounds.expandByObject(child) })
         if (!partBounds.isEmpty()) addThreeDLabel(modelScene, label, partBounds.getCenter(new THREE.Vector3()).add(offset))
       })
+      setModelStatus('ready')
     }
-    if (item.model === 'cell') void loadCellModel()
+    if (item.model === 'cell') void loadCellModel().catch(() => { if (!disposed) setModelStatus('error') })
 
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
@@ -714,7 +718,7 @@ export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComple
 
   useEffect(() => { if (groupRef.current) groupRef.current.rotation.set(rotation.x, rotation.y, 0) }, [rotation])
 
-  return <Stack spacing={1.25}><Typography variant="body2" color="text.secondary">Drag the model to rotate it, then click every label to complete the exploration.</Typography><Box ref={containerRef} role="application" aria-label={`${item.model} 3D explorer`} sx={{ width: '100%', maxWidth: 520, minHeight: 330, alignSelf: 'center', border: 1, borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden', background: 'radial-gradient(circle at 50% 38%, rgba(90, 165, 184, 0.2), transparent 62%), #f4fafb', cursor: 'grab', '&:active': { cursor: 'grabbing' } }} /><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField type="number" size="small" label="X rotation" value={rotation.x.toFixed(2)} onChange={(event) => setRotation({ ...rotation, x: Number(event.target.value) })} inputProps={{ step: 0.1 }} /><TextField type="number" size="small" label="Y rotation" value={rotation.y.toFixed(2)} onChange={(event) => setRotation({ ...rotation, y: Number(event.target.value) })} inputProps={{ step: 0.1 }} /></Stack><Typography variant="caption" color="text.secondary">Labels opened: {opened.length}/{needed.length}</Typography></Stack>
+  return <Stack spacing={1.25}><Typography variant="body2" color="text.secondary">Drag the model to rotate it, then click every label to complete the exploration.</Typography><Box ref={containerRef} role="application" aria-label={`${item.model} 3D explorer`} sx={{ position: 'relative', width: '100%', maxWidth: 520, minHeight: 330, alignSelf: 'center', border: 1, borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden', background: 'radial-gradient(circle at 50% 38%, rgba(90, 165, 184, 0.2), transparent 62%), #f4fafb', cursor: 'grab', touchAction: 'none', '&:active': { cursor: 'grabbing' } }}>{modelStatus !== 'ready' && <Box sx={{ position: 'absolute', inset: 0, zIndex: 1, display: 'grid', placeItems: 'center', backgroundColor: 'rgba(244, 250, 251, 0.78)' }}><Typography color={modelStatus === 'error' ? 'error.main' : 'text.secondary'}>{modelStatus === 'error' ? 'The cell model could not be loaded.' : 'Loading cell model…'}</Typography></Box>}</Box><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField type="number" size="small" label="X rotation" value={rotation.x.toFixed(2)} onChange={(event) => setRotation({ ...rotation, x: Number(event.target.value) })} inputProps={{ step: 0.1 }} /><TextField type="number" size="small" label="Y rotation" value={rotation.y.toFixed(2)} onChange={(event) => setRotation({ ...rotation, y: Number(event.target.value) })} inputProps={{ step: 0.1 }} /></Stack><Typography variant="caption" color="text.secondary">Labels opened: {opened.length}/{needed.length}</Typography></Stack>
 }
 
 export const PunnettBuilder: FC<StemToolBuilderProps> = ({ config, onConfigChange }) => {
