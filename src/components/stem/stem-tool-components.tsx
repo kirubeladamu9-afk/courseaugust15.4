@@ -1,5 +1,6 @@
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import * as THREE from 'three'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -21,7 +22,6 @@ import {
   graphPoints,
   labEquipmentFor,
   projectileMotion,
-  project3DPoint,
   runLabScenario,
   solveCircuit,
   solveLinearEquation,
@@ -523,15 +523,162 @@ export const ThreeDExplorerBuilder: FC<StemToolBuilderProps> = ({ config, onConf
   return <Stack spacing={2}>{baseFields(item, onConfigChange)}<FormControl fullWidth size="small"><InputLabel>3D model</InputLabel><Select label="3D model" value={item.model} onChange={(event) => { const model = event.target.value as StemThreeDConfig['model']; onConfigChange({ ...item, model, requiredLabels: threeDModelPoints(model).map((point) => point.label).filter((label): label is string => Boolean(label)) }) }}><MenuItem value="cell">Cell</MenuItem><MenuItem value="dna">DNA</MenuItem><MenuItem value="neuron">Neuron</MenuItem></Select></FormControl><Typography variant="caption" color="text.secondary">Completion requires opening the model labels: {labels.join(', ')}.</Typography></Stack>
 }
 
+type ThreeDLabelObject = { object: THREE.Object3D; label: string }
+
+type ThreeDScene = { group: THREE.Group; labels: ThreeDLabelObject[] }
+
+const addThreeDLabel = (scene: ThreeDScene, label: string, position: THREE.Vector3) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 96
+  const context = canvas.getContext('2d')
+  if (!context) return
+  context.font = '600 30px sans-serif'
+  context.textBaseline = 'middle'
+  context.fillStyle = '#15333a'
+  context.fillText(label, 12, 48)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }))
+  sprite.position.copy(position)
+  sprite.scale.set(2.5, 0.47, 1)
+  sprite.userData.label = label
+  scene.group.add(sprite)
+  scene.labels.push({ object: sprite, label })
+}
+
+const addTube = (group: THREE.Group, points: THREE.Vector3[], color: number, radius = 0.06) => {
+  const curve = new THREE.CatmullRomCurve3(points)
+  group.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, radius, 10, false), new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.08 })))
+}
+
+const createThreeDScene = (model: StemThreeDConfig['model']): ThreeDScene => {
+  const scene: ThreeDScene = { group: new THREE.Group(), labels: [] }
+  const addMesh = (geometry: THREE.BufferGeometry, material: THREE.Material, position: THREE.Vector3, label?: string) => {
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.copy(position)
+    scene.group.add(mesh)
+    if (label) addThreeDLabel(scene, label, position.clone().add(new THREE.Vector3(0.2, 0.15, 0.15)))
+    return mesh
+  }
+
+  if (model === 'dna') {
+    const left: THREE.Vector3[] = []
+    const right: THREE.Vector3[] = []
+    for (let index = 0; index < 24; index += 1) {
+      const angle = index * 0.58
+      const y = (index - 12) * 0.18
+      const leftPoint = new THREE.Vector3(Math.cos(angle) * 0.72, y, Math.sin(angle) * 0.72)
+      const rightPoint = new THREE.Vector3(Math.cos(angle + Math.PI) * 0.72, y, Math.sin(angle + Math.PI) * 0.72)
+      left.push(leftPoint)
+      right.push(rightPoint)
+      const pair = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0xe8a12d }))
+      pair.position.copy(leftPoint).add(rightPoint).multiplyScalar(0.5)
+      pair.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rightPoint.clone().sub(leftPoint).normalize())
+      scene.group.add(pair)
+      if (index % 5 === 0) addThreeDLabel(scene, 'Base pair', leftPoint.clone().add(new THREE.Vector3(0.18, 0.08, 0.1)))
+    }
+    addTube(scene.group, left, 0x287d9d, 0.08)
+    addTube(scene.group, right, 0x8b4c9f, 0.08)
+    return scene
+  }
+
+  if (model === 'neuron') {
+    addMesh(new THREE.SphereGeometry(0.65, 32, 20), new THREE.MeshStandardMaterial({ color: 0xd27b4d, roughness: 0.5 }), new THREE.Vector3(), 'Cell body')
+    addTube(scene.group, [new THREE.Vector3(0.4, 0, 0), new THREE.Vector3(1.1, 0.1, 0.1), new THREE.Vector3(2.1, 0.2, 0)], 0x2d7896, 0.12)
+    addThreeDLabel(scene, 'Axon', new THREE.Vector3(1.45, 0.3, 0.1))
+    ;[
+      [new THREE.Vector3(-0.4, 0.3, 0), new THREE.Vector3(-1.25, 1.05, 0.2), new THREE.Vector3(-1.9, 1.2, 0.1)],
+      [new THREE.Vector3(-0.5, -0.05, 0), new THREE.Vector3(-1.25, -0.9, -0.2), new THREE.Vector3(-1.7, -1.1, -0.1)],
+      [new THREE.Vector3(-0.3, 0.45, 0), new THREE.Vector3(-0.8, 1.5, -0.3), new THREE.Vector3(-1.2, 1.85, -0.2)],
+    ].forEach((points) => addTube(scene.group, points, 0x4f9b62, 0.07))
+    addThreeDLabel(scene, 'Dendrite', new THREE.Vector3(-1.45, 1.35, 0.2))
+    return scene
+  }
+
+  addMesh(new THREE.SphereGeometry(1.8, 48, 32), new THREE.MeshPhysicalMaterial({ color: 0x5aa5b8, transparent: true, opacity: 0.22, roughness: 0.35, transmission: 0.25, side: THREE.DoubleSide }), new THREE.Vector3())
+  addMesh(new THREE.SphereGeometry(0.72, 32, 24), new THREE.MeshStandardMaterial({ color: 0x8c5ba8, roughness: 0.42 }), new THREE.Vector3(), 'Nucleus')
+  addMesh(new THREE.TorusGeometry(0.8, 0.12, 12, 32), new THREE.MeshStandardMaterial({ color: 0xe6a43b, roughness: 0.4 }), new THREE.Vector3(0.65, 0.65, 0.5), 'Mitochondrion')
+  addMesh(new THREE.SphereGeometry(0.32, 24, 16), new THREE.MeshStandardMaterial({ color: 0x4d9b7b, roughness: 0.45 }), new THREE.Vector3(-0.8, 0.55, -0.35), 'Vacuole')
+  addThreeDLabel(scene, 'Cell membrane', new THREE.Vector3(0.25, -1.75, 0.2))
+  addThreeDLabel(scene, 'Cytoplasm', new THREE.Vector3(-0.55, -0.6, 0.4))
+  return scene
+}
+
 export const ThreeDExplorerPlayer: FC<StemToolPlayerProps> = ({ config, onComplete }) => {
   const item = config as StemThreeDConfig
+  const containerRef = useRef<HTMLDivElement>(null)
+  const groupRef = useRef<THREE.Group | null>(null)
+  const openRef = useRef<(label: string) => void>(() => undefined)
   const [rotation, setRotation] = useState({ x: 0.2, y: -0.4 })
   const [opened, setOpened] = useState<string[]>([])
-  const points = threeDModelPoints(item.model).map((point) => ({ ...project3DPoint(point, rotation), source: point }))
-  const needed = item.requiredLabels.length ? item.requiredLabels : points.map((point) => point.label).filter((label): label is string => Boolean(label))
-  useEffect(() => { setRotation({ x: 0.2, y: -0.4 }); setOpened([]) }, [item.model, item.requiredLabels])
+  const needed = [...new Set(item.requiredLabels.length ? item.requiredLabels : threeDModelPoints(item.model).map((point) => point.label).filter((label): label is string => Boolean(label)))]
   const open = (label: string) => setOpened((current) => { const next = current.includes(label) ? current : [...current, label]; if (needed.every((target) => next.includes(target))) onComplete({ model: item.model, labelsOpened: next }); return next })
-  return <Stack spacing={1.25}><Typography variant="body2" color="text.secondary">Rotate the model, then open every label to complete the exploration.</Typography><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField type="number" size="small" label="X rotation" value={rotation.x} onChange={(event) => setRotation({ ...rotation, x: Number(event.target.value) })} inputProps={{ step: 0.1 }} /><TextField type="number" size="small" label="Y rotation" value={rotation.y} onChange={(event) => setRotation({ ...rotation, y: Number(event.target.value) })} inputProps={{ step: 0.1 }} /></Stack><Box component="svg" viewBox="0 0 420 300" role="img" aria-label={`Interactive 3D ${item.model} model`} sx={{ width: '100%', maxWidth: 520, alignSelf: 'center', border: 1, borderColor: 'divider', borderRadius: 1.5, backgroundColor: 'background.default' }}>{points.sort((first, second) => first.depth - second.depth).map((point, index) => <g key={index} onClick={() => point.label && open(point.label)} style={{ cursor: point.label ? 'pointer' : 'default' }}><circle cx={210 + point.x * 120} cy={150 - point.y * 120} r={16 + point.depth * 3} fill="currentColor" opacity={0.45 + (point.depth + 1) * 0.15} />{point.label && <text x={228 + point.x * 120} y={155 - point.y * 120} fill="currentColor" fontSize="13">{point.label}</text>}</g>)}</Box><Typography variant="caption" color="text.secondary">Labels opened: {opened.length}/{needed.length}</Typography></Stack>
+  openRef.current = open
+
+  useEffect(() => {
+    setRotation({ x: 0.2, y: -0.4 })
+    setOpened([])
+  }, [item.model, item.requiredLabels])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const width = container.clientWidth || 520
+    const height = 330
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100)
+    camera.position.set(0, 0, 7)
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setSize(width, height)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.domElement.setAttribute('aria-label', `Interactive 3D ${item.model} model`)
+    renderer.domElement.setAttribute('role', 'img')
+    container.appendChild(renderer.domElement)
+
+    scene.add(new THREE.HemisphereLight(0xe8f5f7, 0x21363e, 2.2))
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.5)
+    keyLight.position.set(3, 4, 5)
+    scene.add(keyLight)
+    const modelScene = createThreeDScene(item.model)
+    modelScene.group.rotation.set(rotation.x, rotation.y, 0)
+    groupRef.current = modelScene.group
+    scene.add(modelScene.group)
+
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+    let dragging = false
+    let moved = false
+    let lastX = 0
+    let lastY = 0
+    const pointerDown = (event: PointerEvent) => { dragging = true; moved = false; lastX = event.clientX; lastY = event.clientY; renderer.domElement.setPointerCapture(event.pointerId) }
+    const pointerMove = (event: PointerEvent) => { if (!dragging || !groupRef.current) return; moved = moved || Math.hypot(event.clientX - lastX, event.clientY - lastY) > 2; const next = { x: groupRef.current.rotation.x + (event.clientY - lastY) * 0.01, y: groupRef.current.rotation.y + (event.clientX - lastX) * 0.01 }; groupRef.current.rotation.set(next.x, next.y, 0); setRotation(next); lastX = event.clientX; lastY = event.clientY }
+    const pointerUp = () => { dragging = false }
+    const pointerClick = (event: MouseEvent) => {
+      if (moved) { moved = false; return }
+      const bounds = renderer.domElement.getBoundingClientRect()
+      pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1)
+      raycaster.setFromCamera(pointer, camera)
+      const hit = raycaster.intersectObjects(modelScene.labels.map(({ object }) => object), false)[0]
+      if (hit?.object.userData.label) openRef.current(hit.object.userData.label)
+    }
+    renderer.domElement.addEventListener('pointerdown', pointerDown)
+    renderer.domElement.addEventListener('pointermove', pointerMove)
+    renderer.domElement.addEventListener('pointerup', pointerUp)
+    renderer.domElement.addEventListener('pointerleave', pointerUp)
+    renderer.domElement.addEventListener('click', pointerClick)
+    let frame = 0
+    const animate = () => { frame = window.requestAnimationFrame(animate); renderer.render(scene, camera) }
+    animate()
+    const resizeObserver = new ResizeObserver(() => { const nextWidth = container.clientWidth || 520; camera.aspect = nextWidth / height; camera.updateProjectionMatrix(); renderer.setSize(nextWidth, height) })
+    resizeObserver.observe(container)
+    return () => { window.cancelAnimationFrame(frame); resizeObserver.disconnect(); renderer.domElement.removeEventListener('pointerdown', pointerDown); renderer.domElement.removeEventListener('pointermove', pointerMove); renderer.domElement.removeEventListener('pointerup', pointerUp); renderer.domElement.removeEventListener('pointerleave', pointerUp); renderer.domElement.removeEventListener('click', pointerClick); renderer.dispose(); modelScene.group.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => material.dispose()) } }); container.replaceChildren(); groupRef.current = null }
+  }, [item.model])
+
+  useEffect(() => { if (groupRef.current) groupRef.current.rotation.set(rotation.x, rotation.y, 0) }, [rotation])
+
+  return <Stack spacing={1.25}><Typography variant="body2" color="text.secondary">Drag the model to rotate it, then click every label to complete the exploration.</Typography><Box ref={containerRef} role="application" aria-label={`${item.model} 3D explorer`} sx={{ width: '100%', maxWidth: 520, minHeight: 330, alignSelf: 'center', border: 1, borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden', background: 'radial-gradient(circle at 50% 38%, rgba(90, 165, 184, 0.2), transparent 62%), #f4fafb', cursor: 'grab', '&:active': { cursor: 'grabbing' } }} /><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><TextField type="number" size="small" label="X rotation" value={rotation.x.toFixed(2)} onChange={(event) => setRotation({ ...rotation, x: Number(event.target.value) })} inputProps={{ step: 0.1 }} /><TextField type="number" size="small" label="Y rotation" value={rotation.y.toFixed(2)} onChange={(event) => setRotation({ ...rotation, y: Number(event.target.value) })} inputProps={{ step: 0.1 }} /></Stack><Typography variant="caption" color="text.secondary">Labels opened: {opened.length}/{needed.length}</Typography></Stack>
 }
 
 export const PunnettBuilder: FC<StemToolBuilderProps> = ({ config, onConfigChange }) => {
