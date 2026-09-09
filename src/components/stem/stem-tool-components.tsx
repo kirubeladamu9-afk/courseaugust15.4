@@ -596,12 +596,18 @@ const createThreeDScene = (model: StemThreeDConfig['model']): ThreeDScene => {
     return scene
   }
 
-  addMesh(new THREE.SphereGeometry(1.8, 48, 32), new THREE.MeshPhysicalMaterial({ color: 0x5aa5b8, transparent: true, opacity: 0.22, roughness: 0.35, transmission: 0.25, side: THREE.DoubleSide }), new THREE.Vector3())
-  addMesh(new THREE.SphereGeometry(0.72, 32, 24), new THREE.MeshStandardMaterial({ color: 0x8c5ba8, roughness: 0.42 }), new THREE.Vector3(), 'Nucleus')
-  addMesh(new THREE.TorusGeometry(0.8, 0.12, 12, 32), new THREE.MeshStandardMaterial({ color: 0xe6a43b, roughness: 0.4 }), new THREE.Vector3(0.65, 0.65, 0.5), 'Mitochondrion')
-  addMesh(new THREE.SphereGeometry(0.32, 24, 16), new THREE.MeshStandardMaterial({ color: 0x4d9b7b, roughness: 0.45 }), new THREE.Vector3(-0.8, 0.55, -0.35), 'Vacuole')
-  addThreeDLabel(scene, 'Cell membrane', new THREE.Vector3(0.25, -1.75, 0.2))
-  addThreeDLabel(scene, 'Cytoplasm', new THREE.Vector3(-0.55, -0.6, 0.4))
+  const cytoplasm = addMesh(new THREE.SphereGeometry(1.58, 48, 32), new THREE.MeshStandardMaterial({ color: 0xe9b6a8, roughness: 0.65, metalness: 0.02 }), new THREE.Vector3())
+  cytoplasm.scale.set(1.25, 0.92, 1.05)
+  const membrane = addMesh(new THREE.SphereGeometry(1.8, 48, 32), new THREE.MeshPhysicalMaterial({ color: 0x5aa5b8, transparent: true, opacity: 0.2, roughness: 0.28, transmission: 0.35, depthWrite: false, side: THREE.DoubleSide }), new THREE.Vector3())
+  membrane.scale.set(1.28, 0.95, 1.08)
+  const nucleus = addMesh(new THREE.SphereGeometry(0.7, 32, 24), new THREE.MeshStandardMaterial({ color: 0x71429b, roughness: 0.42 }), new THREE.Vector3(-0.25, 0.05, 0.35), 'Nucleus')
+  nucleus.scale.set(1.05, 0.9, 0.95)
+  const mitochondrion = addMesh(new THREE.SphereGeometry(0.34, 24, 16), new THREE.MeshStandardMaterial({ color: 0xe69b32, roughness: 0.4 }), new THREE.Vector3(0.75, 0.5, 0.55), 'Mitochondrion')
+  mitochondrion.scale.set(1.45, 0.58, 0.62)
+  mitochondrion.rotation.z = -0.45
+  addMesh(new THREE.SphereGeometry(0.3, 24, 16), new THREE.MeshStandardMaterial({ color: 0x4d9b7b, roughness: 0.45 }), new THREE.Vector3(-0.75, 0.55, -0.4), 'Vacuole')
+  addThreeDLabel(scene, 'Cell membrane', new THREE.Vector3(0.25, -1.75, 0.45))
+  addThreeDLabel(scene, 'Cytoplasm', new THREE.Vector3(-0.75, -0.55, 0.9))
   return scene
 }
 
