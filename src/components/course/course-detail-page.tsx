@@ -18,6 +18,7 @@ import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
 import { type FC, useEffect, useState } from 'react'
 import { type AdminCourse, type AdminLesson } from '@/components/admin/admin-data'
 import EnrollmentModal from '@/components/course/enrollment-modal'
+import Footer from '@/components/footer/footer'
 import { getAuthenticatedUser, getAdminCourse, getCourse as getCourseFromApi } from '@/services/api'
 import { navigateTo } from '@/lib/navigation'
 
@@ -157,6 +158,7 @@ const CourseDetailPage: FC<{ courseId: string }> = ({ courseId }) => {
       </Grid>
     </Container>
     <EnrollmentModal course={course} open={isEnrollmentOpen} paymentReference={paymentReference} onClose={() => setIsEnrollmentOpen(false)} />
+    <Footer />
   </Box>
 }
 
